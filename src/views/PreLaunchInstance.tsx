@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 export const PreLaunchInstance = ({ instance }: { instance: any }) => {
 
     const [loadingStatus, setLoadingStatus] = useState({
-        isLoading: true,
+        isLoading: false,
         message: "Descargando archivos necesarios...",
         progress: 0,
         logs: []
@@ -14,10 +14,38 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
 
     const handlePlayButtonClick = async () => {
         console.log("Launching Minecraft instance...")
-        await invoke("launch_mc_instance", {
-            "instancePath": "C:\\Users\\alexb\\ModpackStore/Instances\\pepe"
-        })
+
+        setLoadingStatus((prev) => ({
+            ...prev,
+            isLoading: true,
+            message: getRandomMessage(),
+        }))
+
+        // Si después querés lanzar el juego, descomentá esto
+        // await invoke("launch_mc_instance", {
+        //     instancePath: "C:\\Users\\alexb\\ModpackStore\\Instances\\pepe",
+        // })
+
+        setInterval(() => {
+            setLoadingStatus((prev) => ({
+                ...prev,
+                message: getRandomMessage(),
+            }))
+        }
+            , 5000)
     }
+
+    const getRandomMessage = () => {
+        const messages = [
+            "Descargando archivos necesarios...",
+            "Cargando modpack...",
+            "Muy pronto estarás jugando...",
+            "Seguro que te va a encantar...",
+            "Preparando todo para ti...",
+        ]
+        return messages[Math.floor(Math.random() * messages.length)]
+    }
+
 
     const { titleBarState, setTitleBarState } = useGlobalContext()
 

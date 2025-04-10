@@ -1,9 +1,16 @@
 import { useGlobalContext } from "@/stores/GlobalContext"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideGamepad2 } from "lucide-react"
-import { useEffect } from "react"
+import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
+import { useEffect, useState } from "react"
 
 export const PreLaunchInstance = ({ instance }: { instance: any }) => {
+
+    const [loadingStatus, setLoadingStatus] = useState({
+        isLoading: true,
+        message: "Descargando archivos necesarios...",
+        progress: 0,
+        logs: []
+    })
 
     const handlePlayButtonClick = async () => {
         console.log("Launching Minecraft instance...")
@@ -26,6 +33,14 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
 
     return (
         <>
+            {
+                loadingStatus.isLoading && (
+                    <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center"> {/* Añadí items-center para mejor alineación vertical */}
+                        <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" /> {/* <-- Añadir flex-shrink-0 aquí */}
+                        {loadingStatus.message}
+                    </div>
+                )
+            }
             <img
                 style={{
                     maskImage: "linear-gradient(to bottom, white 60% , rgba(0, 0, 0, 0) 100%)",
@@ -41,7 +56,8 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
                     <button
                         id="play-button"
                         onClick={handlePlayButtonClick}
-                        className="bg-green-600 font-monocraft cursor-pointer active:scale-95 transition active:bg-neutral-800 px-4 py-2  border-3 border-white items-center flex gap-x-2 font-semibold hover:bg-green-700">
+                        disabled={loadingStatus.isLoading}
+                        className="bg-green-600 font-monocraft cursor-pointer active:scale-95 transition active:bg-neutral-800 px-4 py-2  border-3 border-white items-center flex gap-x-2 font-semibold hover:bg-green-700 disabled:bg-neutral-800 disabled:cursor-not-allowed">
                         <LucideGamepad2 className="size-6 text-white" />
                         Jugar ahora
                     </button>

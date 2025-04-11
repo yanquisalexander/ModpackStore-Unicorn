@@ -38,18 +38,23 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn launch_mc_instance(instance_path: String) -> Result<(), String> {
-    let path = Path::new(&instance_path);
-    if path.exists() && path.is_dir() {
-        let instance = MinecraftInstance::from_directory(path)
-            .ok_or_else(|| format!("Failed to load instance from directory: {}", path.display()))?;
+pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
+    let instances_dir = get_config_manager()
+        .lock()
+        .unwrap()
+        .get_instances_dir();
 
-        instance
-            .launch()
-            .map_err(|e| format!("Failed to launch instance: {}", e))?;
-    } else {
-        return Err("Instance path does not exist".to_string());
-    }
+    let instances = get_instances(instances_dir.to_str().unwrap())?;
+
+    let instance = instances
+        .into_iter()
+        .find(|i| i.instanceId == instance_id)
+        .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
+
+    instance
+        .launch()
+        .map_err(|e| format!("Failed to launch instance: {}", e))?;
+
     Ok(())
 }
 

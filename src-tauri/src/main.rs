@@ -10,6 +10,11 @@ pub fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         
+        .setup(|app| {
+            let main_window = app.get_webview_window("main").unwrap();
+            main_window.set_focus().unwrap();
+            Ok(())
+        })
 
         .invoke_handler(tauri::generate_handler![
             core::network_utilities::check_connection,

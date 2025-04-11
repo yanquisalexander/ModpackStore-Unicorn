@@ -1,7 +1,7 @@
 // src/views/ConfigurationSection.tsx
 import { useEffect, useState } from 'react';
 import configManager, { ConfigKey } from '../utils/ConfigManager';
-import { open } from "@tauri-apps/plugin-fs";
+import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from "sonner";
 import { useGlobalContext } from "../stores/GlobalContext";
 import { LucideSettings } from "lucide-react";

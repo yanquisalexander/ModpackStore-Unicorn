@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, CSSProperties } from "react"
 import { ModpackCard } from "./ModpackCard"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -52,6 +52,13 @@ export const CategoryHorizontalSection = ({
 
             <div className="relative">
                 {/* Left scroll button */}
+
+                <div
+                    style={{
+                        opacity: showLeftArrow ? 1 : 0,
+                    } as CSSProperties}
+                    className="pointer-events-none transition absolute left-0 top-0 bottom-0 w-32 z-5 bg-gradient-to-r from-ms-primary to-transparent" />
+
                 {showLeftArrow && (
                     <button
                         onClick={scrollLeft}
@@ -98,6 +105,11 @@ export const CategoryHorizontalSection = ({
                 </div>
 
                 {/* Right scroll button */}
+                <div
+                    style={{
+                        opacity: showRightArrow ? 1 : 0,
+                    } as CSSProperties}
+                    className="pointer-events-none transition absolute right-0 top-0 bottom-0 w-32 z-5 bg-gradient-to-l from-ms-primary to-transparent" />
                 {showRightArrow && (
                     <button
                         onClick={scrollRight}

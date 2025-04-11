@@ -117,7 +117,7 @@ export const AppTitleBar = () => {
                             {
                                 taskCount >= 1 ? <span className="absolute top-1 -right-1 bg-sky-600 size-4 text-xs text-white rounded-full px-1">{taskCount}</span> : null
                             }
-                            <LucideRefreshCcw className="size-4 animate-delay-500 animate-iteration-count-infinite animate-duration-[1500ms] animate-rotate-360 text-white" />
+                            <LucideRefreshCcw className="size-4 animate-delay-700 animate-iteration-count-infinite animate-duration-[1500ms] animate-rotate-360 text-white" />
                         </button>
                     )
                 }
@@ -125,7 +125,7 @@ export const AppTitleBar = () => {
                 <button
                     onClick={handlePatreonClick}
                     title="Colaborar con el desarrollo"
-                    className="cursor-pointer flex group animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center" aria-label="Settings">
+                    className="cursor-pointer flex group size-9 aspect-square items-center justify-center" aria-label="Settings">
                     <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500 transition duration-300" />
                 </button>
 

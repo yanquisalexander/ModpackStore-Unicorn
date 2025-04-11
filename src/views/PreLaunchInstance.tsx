@@ -6,9 +6,15 @@ import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
 import { CSSProperties, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
+import { useInstances } from "@/stores/InstancesContext" // Importamos el hook de instancias
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
+    const { instances } = useInstances() // Usamos el contexto de instancias
+
+    // Obtenemos la instancia específica del contexto
+    const currentInstance = instances.find(inst => inst.id === instanceId) || null
+    console.log({ currentInstance })
 
     const [prelaunchState, setPrelaunchState] = useState<{
         isLoading: boolean,
@@ -21,6 +27,26 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         error: null,
         instance: null,
     })
+
+    // Calculamos el estado de carga basado en el estado de la instancia en el contexto
+    const [loadingStatus, setLoadingStatus] = useState({
+        isLoading: false,
+        message: "Descargando archivos necesarios...",
+        progress: 0,
+        logs: []
+    })
+
+    // Actualizamos el loadingStatus basado en el currentInstance
+    useEffect(() => {
+        if (currentInstance) {
+            const isLoading = currentInstance.status === "preparing" || currentInstance.status === "downloading-assets";
+            setLoadingStatus(prev => ({
+                ...prev,
+                isLoading,
+                message: currentInstance.message || getRandomMessage(),
+            }));
+        }
+    }, [currentInstance]);
 
     const getMinecraftInstance = async (instanceId: string) => {
         setTitleBarState({
@@ -48,7 +74,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 opaque: false,
             })
 
-
         } catch (error) {
             console.error("Error fetching instance data:", error)
             setPrelaunchState({
@@ -63,17 +88,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         getMinecraftInstance(instanceId)
     }, [])
 
-
-    const [loadingStatus, setLoadingStatus] = useState({
-        isLoading: false,
-        message: "Descargando archivos necesarios...",
-        progress: 0,
-        logs: []
-    })
-
     const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
-
-
 
     const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null)
 
@@ -91,8 +106,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 })
             })
         })
-    }
-        , [])
+    }, [])
 
     useEffect(() => {
         if (!appearance?.audio?.url) return
@@ -127,24 +141,32 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const handlePlayButtonClick = async () => {
         console.log("Launching Minecraft instance...")
 
-        setLoadingStatus((prev) => ({
-            ...prev,
-            isLoading: true,
-            message: getRandomMessage(),
-        }))
 
-        // Si después querés lanzar el juego, descomentá esto
+
+
+        // Lanzamos la instancia
         await invoke("launch_mc_instance", {
             instanceId: prelaunchState.instanceId,
         })
 
-        setInterval(() => {
-            setLoadingStatus((prev) => ({
+        // Este intervalo solo es necesario si no recibes actualizaciones frecuentes a través
+        // de los eventos. Si los eventos funcionan correctamente, puedes omitir esto.
+        const messageInterval = setInterval(() => {
+            if (currentInstance?.status !== "running" && currentInstance?.status !== "preparing") {
+                clearInterval(messageInterval);
+                return;
+            }
+
+            setLoadingStatus(prev => ({
                 ...prev,
                 message: getRandomMessage(),
-            }))
-        }
-            , 5000)
+            }));
+        }, 5000);
+
+        // Limpiamos el intervalo cuando el componente se desmonte
+        return () => {
+            clearInterval(messageInterval);
+        };
     }
 
     const getRandomMessage = () => {
@@ -158,11 +180,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         return messages[Math.floor(Math.random() * messages.length)]
     }
 
-
-
-
-
-
     if (prelaunchState.isLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen h-full w-full">
@@ -170,6 +187,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             </div>
         )
     }
+
     if (prelaunchState.error) {
         toast.error(prelaunchState.error, {
             id: "instance-error",
@@ -190,13 +208,22 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         )
     }
 
+    // Si tenemos una instancia en el contexto y tiene un error, mostramos un mensaje de error
+    if (currentInstance?.status === "error") {
+        toast.error("Error en la instancia", {
+            id: "instance-runtime-error",
+            description: currentInstance.message || "Ha ocurrido un error al ejecutar la instancia.",
+            dismissible: false,
+        });
+    }
+
     return (
         <div className="absolute inset-0">
             <div className="relative h-full w-full overflow-hidden">
                 {
                     loadingStatus.isLoading && (
-                        <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center"> {/* Añadí items-center para mejor alineación vertical */}
-                            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" /> {/* <-- Añadir flex-shrink-0 aquí */}
+                        <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center">
+                            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
                             {loadingStatus.message}
                         </div>
                     )
@@ -211,7 +238,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 />
 
                 {/* Logo del modpack */}
-
                 <img
                     src={appearance?.logo?.url}
                     alt="Logo"
@@ -226,11 +252,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                     className={`absolute z-10 animate-fade-in duration-500 ease-in-out ${logoHasCustomPosition && "fixed"}`}
                 />
 
-
-
-
                 <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
-
                     <div className="flex flex-col items-center justify-center space-y-4">
                         <button
                             style={{
@@ -265,7 +287,9 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                           `}
                         >
                             <LucideGamepad2 className="size-6 text-[var(--text-color)]" />
-                            {appearance?.playButton?.text ?? "Jugar ahora"}
+                            {currentInstance?.status === "running"
+                                ? "Jugando..."
+                                : appearance?.playButton?.text ?? "Jugar ahora"}
                         </button>
 
                         <div className="flex items-center justify-center space-x-2">
@@ -277,8 +301,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                     </div>
                 </footer>
             </div>
-
-
         </div>
     )
 }

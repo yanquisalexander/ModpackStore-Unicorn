@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { GlobalContextProvider } from "./stores/GlobalContext";
 import { isTauri } from "@tauri-apps/api/core";
 import { TasksProvider } from "./stores/TasksContext";
+import { InstancesProvider } from "./stores/InstancesContext";
 
 if (!isTauri()) {
   const msg = "This app requires Tauri to run. Please run it in a Tauri environment.";
@@ -19,9 +20,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <GlobalContextProvider>
       <TasksProvider>
-        <AppTitleBar />
-        <App />
-        <Toaster theme="dark" />
+        <InstancesProvider>
+          <AppTitleBar />
+          <App />
+          <Toaster theme="dark" />
+        </InstancesProvider>
       </TasksProvider>
     </GlobalContextProvider>
   </React.StrictMode>,

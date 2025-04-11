@@ -62,6 +62,13 @@ impl AccountsManager {
         self.accounts.iter().find(|a| a.uuid() == uuid).cloned()
     }
 
+    pub fn get_minecraft_account_by_uuid(&self, uuid: &str) -> Option<MinecraftAccount> {
+        self.accounts
+            .iter()
+            .find(|a| a.uuid() == uuid)
+            .cloned()
+    }
+
     fn load(&mut self) {
         if !self.accounts_file.exists() {
             println!("accounts.json file doesn't exist. Creating a new one...");

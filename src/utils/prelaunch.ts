@@ -5,7 +5,10 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title: 
     return {
         title,
         description,
+        audio: {
+            url: "https://cdn.saltouruguayserver.com/sounds/launcher_bg_loop.mp3",
 
+        },
         logo: {
             url: logoUrl,
             height: "132px",

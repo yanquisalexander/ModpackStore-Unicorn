@@ -2,6 +2,7 @@
 
 mod core;
 mod utils;
+mod interfaces;
 
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit

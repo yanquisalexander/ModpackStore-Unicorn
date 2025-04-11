@@ -7,6 +7,10 @@ use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo};
+use crate::core::minecraft_account::MinecraftAccount;
+use crate::core::vanilla_launcher::VanillaLauncher;
+use crate::interfaces::game_launcher::GameLauncher;
+
 
 pub struct InstanceLauncher {
     instance: MinecraftInstance,
@@ -17,6 +21,7 @@ impl InstanceLauncher {
         Self { instance }
     }
 
+
     pub fn launch_instance(&self) -> IoResult<Child> {
 
 
@@ -26,7 +31,7 @@ impl InstanceLauncher {
 
         tasks_manager.update_task(&task_id, TaskStatus::Running, 0.0, "Instance is launching...", None);
 
-        
+
 
         // Obtener el ConfigManager (asumo que tiene una implementación similar)
         let config_manager = get_config_manager();
@@ -64,25 +69,35 @@ impl InstanceLauncher {
             println!("This is a Vanilla instance.");
         }
 
-        // Validar la cuenta (esto necesitaría una implementación equivalente a LaunchHelper)
         let account = self.validate_account()?;
+
+      
 
         // Revalidar assets antes de lanzar
         self.revalidate_assets()?;
 
-        // Construir los argumentos de Java para lanzar Minecraft
-        let launch_args = self.build_launch_args(&java_path, &account)?;
+      
 
-        // Crear y devolver el proceso
-        Command::new(&java_path)
-            .args(&launch_args)
-            .current_dir(Path::new(
-                self.instance
-                    .instanceDirectory
-                    .as_ref()
-                    .unwrap_or(&String::new()),
-            ))
-            .spawn()
+        // Aquí iría la lógica para lanzar la instancia de Minecraft
+        // usando vanilla_launcher o forge_launcher
+
+
+        if is_forge {
+            println!("Launching Forge instance...");
+            // TODO: implementar lógica Forge
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Forge launching not implemented yet"));
+        } else {
+            let launcher = VanillaLauncher::new(self.instance.clone());
+            let child = GameLauncher::launch(&launcher).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Other, "Failed to launch Minecraft instance")
+            })?;
+            Ok(child)
+        }
+        
+
+        
+
+
     }
 
     fn validate_account(&self) -> IoResult<Value> {
@@ -112,66 +127,5 @@ impl InstanceLauncher {
         );
         Ok(())
     }
-
-    fn build_launch_args(&self, java_path: &Path, account: &Value) -> IoResult<Vec<String>> {
-        // Construir los argumentos para lanzar Minecraft
-        // Esto sería una traducción de lo que hace LaunchHelper en Java
-        let mut args = Vec::new();
-
-        // Argumentos de Java para Minecraft
-        args.push("-Xmx2G".to_string()); // Ejemplo de memoria máxima
-        args.push("-XX:+UnlockExperimentalVMOptions".to_string());
-        args.push("-XX:+UseG1GC".to_string());
-        args.push("-XX:G1NewSizePercent=20".to_string());
-        args.push("-XX:G1ReservePercent=20".to_string());
-        args.push("-XX:MaxGCPauseMillis=50".to_string());
-        args.push("-XX:G1HeapRegionSize=32M".to_string());
-
-        // Agregar argumentos de JVM específicos de Minecraft
-        args.push(
-            "-Djava.library.path=".to_string()
-                + &self
-                    .instance
-                    .instanceDirectory
-                    .as_ref()
-                    .unwrap_or(&String::new()),
-        );
-        args.push("-Dminecraft.launcher.brand=Modpack Store".to_string());
-        args.push("-Dminecraft.launcher.version=1.0".to_string());
-
-        // Agregar gameDir y assetIndex
-        args.push(format!(
-            "-DgameDir={}",
-            self.instance
-                .instanceDirectory
-                .as_ref()
-                .unwrap_or(&String::new())
-        ));
-        args.push(format!(
-            "-DassetsDir={}/assets",
-            self.instance
-                .instanceDirectory
-                .as_ref()
-                .unwrap_or(&String::new())
-        ));
-
-        // Aquí se añadirían más argumentos según la configuración de Forge/Vanilla
-
-        // Clase principal de Minecraft
-        let main_class = if self.instance.is_forge_instance() {
-            "net.minecraft.launchwrapper.Launch" // Para Forge
-        } else {
-            "net.minecraft.client.main.Main" // Para Vanilla
-        };
-
-        args.push(main_class.to_string());
-
-        // Argumentos específicos de Minecraft (usuario, token, etc.)
-        // Estos variarían según la versión y si es Forge o no
-
-        println!("Launch arguments: {:?}", args);
-        println!("Full command: {} {:?}", java_path.display(), args);
-
-        Ok(args)
-    }
+   
 }

@@ -95,23 +95,27 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         , [])
 
     useEffect(() => {
-        // Cargar el audio (si existe) y reproducirlo en bucle
         if (!appearance?.audio?.url) return
         const audioElement = new Audio(appearance?.audio?.url)
         setAudio(audioElement)
 
-        audioElement.play().catch((error) => {
-            console.error("Error playing audio:", error);
-        });
+        const playAudio = () => {
+            audioElement.play().catch((error) => {
+                console.error("Error playing audio:", error);
+            });
+        }
+
+        const timeoutId = setTimeout(playAudio, 500)
 
         audioElement.loop = true
         audioElement.volume = 0.01 // 8% de volumen 
 
         return () => {
+            clearTimeout(timeoutId)
             audioElement.pause()
             audioElement.currentTime = 0
         }
-    }, [])
+    }, [appearance?.audio?.url])
 
     // Verifica si hay una posición personalizada
     const hasCustomPosition = appearance?.playButton?.position &&

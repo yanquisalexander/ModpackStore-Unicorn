@@ -69,11 +69,11 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     useEffect(() => {
         const checkAndDownload = async () => {
             setUpdateState("checking");
-            setIsUpdating(true);
 
             try {
                 const update = await check();
                 if (update) {
+                    setIsUpdating(true);
                     setUpdateVersion(update.version);
                     setUpdateState("downloading");
 
@@ -101,7 +101,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
             } catch (err) {
                 console.error("Error checking/downloading update:", err);
-                setUpdateState("error");
+
                 setIsUpdating(false);
             }
         };

@@ -20,6 +20,8 @@ export const UpdateStatus = () => {
         error: <LucideAlertCircle className="size-5 text-red-400" />,
     }[updateState as string];
 
+    if (!isUpdating) return null; // No mostrar el componente si no hay actualización
+
     return (
         <div className="flex items-start gap-3 fixed bottom-6 right-6 z-50 w-80 p-4 rounded-2xl shadow-xl border border-white/10 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-md text-white animate-fade-in-up animate-duration-400">
             {/* Icon */}

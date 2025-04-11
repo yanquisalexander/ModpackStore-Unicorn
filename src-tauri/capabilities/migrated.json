@@ -53,6 +53,7 @@
     "fs:allow-home-write-recursive",
     "fs:allow-home-write",
     "process:default",
-    "http:default"
+    "http:default",
+    "updater:default"
   ]
 }

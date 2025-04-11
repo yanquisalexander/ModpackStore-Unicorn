@@ -1,4 +1,5 @@
 use crate::core::minecraft_account::MinecraftAccount;
+use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use serde_json::{self, json};
 use std::fs::{self, File};
@@ -6,7 +7,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
-use dirs::config_dir;
 
 pub struct AccountsManager {
     accounts: Vec<MinecraftAccount>,
@@ -21,10 +21,13 @@ impl AccountsManager {
             .join("accounts.json");
         if !accounts_file.exists() {
             let default_accounts = json!([]);
-            fs::write(&accounts_file, serde_json::to_string_pretty(&default_accounts).unwrap())
-                .expect("Failed to create accounts.json file");
+            fs::write(
+                &accounts_file,
+                serde_json::to_string_pretty(&default_accounts).unwrap(),
+            )
+            .expect("Failed to create accounts.json file");
         }
-        
+
         let mut manager = AccountsManager {
             accounts: Vec::new(),
             accounts_file,
@@ -67,17 +70,15 @@ impl AccountsManager {
         }
 
         match fs::read_to_string(&self.accounts_file) {
-            Ok(contents) => {
-                match serde_json::from_str::<Vec<MinecraftAccount>>(&contents) {
-                    Ok(loaded_accounts) => {
-                        self.accounts = loaded_accounts;
-                        println!("Accounts loaded successfully: {}", self.accounts.len());
-                    }
-                    Err(e) => {
-                        eprintln!("Error parsing accounts.json: {}", e);
-                    }
+            Ok(contents) => match serde_json::from_str::<Vec<MinecraftAccount>>(&contents) {
+                Ok(loaded_accounts) => {
+                    self.accounts = loaded_accounts;
+                    println!("Accounts loaded successfully: {}", self.accounts.len());
                 }
-            }
+                Err(e) => {
+                    eprintln!("Error parsing accounts.json: {}", e);
+                }
+            },
             Err(e) => {
                 eprintln!("Error reading accounts.json: {}", e);
             }
@@ -112,21 +113,24 @@ impl AccountsManager {
         if username.is_empty() {
             return Err("Username cannot be null or empty".to_string());
         }
-        
+
         if username.len() < 3 || username.len() > 16 {
             return Err("Username must be between 3 and 16 characters".to_string());
         }
-        
+
         if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            return Err("Username can only contain letters (a-z, A-Z), numbers (0-9), and underscores (_)".to_string());
+            return Err(
+                "Username can only contain letters (a-z, A-Z), numbers (0-9), and underscores (_)"
+                    .to_string(),
+            );
         }
 
         // Create the string to hash
         let string_to_hash = format!("OfflinePlayer:{}", username);
-        
+
         // Generate the UUID (Version 3, name-based)
         let offline_uuid = Uuid::new_v3(&Uuid::NAMESPACE_DNS, string_to_hash.as_bytes());
-        
+
         Ok(offline_uuid.to_string())
     }
 }

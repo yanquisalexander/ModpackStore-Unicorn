@@ -1,5 +1,5 @@
 // src/core/NetworkUtilities.rs
-use tauri_plugin_http::reqwest as reqwest;
+use tauri_plugin_http::reqwest;
 
 #[tauri::command]
 pub fn check_connection() -> bool {

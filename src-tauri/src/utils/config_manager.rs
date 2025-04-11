@@ -1,3 +1,4 @@
+use dirs::config_dir;
 use once_cell::sync::OnceCell;
 use serde_json::{json, Value};
 use std::{
@@ -5,7 +6,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
-use dirs::config_dir;
 
 #[derive(Debug)]
 pub struct ConfigManager {
@@ -13,10 +13,10 @@ pub struct ConfigManager {
     content: Value,
 }
 
-
 impl ConfigManager {
     fn new() -> Self {
-               let config_file = config_dir().expect("No se pudo obtener el directorio de configuración")
+        let config_file = config_dir()
+            .expect("No se pudo obtener el directorio de configuración")
             .join("dev.alexitoo.modpackstore")
             .join("config.json");
         let content = if config_file.exists() {
@@ -49,7 +49,6 @@ impl ConfigManager {
         write(&self.config_path, json).expect("No se pudo guardar la configuración");
     }
 
-
     pub fn set_config(&mut self, new_content: Value) {
         self.content = new_content;
     }
@@ -60,7 +59,10 @@ impl ConfigManager {
 
     // Métodos específicos
     pub fn get_instances_dir(&self) -> PathBuf {
-        let default = dirs::home_dir().unwrap().join("ModpackStore").join("Instances");
+        let default = dirs::home_dir()
+            .unwrap()
+            .join("ModpackStore")
+            .join("Instances");
         PathBuf::from(
             self.content
                 .get("instancesDir")

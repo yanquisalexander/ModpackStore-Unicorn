@@ -11,6 +11,7 @@ import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useCheckConnection } from "./utils/checkConnection";
 import { LucideLoader } from "lucide-react";
 import { MyInstancesSection } from "./views/MyInstancesSection";
+import { UpdateStatus } from "./components/UpdateStatus";
 
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
           </div>
         ) : (
           <>
+            <UpdateStatus />
             <HomeMainHeader session={null} />
             <Switch>
               <Route path="/" component={ExploreSection} />

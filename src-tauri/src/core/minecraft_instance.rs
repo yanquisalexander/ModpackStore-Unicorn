@@ -1,9 +1,9 @@
 // src-tauri/src/minecraft_instance.rs
+use crate::core::minecraft_launcher::InstanceLauncher;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
-use crate::core::minecraft_launcher::InstanceLauncher;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackInfo {
@@ -46,9 +46,11 @@ impl MinecraftInstance {
                         // Aseguramos que instanceDirectory sea una ruta válida
                         // y que no esté vacía
                         if instance.instanceDirectory.is_none() {
-                            instance.instanceDirectory = Some(directory.to_string_lossy().to_string());
+                            instance.instanceDirectory =
+                                Some(directory.to_string_lossy().to_string());
                         } else {
-                            instance.instanceDirectory = Some(instance.instanceDirectory.unwrap_or_default());
+                            instance.instanceDirectory =
+                                Some(instance.instanceDirectory.unwrap_or_default());
                         }
                         Some(instance)
                     }
@@ -60,7 +62,8 @@ impl MinecraftInstance {
     }
 
     pub fn save(&self) -> IoResult<()> {
-        let config_file = Path::new(&self.instanceDirectory.as_ref().unwrap_or(&String::new())).join("instance.json");
+        let config_file = Path::new(&self.instanceDirectory.as_ref().unwrap_or(&String::new()))
+            .join("instance.json");
         let content = serde_json::to_string_pretty(self)?;
         fs::write(config_file, content)
     }
@@ -82,8 +85,6 @@ impl MinecraftInstance {
         Ok(())
     }
 }
-
-
 
 #[tauri::command]
 pub fn save_minecraft_instance(instance: MinecraftInstance) -> bool {

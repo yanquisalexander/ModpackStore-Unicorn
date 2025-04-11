@@ -1,28 +1,22 @@
 // src-tauri/src/core/instance_manager.rs
 
-use crate::core::models::{ ModpackInfo};
+use crate::core::minecraft_instance;
+use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::models::ModpackInfo;
+use crate::utils::config_manager::get_config_manager;
+use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
 use std::path::{Path, PathBuf};
-use dirs::config_dir;
-use crate::utils::config_manager::get_config_manager;
-use crate::core::minecraft_instance;
-use crate::core::minecraft_instance::MinecraftInstance;
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
-    let instances_dir = get_config_manager()
-        .lock()
-        .unwrap()
-        .get_instances_dir(); // Obtén el directorio de instancias desde la configuración
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
     get_instances(instances_dir.to_str().unwrap()) // Pasa la ruta como string
 }
 
 #[tauri::command]
 pub fn get_instance_by_name(name: String) -> Result<Option<MinecraftInstance>, String> {
-    let instances_dir = get_config_manager()
-        .lock()
-        .unwrap()
-        .get_instances_dir(); // Obtén el directorio de instancias desde la configuración
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
     let instances = get_instances(instances_dir.to_str().unwrap())?;
     Ok(instances.into_iter().find(|i| i.instanceName == name))
 }
@@ -40,20 +34,17 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 pub fn launch_mc_instance(instance_path: String) -> Result<(), String> {
     let path = Path::new(&instance_path);
     if path.exists() && path.is_dir() {
-        let instance = MinecraftInstance::from_directory(path).ok_or_else(|| {
-            format!("Failed to load instance from directory: {}", path.display())
-        })?;
+        let instance = MinecraftInstance::from_directory(path)
+            .ok_or_else(|| format!("Failed to load instance from directory: {}", path.display()))?;
 
-        instance.launch().map_err(|e| {
-            format!("Failed to launch instance: {}", e)
-        })?;
+        instance
+            .launch()
+            .map_err(|e| format!("Failed to launch instance: {}", e))?;
     } else {
         return Err("Instance path does not exist".to_string());
     }
     Ok(())
 }
-
-
 
 fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> {
     let path = Path::new(instances_dir);
@@ -75,12 +66,12 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
                 let contents = fs::read_to_string(&config_file)
                     .map_err(|e| format!("Error reading JSON: {}", e))?;
 
-                let mut instance: MinecraftInstance = from_str(&contents)
-                    .map_err(|e| format!("Error parsing JSON: {}", e))?;
+                let mut instance: MinecraftInstance =
+                    from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
 
                 // Normalizamos las rutas usando Path
                 instance.instanceDirectory = Some(instance_path.to_string_lossy().to_string());
-                
+
                 // Usamos Path::join para construir rutas de manera segura entre plataformas
                 let minecraft_path = instance_path.join("minecraft");
                 instance.minecraftPath = minecraft_path.to_string_lossy().to_string();
@@ -88,10 +79,8 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
                 // Manejamos los errores al guardar
                 if let Err(e) = instance.save() {
                     println!("Warning: Failed to save instance config: {}", e);
-                    // Opcional: Puedes decidir si continuar o retornar el error
                 }
 
-                println!("Instance methods: {:?}", instance);
                 instances.push(instance);
             }
         }

@@ -15,13 +15,22 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
   },
   "productName": "Modpack Store",
   "mainBinaryName": "dev-alexitoo-modpackstore",
   "version": "0.1.0",
   "identifier": "dev.alexitoo.modpackstore",
-  "plugins": {},
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFEQkU3OENGNTg4NUQ4RkUKUldUKzJJVll6M2krSFRlRUxxNVJYQnRMaUVUak1CZlJ3M25FNWFicHhVaWVLK3dkUENBOGFrMnIK",
+      "endpoints": [
+        "https://update.alexitoo.dev/modpackstore/{{target}}/{{arch}}/{{current_version}}",
+        "https://saltouruguayserver.com/api/partner-software/modpackstore/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
+  },
   "app": {
     "security": {
       "csp": null,

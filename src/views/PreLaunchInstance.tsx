@@ -55,7 +55,7 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
             title: "SaltoCraft 3",
             icon: "https://saltouruguayserver.com/favicon.svg",
             canGoBack: true,
-            customIconClassName: "bg-pink-500/10"
+            customIconClassName: ""
         })
     }, [])
 

@@ -10,7 +10,12 @@ pub struct MinecraftAccount {
 }
 
 impl MinecraftAccount {
-    pub fn new(username: String, uuid: String, access_token: Option<String>, user_type: String) -> Self {
+    pub fn new(
+        username: String,
+        uuid: String,
+        access_token: Option<String>,
+        user_type: String,
+    ) -> Self {
         MinecraftAccount {
             username,
             uuid,

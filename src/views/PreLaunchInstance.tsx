@@ -14,8 +14,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     // Obtenemos la instancia específica del contexto
     const currentInstance = instances.find(inst => inst.id === instanceId) || null
-    console.log({ currentInstance })
-
+    const isPlaying = currentInstance?.status === "running"
     const [prelaunchState, setPrelaunchState] = useState<{
         isLoading: boolean,
         instanceId: string,
@@ -45,8 +44,23 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 isLoading,
                 message: currentInstance.message || getRandomMessage(),
             }));
+
+            if (isPlaying) {
+                // Stop audio if the instance is running
+                if (audio) {
+                    audio.pause()
+                    audio.currentTime = 0
+                }
+            } else {
+                // Play audio if the instance is not running
+                if (audio) {
+                    audio.play().catch((error) => {
+                        console.error("Error playing audio:", error);
+                    });
+                }
+            }
         }
-    }, [currentInstance]);
+    }, [currentInstance, isPlaying])
 
     const getMinecraftInstance = async (instanceId: string) => {
         setTitleBarState({
@@ -113,19 +127,10 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         const audioElement = new Audio(appearance?.audio?.url)
         setAudio(audioElement)
 
-        const playAudio = () => {
-            audioElement.play().catch((error) => {
-                console.error("Error playing audio:", error);
-            });
-        }
-
-        const timeoutId = setTimeout(playAudio, 500)
-
         audioElement.loop = true
-        audioElement.volume = 0.01 // 8% de volumen 
+        audioElement.volume = 0.01
 
         return () => {
-            clearTimeout(timeoutId)
             audioElement.pause()
             audioElement.currentTime = 0
         }
@@ -269,7 +274,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                             } as CSSProperties}
                             id="play-button"
                             onClick={handlePlayButtonClick}
-                            disabled={loadingStatus.isLoading}
+                            disabled={loadingStatus.isLoading || isPlaying}
                             className={`
                             ${hasCustomPosition && "fixed"}
                             cursor-pointer
@@ -287,8 +292,8 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                           `}
                         >
                             <LucideGamepad2 className="size-6 text-[var(--text-color)]" />
-                            {currentInstance?.status === "running"
-                                ? "Jugando..."
+                            {isPlaying
+                                ? "Ya estás jugando"
                                 : appearance?.playButton?.text ?? "Jugar ahora"}
                         </button>
 

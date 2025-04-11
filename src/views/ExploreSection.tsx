@@ -43,7 +43,7 @@ export const ExploreSection = () => {
 
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Link href="/prelaunch" className="flex flex-col gap-4">
+                <Link href="/prelaunch/Pepito 2" className="flex flex-col gap-4">
                     <div className="relative group cursor-pointer rounded-lg overflow-hidden bg-gray-800 hover:bg-gray-700 transition duration-300 ease-in-out">
                         <img
                             src="https://i.ytimg.com/vi/SEd1c4aAjQI/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLBREzBncZkwqJZDsh2-wMVcEUvzaw"

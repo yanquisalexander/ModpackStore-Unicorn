@@ -15,6 +15,7 @@ pub struct ModpackInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MinecraftInstance {
+    pub instanceId: String,
     pub usesDefaultIcon: bool,
     pub iconName: Option<String>,
     pub iconUrl: Option<String>,

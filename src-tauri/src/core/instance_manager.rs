@@ -15,10 +15,17 @@ pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
 }
 
 #[tauri::command]
-pub fn get_instance_by_name(name: String) -> Result<Option<MinecraftInstance>, String> {
+pub fn get_instance_by_name(instanceName: String) -> Result<Option<MinecraftInstance>, String> {
     let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
     let instances = get_instances(instances_dir.to_str().unwrap())?;
-    Ok(instances.into_iter().find(|i| i.instanceName == name))
+    Ok(instances.into_iter().find(|i| i.instanceName == instanceName))
+}
+
+#[tauri::command]
+pub fn get_instance_by_id(instanceId: String) -> Result<Option<MinecraftInstance>, String> {
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
+    let instances = get_instances(instances_dir.to_str().unwrap())?;
+    Ok(instances.into_iter().find(|i| i.instanceId == instanceId))
 }
 
 #[tauri::command]

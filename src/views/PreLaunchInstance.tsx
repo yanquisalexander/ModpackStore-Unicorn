@@ -4,8 +4,16 @@ import { invoke } from "@tauri-apps/api/core"
 import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
 import { CSSProperties, useEffect, useState } from "react"
 
-export const PreLaunchInstance = ({ instance }: { instance: any }) => {
+export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
+    console.log("Instance name:", instanceId)
 
+    invoke('get_instance_by_id', { instanceId }).then((res) => {
+        console.log("Instance data:", res)
+    })
+        .catch((err) => {
+            console.error("Error fetching instance data:", err)
+        }
+        )
     const [loadingStatus, setLoadingStatus] = useState({
         isLoading: false,
         message: "Descargando archivos necesarios...",

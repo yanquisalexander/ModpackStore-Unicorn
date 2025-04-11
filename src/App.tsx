@@ -53,7 +53,9 @@ function App() {
             <Switch>
               <Route path="/" component={ExploreSection} />
               <Route path="/my-instances" component={MyInstancesSection} />
-              <Route path="/prelaunch" component={PreLaunchInstance} />
+              <Route path="/prelaunch/:instanceId">
+                {params => <PreLaunchInstance instanceId={params.instanceId} />}
+              </Route>
 
 
               <Route path="/my-instances">

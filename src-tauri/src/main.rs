@@ -23,7 +23,7 @@ pub fn main() {
         .invoke_handler(tauri::generate_handler![
             core::network_utilities::check_connection,
             core::instance_manager::get_all_instances,
-            core::instance_manager::get_instance_by_name,
+            core::instance_manager::get_instance_by_id,
             core::instance_manager::delete_instance,
             utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,

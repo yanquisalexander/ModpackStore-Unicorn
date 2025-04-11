@@ -26,11 +26,7 @@ impl InstanceLauncher {
 
 
     pub fn launch_instance(&self) -> IoResult<Child> {
-        // Simulate a Task creation
-        let tasks_manager = TasksManager::new();
-        let task_id = tasks_manager.add_task("Launching Minecraft Instance", None);
-    
-        tasks_manager.update_task(&task_id, TaskStatus::Running, 0.0, "Instance is launching...", None);
+       
     
         // Obtener el ConfigManager
         let config_manager = get_config_manager();
@@ -95,10 +91,8 @@ impl InstanceLauncher {
             eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for instance-launched.");
         }
     
-        // Actualizar tarea a completada
-        tasks_manager.update_task(&task_id, TaskStatus::Completed, 100.0, "Instance launched successfully", None);
     
-        Ok(child) // Retornar el child después de emitir el evento y actualizar la tarea
+        Ok(child) 
     }
     
 

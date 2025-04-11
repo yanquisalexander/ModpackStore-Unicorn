@@ -1,7 +1,8 @@
 import { useGlobalContext } from "@/stores/GlobalContext"
+import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { invoke } from "@tauri-apps/api/core"
 import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
-import { useEffect, useState } from "react"
+import { CSSProperties, useEffect, useState } from "react"
 
 export const PreLaunchInstance = ({ instance }: { instance: any }) => {
 
@@ -11,6 +12,90 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
         progress: 0,
         logs: []
     })
+
+    const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+
+
+
+    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>({
+        title: "SaltoCraft 3",
+        description: "Un modpack de SaltoUruguayServer",
+
+        logo: {
+            url: "https://saltouruguayserver.com/images/logo-saltocraft.webp",
+            fadeInDelay: "1000ms",
+            fadeInDuration: "500ms",
+            height: "50px",
+            position: {
+                top: "6rem",
+                left: "50%",
+                transform: "translateX(-50%)"
+            }
+        },
+
+        playButton: {
+            text: "Entrar a SaltoCraft",
+            fontFamily: "monocraft",
+            backgroundColor: "#16a34a",
+            hoverColor: "#262626",
+            textColor: "#ffffff",
+            borderColor: "#ffffff",
+
+        },
+
+        background: {
+            imageUrl: "https://images.steamusercontent.com/ugc/2310974141604980016/B4EF3A7A2D1772DE26B1A6F51CE33A04FD8BB917/",
+            videoUrl: null,
+
+        },
+
+
+        audio: {
+            // url: "http://cdn.saltouruguayserver.com/sounds/launcher_bg_loop.mp3",
+        },
+
+        news: {
+            position: {
+                top: "3rem",
+                right: "2rem"
+            },
+            style: {
+                background: "rgba(0,0,0,0.8)",
+                color: "#ffffff",
+                borderRadius: "0.5rem",
+                padding: "1rem",
+                width: "20rem",
+                fontSize: "0.875rem"
+            },
+            entries: []
+        }
+    })
+
+    useEffect(() => {
+        // Cargar el audio (si existe) y reproducirlo en bucle
+        if (!appearance?.audio?.url) return
+        const audioElement = new Audio(appearance?.audio?.url)
+        setAudio(audioElement)
+
+        audioElement.play().catch((error) => {
+            console.error("Error playing audio:", error);
+        });
+
+        audioElement.loop = true
+        audioElement.volume = 0.01 // 8% de volumen 
+
+        return () => {
+            audioElement.pause()
+            audioElement.currentTime = 0
+        }
+    }, [])
+
+    // Verifica si hay una posición personalizada
+    const hasCustomPosition = appearance?.playButton?.position &&
+        Object.values(appearance.playButton.position).some(value => value != null);
+
+    const logoHasCustomPosition = appearance?.logo?.position &&
+        Object.values(appearance.logo.position).some(value => value != null);
 
     const handlePlayButtonClick = async () => {
         console.log("Launching Minecraft instance...")
@@ -47,6 +132,8 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
     }
 
 
+
+
     const { titleBarState, setTitleBarState } = useGlobalContext()
 
     useEffect(() => {
@@ -60,44 +147,94 @@ export const PreLaunchInstance = ({ instance }: { instance: any }) => {
     }, [])
 
     return (
-        <>
-            {
-                loadingStatus.isLoading && (
-                    <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center"> {/* Añadí items-center para mejor alineación vertical */}
-                        <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" /> {/* <-- Añadir flex-shrink-0 aquí */}
-                        {loadingStatus.message}
+        <div className="absolute inset-0">
+            <div className="relative h-full w-full overflow-hidden">
+                {
+                    loadingStatus.isLoading && (
+                        <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center"> {/* Añadí items-center para mejor alineación vertical */}
+                            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" /> {/* <-- Añadir flex-shrink-0 aquí */}
+                            {loadingStatus.message}
+                        </div>
+                    )
+                }
+                <img
+                    style={{
+                        maskImage: "linear-gradient(to bottom, white 60% , rgba(0, 0, 0, 0) 100%)",
+                    }}
+                    className="absolute opacity-80 inset-0 z-1 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
+                    src={appearance?.background?.imageUrl ?? ""}
+                    alt="Background"
+                />
+
+                {/* Logo del modpack */}
+
+                <img
+                    src={appearance?.logo?.url}
+                    alt="Logo"
+                    style={{
+                        top: appearance?.logo?.position?.top,
+                        left: appearance?.logo?.position?.left,
+                        transform: appearance?.logo?.position?.transform,
+                        animationDelay: appearance?.logo?.fadeInDelay,
+                        animationDuration: appearance?.logo?.fadeInDuration,
+                        height: appearance?.logo?.height,
+                    }}
+                    className={`absolute z-10 animate-fade-in duration-500 ease-in-out ${logoHasCustomPosition && "fixed"}`}
+                />
+
+
+
+
+                <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
+
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                        <button
+                            style={{
+                                "--bg-color": appearance?.playButton?.backgroundColor,
+                                "--hover-color": appearance?.playButton?.hoverColor,
+                                "--text-color": appearance?.playButton?.textColor,
+                                "--border-color": appearance?.playButton?.borderColor,
+                                "--font-family": appearance?.playButton?.fontFamily,
+                                top: appearance?.playButton?.position?.top,
+                                left: appearance?.playButton?.position?.left,
+                                right: appearance?.playButton?.position?.right,
+                                bottom: appearance?.playButton?.position?.bottom,
+                                transform: appearance?.playButton?.position?.transform,
+                            } as CSSProperties}
+                            id="play-button"
+                            onClick={handlePlayButtonClick}
+                            disabled={loadingStatus.isLoading}
+                            className={`
+                            ${hasCustomPosition && "fixed"}
+                            cursor-pointer
+                            active:scale-95 transition
+                            px-4 py-2
+                            border-3
+                            items-center flex gap-x-2 font-semibold
+                            disabled:bg-neutral-800 disabled:cursor-not-allowed
+                            font-[var(--font-family)]
+                            bg-[var(--bg-color)]
+                            hover:bg-[var(--hover-color)]
+                            active:bg-[var(--hover-color)]
+                            text-[var(--text-color)]
+                            border-[var(--border-color)]
+                          `}
+                        >
+                            <LucideGamepad2 className="size-6 text-[var(--text-color)]" />
+                            {appearance?.playButton?.text ?? "Jugar ahora"}
+                        </button>
+
+                        <div className="flex items-center justify-center space-x-2">
+                            <img src="https://saltouruguayserver.com/favicon.svg" className="h-8 w-8" alt="Logo" />
+                            <span className="text-sm">
+                                Un modpack de SaltoUruguayServer
+                            </span>
+                        </div>
                     </div>
-                )
-            }
-            <img
-                style={{
-                    maskImage: "linear-gradient(to bottom, white 60% , rgba(0, 0, 0, 0) 100%)",
-                }}
-                className="absolute opacity-80 inset-0 z-1 h-full w-full object-cover animate-fade-in ease-in-out duration-1000" src="https://images.steamusercontent.com/ugc/2310974141604980016/B4EF3A7A2D1772DE26B1A6F51CE33A04FD8BB917/" />
+                </footer>
+            </div>
 
-            {/* Logo del modpack */}
 
-            <img src="https://saltouruguayserver.com/images/logo-saltocraft.webp" className="absolute top-24 left-1/2 -translate-x-1/2 z-10 h-32 drop-shadow-lg animate-delay-1000 animate-fade-in duration-500 ease-in-out" alt="Logo" />
-            <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
-
-                <div className="flex flex-col items-center justify-center space-y-4">
-                    <button
-                        id="play-button"
-                        onClick={handlePlayButtonClick}
-                        disabled={loadingStatus.isLoading}
-                        className="bg-green-600 font-monocraft cursor-pointer active:scale-95 transition active:bg-neutral-800 px-4 py-2  border-3 border-white items-center flex gap-x-2 font-semibold hover:bg-green-700 disabled:bg-neutral-800 disabled:cursor-not-allowed">
-                        <LucideGamepad2 className="size-6 text-white" />
-                        Jugar ahora
-                    </button>
-
-                    <div className="flex items-center justify-center space-x-2">
-                        <img src="https://saltouruguayserver.com/favicon.svg" className="h-8 w-8" alt="Logo" />
-                        <span className="text-sm">
-                            Un modpack de SaltoUruguayServer
-                        </span>
-                    </div>
-                </div>
-            </footer>
-        </>
+        </div>
     )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
-import { Link, Route, Switch } from "wouter";
+import { Link, Route, Switch, useLocation, useRouter } from "wouter";
 import { Button } from "@material-tailwind/react";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
@@ -15,15 +15,10 @@ import { UpdateStatus } from "./components/UpdateStatus";
 
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
 
-  async function greet() {
-    // Learn more about Tauri commands at https://v1.tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke("greet", { name }));
-  }
 
   const { isConnected, isLoading } = useCheckConnection();
+
 
   useEffect(() => {
     if (isLoading) {

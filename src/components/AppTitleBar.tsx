@@ -55,7 +55,11 @@ export const AppTitleBar = () => {
     const SHOW_ADDITIONAL_BUTTONS = updateState === 'done'
 
     return (
-        <div data-tauri-drag-region className="flex h-9 w-full items-center justify-between bg-transparent sticky z-10 text-white select-none">
+        <div
+            style={{
+                viewTransitionName: "app-title-bar",
+            }}
+            data-tauri-drag-region className="flex h-9 w-full items-center justify-between bg-transparent sticky z-10 text-white select-none">
             <div className="flex items-center justify-center">
                 <div className="flex items-center gap-2">
                     <Link

@@ -54,6 +54,7 @@
     "fs:allow-home-write",
     "process:default",
     "http:default",
-    "updater:default"
+    "updater:default",
+    "dialog:default"
   ]
 }

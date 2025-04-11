@@ -10,6 +10,9 @@ use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo};
 use crate::core::minecraft_account::MinecraftAccount;
 use crate::core::vanilla_launcher::VanillaLauncher;
 use crate::interfaces::game_launcher::GameLauncher;
+use tauri::{Emitter};
+use crate::GLOBAL_APP_HANDLE;
+
 
 
 pub struct InstanceLauncher {
@@ -23,27 +26,21 @@ impl InstanceLauncher {
 
 
     pub fn launch_instance(&self) -> IoResult<Child> {
-
-
         // Simulate a Task creation
         let tasks_manager = TasksManager::new();
         let task_id = tasks_manager.add_task("Launching Minecraft Instance", None);
-
+    
         tasks_manager.update_task(&task_id, TaskStatus::Running, 0.0, "Instance is launching...", None);
-
-
-
-        // Obtener el ConfigManager (asumo que tiene una implementación similar)
+    
+        // Obtener el ConfigManager
         let config_manager = get_config_manager();
         let java_path = config_manager
-            .lock() // First lock the mutex to get the inner value
-            .expect("Failed to lock config manager mutex") // Handle potential lock failure
-            .get_java_dir() // Now call the method on the inner value
+            .lock() // Lock the mutex to access inner value
+            .expect("Failed to lock config manager mutex") // Handle lock failure
+            .get_java_dir() // Call method on inner value
             .join("bin")
             .join(if cfg!(windows) { "java.exe" } else { "java" });
-
-
-
+    
         println!("Launching instance: {}", self.instance.instanceName);
         println!("Java path: {}", java_path.display());
         println!(
@@ -61,44 +58,49 @@ impl InstanceLauncher {
                 .as_ref()
                 .unwrap_or(&String::new())
         );
-
+    
         let is_forge = self.instance.is_forge_instance();
         if is_forge {
             println!("This is a Forge instance.");
         } else {
             println!("This is a Vanilla instance.");
         }
-
+    
         let account = self.validate_account()?;
-
-      
-
+    
         // Revalidar assets antes de lanzar
         self.revalidate_assets()?;
-
-      
-
-        // Aquí iría la lógica para lanzar la instancia de Minecraft
-        // usando vanilla_launcher o forge_launcher
-
-
-        if is_forge {
+    
+        // Lógica para lanzar la instancia
+        let child = if is_forge {
             println!("Launching Forge instance...");
-            // TODO: implementar lógica Forge
+            // TODO: Implement Forge launch logic here
             return Err(std::io::Error::new(std::io::ErrorKind::Other, "Forge launching not implemented yet"));
         } else {
             let launcher = VanillaLauncher::new(self.instance.clone());
-            let child = GameLauncher::launch(&launcher).ok_or_else(|| {
+            GameLauncher::launch(&launcher).ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::Other, "Failed to launch Minecraft instance")
-            })?;
-            Ok(child)
+            })?
+        };
+    
+        // Emitir que la instancia ha sido lanzada
+        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                app_handle.emit("instance-launched", self.instance.instanceId.clone()).unwrap_or_else(|e| {
+                    eprintln!("Failed to emit instance-launched event: {}", e);
+                });
+                println!("Successfully emitted instance-launched event.");
+            }
+        } else {
+            eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for instance-launched.");
         }
-        
-
-        
-
-
+    
+        // Actualizar tarea a completada
+        tasks_manager.update_task(&task_id, TaskStatus::Completed, 100.0, "Instance launched successfully", None);
+    
+        Ok(child) // Retornar el child después de emitir el evento y actualizar la tarea
     }
+    
 
     fn validate_account(&self) -> IoResult<Value> {
         // Implementar la validación de la cuenta de Minecraft

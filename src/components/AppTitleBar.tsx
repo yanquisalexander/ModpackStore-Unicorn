@@ -4,7 +4,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
 import { Link } from "wouter";
 import { exit } from '@tauri-apps/plugin-process';
-
+import PatreonIcon from "@/icons/PatreonIcon";
+import { open } from "@tauri-apps/plugin-shell";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState(getCurrentWindow());
@@ -26,6 +27,14 @@ export const AppTitleBar = () => {
 
         };
     }, [window]);
+
+    const handlePatreonClick = async () => {
+        try {
+            await open("https://www.patreon.com/AlexitooDEV")
+        } catch (error) {
+            console.error("Error opening Patreon link:", error);
+        }
+    }
 
 
     const handleMaximize = () => {
@@ -52,14 +61,10 @@ export const AppTitleBar = () => {
         window.minimize()
     };
 
-    const SHOW_ADDITIONAL_BUTTONS = updateState === 'done'
 
     return (
         <div
-            style={{
-                viewTransitionName: "app-title-bar",
-            }}
-            data-tauri-drag-region className="flex h-9 w-full items-center justify-between bg-transparent sticky z-10 text-white select-none">
+            data-tauri-drag-region className={`flex z-999 top-0 h-9 transition  ease-in-out w-full items-center justify-between sticky text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}>
             <div className="flex items-center justify-center">
                 <div className="flex items-center gap-2">
                     <Link
@@ -89,23 +94,28 @@ export const AppTitleBar = () => {
                 </div>
             </div>
 
-            {
-                SHOW_ADDITIONAL_BUTTONS && (
-                    <div className="flex ml-auto gap-x-2  border-r px-1 mr-1 border-white/10">
-                        {
-                            updateState === 'done' && (
-                                <button
-                                    onClick={applyUpdate}
-                                    title="Listo para reiniciar"
-                                    className="cursor-pointer flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center hover:bg-neutral-800" aria-label="Settings">
-                                    <LucideDownload className="size-4 text-green-400" />
-                                </button>
-                            )
-                        }
 
-                    </div>
-                )
-            }
+            <div className="flex ml-auto gap-x-2  border-r px-1 mr-1 border-white/10">
+                {
+                    updateState === 'done' && (
+                        <button
+                            onClick={applyUpdate}
+                            title="Listo para reiniciar"
+                            className="cursor-pointer flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center hover:bg-neutral-800" aria-label="Settings">
+                            <LucideDownload className="size-4 text-green-400" />
+                        </button>
+                    )
+                }
+
+                <button
+                    onClick={handlePatreonClick}
+                    title="Colaborar con el desarrollo"
+                    className="cursor-pointer flex group animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center" aria-label="Settings">
+                    <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500 transition duration-300" />
+                </button>
+
+            </div>
+
 
             {/* Right side - window controls */}
             <div className="flex items-center justify-end">

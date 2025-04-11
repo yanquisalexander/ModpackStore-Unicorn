@@ -18,7 +18,9 @@ pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
 pub fn get_instance_by_name(instanceName: String) -> Result<Option<MinecraftInstance>, String> {
     let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
     let instances = get_instances(instances_dir.to_str().unwrap())?;
-    Ok(instances.into_iter().find(|i| i.instanceName == instanceName))
+    Ok(instances
+        .into_iter()
+        .find(|i| i.instanceName == instanceName))
 }
 
 #[tauri::command]
@@ -39,10 +41,7 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
-    let instances_dir = get_config_manager()
-        .lock()
-        .unwrap()
-        .get_instances_dir();
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir();
 
     let instances = get_instances(instances_dir.to_str().unwrap())?;
 

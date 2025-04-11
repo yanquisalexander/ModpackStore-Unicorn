@@ -40,7 +40,7 @@ function App() {
 
 
   return (
-    <main className="grow  overflow-y-auto">
+    <main className="overflow-y-auto">
       {
         isLoading ? (
           <div className="flex items-center justify-center min-h-dvh h-full w-full">
@@ -48,8 +48,8 @@ function App() {
           </div>
         ) : (
           <>
-            <UpdateStatus />
             <HomeMainHeader session={null} />
+            <UpdateStatus />
             <Switch>
               <Route path="/" component={ExploreSection} />
               <Route path="/my-instances" component={MyInstancesSection} />

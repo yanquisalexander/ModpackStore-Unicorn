@@ -32,14 +32,44 @@
 
 html,
 body {
-  @apply h-screen overflow-hidden;
+  @apply h-full w-full custom-scrollbar;
+  /* Scrollar */
+  --color-background: var(--color-ms-primary);
+  scrollbar-color: var(--color-border) var(--color-background);
 }
 
-@layer utilities {
-  .with-ligatures {
-    font-variant-ligatures: contextual;
+@utility with-ligatures {
+  font-variant-ligatures: contextual;
+}
+
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
+
+@utility custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--color-background);
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: var(--color-background);
+  }
+}
+
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

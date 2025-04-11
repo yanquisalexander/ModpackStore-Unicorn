@@ -22,7 +22,9 @@ export const ConfigurationSection = () => {
             title: "Configuración",
             icon: LucideSettings,
             canGoBack: true,
-            customIconClassName: "bg-blue-500/10"
+            customIconClassName: "bg-blue-500/10",
+            opaque: true,
+
         });
 
         async function loadConfig() {

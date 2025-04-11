@@ -40,7 +40,7 @@ export const HomeMainHeader = ({ session }: { session: any }) => {
 
 
     return (
-        <header className="flex h-16 w-full items-center justify-between bg-ms-primary text-white select-none px-4">
+        <header className="flex sticky top-0 h-16 w-full items-center justify-between bg-ms-primary text-white select-none px-4">
             <nav className="flex items-center gap-x-2">
                 {
                     SECTIONS.map((section) => (

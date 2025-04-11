@@ -12,7 +12,8 @@ export const MyInstancesSection = () => {
             title: "Mis instancias",
             icon: LucidePackageOpen,
             canGoBack: true,
-            customIconClassName: "bg-yellow-500/10"
+            customIconClassName: "bg-yellow-500/10",
+            opaque: true,
         });
     }, [])
 

@@ -8,6 +8,7 @@ use tauri::Manager; // Necesario para get_window y emit
 
 pub fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
@@ -19,7 +20,6 @@ pub fn main() {
             main_window.set_focus().unwrap();
             Ok(())
         })
-
         .invoke_handler(tauri::generate_handler![
             core::network_utilities::check_connection,
             core::instance_manager::get_all_instances,
@@ -29,7 +29,6 @@ pub fn main() {
             core::instance_manager::launch_mc_instance,
             core::accounts_manager::get_all_accounts,
         ])
-      
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

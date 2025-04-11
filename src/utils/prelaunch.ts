@@ -35,9 +35,6 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title: 
             videoUrl: null,
         },
 
-        audio: {
-            url: "http://cdn.saltouruguayserver.com/sounds/launcher_bg_loop.mp3",
-        },
 
         news: {
             position: {

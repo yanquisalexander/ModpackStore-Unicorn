@@ -13,6 +13,7 @@ interface TitleBarState {
     icon?: string | LucideIcon;
     canGoBack?: boolean;
     customIconClassName?: string;
+    opaque?: boolean;
 }
 
 // Estado de actualización
@@ -46,6 +47,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         title: "Modpack Store",
         icon: LucideShoppingBag,
         canGoBack: false,
+        opaque: true
     });
 
     const [isUpdating, setIsUpdating] = useState(false);

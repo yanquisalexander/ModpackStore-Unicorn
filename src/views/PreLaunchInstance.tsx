@@ -1,19 +1,69 @@
 import { useGlobalContext } from "@/stores/GlobalContext"
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
+import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
 import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
 import { CSSProperties, useEffect, useState } from "react"
+import { toast } from "sonner"
+import { navigate } from "wouter/use-browser-location"
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
-    console.log("Instance name:", instanceId)
+    const { titleBarState, setTitleBarState } = useGlobalContext()
 
-    invoke('get_instance_by_id', { instanceId }).then((res) => {
-        console.log("Instance data:", res)
+    const [prelaunchState, setPrelaunchState] = useState<{
+        isLoading: boolean,
+        instanceId: string,
+        error: string | null,
+        instance: any | null,
+    }>({
+        isLoading: true,
+        instanceId,
+        error: null,
+        instance: null,
     })
-        .catch((err) => {
-            console.error("Error fetching instance data:", err)
+
+    const getMinecraftInstance = async (instanceId: string) => {
+        setTitleBarState({
+            ...titleBarState,
+            canGoBack: true,
+        })
+        try {
+            const instance = await invoke("get_instance_by_id", { instanceId })
+            console.log("Fetched instance:", instance)
+            if (!instance) {
+                throw new Error("Instance not found")
+            }
+            setPrelaunchState({
+                ...prelaunchState,
+                isLoading: false,
+                instance,
+            })
+
+            setTitleBarState({
+                ...titleBarState,
+                title: instance.instanceName,
+                icon: "https://saltouruguayserver.com/favicon.svg",
+                canGoBack: true,
+                customIconClassName: "",
+                opaque: false,
+            })
+
+
+        } catch (error) {
+            console.error("Error fetching instance data:", error)
+            setPrelaunchState({
+                ...prelaunchState,
+                isLoading: false,
+                error: "Ocurrió un error al cargar la instancia",
+            })
         }
-        )
+    }
+
+    useEffect(() => {
+        getMinecraftInstance(instanceId)
+    }, [])
+
+
     const [loadingStatus, setLoadingStatus] = useState({
         isLoading: false,
         message: "Descargando archivos necesarios...",
@@ -25,59 +75,24 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
 
 
-    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>({
-        title: "SaltoCraft 3",
-        description: "Un modpack de SaltoUruguayServer",
+    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null)
 
-        logo: {
-            url: "https://saltouruguayserver.com/images/logo-saltocraft.webp",
-            fadeInDelay: "1000ms",
-            fadeInDuration: "500ms",
-            height: "50px",
-            position: {
-                top: "6rem",
-                left: "50%",
-                transform: "translateX(-50%)"
-            }
-        },
-
-        playButton: {
-            text: "Entrar a SaltoCraft",
-            fontFamily: "monocraft",
-            backgroundColor: "#16a34a",
-            hoverColor: "#262626",
-            textColor: "#ffffff",
-            borderColor: "#ffffff",
-
-        },
-
-        background: {
-            imageUrl: "https://images.steamusercontent.com/ugc/2310974141604980016/B4EF3A7A2D1772DE26B1A6F51CE33A04FD8BB917/",
-            videoUrl: null,
-
-        },
-
-
-        audio: {
-            // url: "http://cdn.saltouruguayserver.com/sounds/launcher_bg_loop.mp3",
-        },
-
-        news: {
-            position: {
-                top: "3rem",
-                right: "2rem"
-            },
-            style: {
-                background: "rgba(0,0,0,0.8)",
-                color: "#ffffff",
-                borderRadius: "0.5rem",
-                padding: "1rem",
-                width: "20rem",
-                fontSize: "0.875rem"
-            },
-            entries: []
-        }
-    })
+    useEffect(() => {
+        // Cargar la apariencia del modpack
+        invoke("get_prelaunch_appearance", { instanceId }).then((res) => {
+            setAppearance(res as PreLaunchAppearance)
+        }).catch((err) => {
+            console.error("Error fetching appearance:", err)
+            setAppearance({
+                ...getDefaultAppeareance({
+                    title: "SaltoCraft 3",
+                    description: "Un modpack de SaltoUruguayServer",
+                    logoUrl: "https://saltouruguayserver.com/favicon.svg",
+                })
+            })
+        })
+    }
+        , [])
 
     useEffect(() => {
         // Cargar el audio (si existe) y reproducirlo en bucle
@@ -142,17 +157,34 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
 
 
-    const { titleBarState, setTitleBarState } = useGlobalContext()
 
-    useEffect(() => {
-        setTitleBarState({
-            ...titleBarState,
-            title: "SaltoCraft 3",
-            icon: "https://saltouruguayserver.com/favicon.svg",
-            canGoBack: true,
-            customIconClassName: ""
+
+    if (prelaunchState.isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen h-full w-full">
+                <LucideLoaderCircle className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
+            </div>
+        )
+    }
+    if (prelaunchState.error) {
+        toast.error(prelaunchState.error, {
+            id: "instance-error",
+            description: "No se pudo cargar la instancia. Intenta nuevamente más tarde.",
+            dismissible: false,
+            action: {
+                label: "Volver a inicio",
+                onClick: () => {
+                    navigate("/")
+                },
+            },
         })
-    }, [])
+
+        return (
+            <div className="flex items-center justify-center min-h-screen h-full w-full">
+                <div className="text-white text-lg">{prelaunchState.error}</div>
+            </div>
+        )
+    }
 
     return (
         <div className="absolute inset-0">

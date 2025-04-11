@@ -130,6 +130,10 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         audioElement.loop = true
         audioElement.volume = 0.01
 
+        audioElement.play().catch((error) => {
+            console.error("Error playing audio:", error);
+        });
+
         return () => {
             audioElement.pause()
             audioElement.currentTime = 0

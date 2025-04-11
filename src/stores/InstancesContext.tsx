@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type InstanceState = {
     id: string;
@@ -83,6 +84,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     status: "running",
                     message: message || "Minecraft está ejecutándose"
                 });
+
+                // Minima ventana de la aplicación
+                const window = getCurrentWindow();
+                window.minimize();
             });
             unlistenList.push(launchedUnlisten);
 

@@ -2,11 +2,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppTitleBar } from "./components/AppTitleBar";
-import { ThemeProvider } from "@material-tailwind/react";
-import { LucideShoppingBag } from "lucide-react";
 import { Toaster } from "sonner";
 import { GlobalContextProvider } from "./stores/GlobalContext";
 import { isTauri } from "@tauri-apps/api/core";
+import { TasksProvider } from "./stores/TasksContext";
 
 if (!isTauri()) {
   const msg = "This app requires Tauri to run. Please run it in a Tauri environment.";
@@ -19,9 +18,11 @@ if (!isTauri()) {
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <GlobalContextProvider>
-      <AppTitleBar />
-      <App />
-      <Toaster theme="dark" />
+      <TasksProvider>
+        <AppTitleBar />
+        <App />
+        <Toaster theme="dark" />
+      </TasksProvider>
     </GlobalContextProvider>
   </React.StrictMode>,
 );

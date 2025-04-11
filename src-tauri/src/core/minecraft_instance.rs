@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
+use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo};
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackInfo {
@@ -92,12 +94,7 @@ pub fn save_minecraft_instance(instance: MinecraftInstance) -> bool {
     instance.save().is_ok()
 }
 
-#[tauri::command]
-pub fn launch_minecraft_instance(instance: MinecraftInstance) -> Result<(), String> {
-    // Implementar la lógica de lanzamiento de la instancia
-    println!("Launching Minecraft instance: {}", instance.instanceName);
-    Ok(())
-}
+
 
 #[tauri::command]
 pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {

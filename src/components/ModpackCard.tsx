@@ -3,10 +3,11 @@ import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2 } f
 
 export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
     // Default values if modpack properties aren't provided
+    const iconToShow = modpack.featured_gallery && modpack.gallery.length > 0 ? modpack.gallery[0] : modpack.icon_url
     const {
         id = "default-id",
         title = "Modpack Title",
-        imageUrl = modpack.icon_url || "https://via.placeholder.com/300",
+        imageUrl = iconToShow,
         mcVersion = "1.16.5",
         tags = []
     } = modpack || {}

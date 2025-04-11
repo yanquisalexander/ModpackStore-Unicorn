@@ -130,9 +130,9 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         }))
 
         // Si después querés lanzar el juego, descomentá esto
-        // await invoke("launch_mc_instance", {
-        //     instancePath: "C:\\Users\\alexb\\ModpackStore\\Instances\\pepe",
-        // })
+        await invoke("launch_mc_instance", {
+            instanceId: prelaunchState.instanceId,
+        })
 
         setInterval(() => {
             setLoadingStatus((prev) => ({

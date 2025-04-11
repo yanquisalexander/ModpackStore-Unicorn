@@ -6,6 +6,7 @@ use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
+use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo};
 
 pub struct InstanceLauncher {
     instance: MinecraftInstance,
@@ -17,6 +18,16 @@ impl InstanceLauncher {
     }
 
     pub fn launch_instance(&self) -> IoResult<Child> {
+
+
+        // Simulate a Task creation
+        let tasks_manager = TasksManager::new();
+        let task_id = tasks_manager.add_task("Launching Minecraft Instance", None);
+
+        tasks_manager.update_task(&task_id, TaskStatus::Running, 0.0, "Instance is launching...", None);
+
+        
+
         // Obtener el ConfigManager (asumo que tiene una implementación similar)
         let config_manager = get_config_manager();
         let java_path = config_manager
@@ -25,6 +36,8 @@ impl InstanceLauncher {
             .get_java_dir() // Now call the method on the inner value
             .join("bin")
             .join(if cfg!(windows) { "java.exe" } else { "java" });
+
+
 
         println!("Launching instance: {}", self.instance.instanceName);
         println!("Java path: {}", java_path.display());

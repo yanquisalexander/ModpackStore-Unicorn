@@ -6,6 +6,9 @@ mod utils;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 
+static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
 pub fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -18,6 +21,12 @@ pub fn main() {
             let main_window = app.get_webview_window("main").unwrap();
             // Focus the main window
             main_window.set_focus().unwrap();
+
+            // Store the AppHandle in the static variable
+            let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
+            *app_handle = Some(app.handle().clone());
+            // Emit an event to the main window
+            main_window.emit("app-ready", ()).unwrap();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

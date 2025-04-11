@@ -15,6 +15,7 @@ pub fn main() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
+            // Focus the main window
             main_window.set_focus().unwrap();
             Ok(())
         })

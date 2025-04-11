@@ -9,7 +9,10 @@ use tauri::Manager; // Necesario para get_window y emit
 pub fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
             main_window.set_focus().unwrap();
@@ -25,9 +28,7 @@ pub fn main() {
             core::instance_manager::launch_mc_instance,
             core::accounts_manager::get_all_accounts,
         ])
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_os::init())
+      
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -58,7 +58,7 @@ export const ExploreSection = () => {
     }
 
     return (
-        <div className="mx-auto max-w-7xl px-4 py-10 overflow-scroll">
+        <div className="mx-auto max-w-7xl px-4 py-10">
             <h1 className="text-3xl font-semibold mb-8 text-white animate-fade-in-up">
                 Explorar Modpacks
             </h1>

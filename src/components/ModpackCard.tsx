@@ -1,5 +1,5 @@
 import { Link } from "wouter"
-import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles } from "lucide-react"
+import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2 } from "lucide-react"
 
 export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
     // Default values if modpack properties aren't provided
@@ -33,9 +33,9 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                 {/* Tags section */}
                 <div className="opacity-100 flex transition flex-col gap-2 flex-1">
                     <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                        <span className="backdrop-blur-2xl uppercase bg-green-800 text-green-100 text-xs border rounded-full inline-flex items-center gap-1 border-green-200/40 py-1 px-2">
-                            <LucideCheck className="h-4 w-auto" />
-                            {mcVersion}
+                        <span className="backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-sky-800 text-green-100 text-xs border rounded-full inline-flex items-center gap-1 border-green-200/40 py-1 px-2">
+                            <LucideUser2 className="h-4 w-auto" />
+                            SaltoUruguay
                         </span>
 
                         {tags && tags.length > 0 && tags.map((tag: string, index: number) => (

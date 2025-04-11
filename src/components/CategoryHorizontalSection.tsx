@@ -65,14 +65,14 @@ export const CategoryHorizontalSection = ({
                 {/* Scrollable container */}
                 <div
                     ref={scrollContainerRef}
-                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide py-6"
+                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
                     onScroll={handleScroll}
                 >
                     {modpacks.length > 0 ? (
                         modpacks.map((modpack, index) => (
                             <div
                                 key={modpack.id || index}
-                                className="snap-start scroll-ml-4 flex-shrink-0 w-80 mr-4 first:ml-0"
+                                className="snap-start scroll-ml-4 flex-shrink-0 md:w-60 lg:w-72 mr-4 first:ml-0"
                             >
                                 <ModpackCard modpack={modpack} href={'/prelaunch/THIS_SHOULD_BE_UNIQUE_UUID'} />
                             </div>

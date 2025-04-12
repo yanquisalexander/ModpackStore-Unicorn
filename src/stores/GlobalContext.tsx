@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { start as startDiscordRpc } from "tauri-plugin-drpc";
 
 
 interface TitleBarState {
@@ -110,11 +109,6 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             }
         };
 
-        const startRpc = async () => {
-            await startDiscordRpc("943184136976334879")
-        }
-
-        startRpc();
         checkAndDownload();
 
     }, []);

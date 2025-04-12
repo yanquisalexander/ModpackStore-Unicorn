@@ -7,6 +7,7 @@ import { CSSProperties, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
 import { useInstances } from "@/stores/InstancesContext" // Importamos el hook de instancias
+import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -68,7 +69,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             canGoBack: true,
         })
         try {
-            const instance = await invoke("get_instance_by_id", { instanceId })
+            const instance = await invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId })
             console.log("Fetched instance:", instance)
             if (!instance) {
                 throw new Error("Instance not found")

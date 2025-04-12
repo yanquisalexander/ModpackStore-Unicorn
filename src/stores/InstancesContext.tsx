@@ -101,6 +101,11 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     message: message || "Minecraft se ha cerrado"
                 });
 
+                // Unminima la ventana de la aplicación
+                const window = getCurrentWindow();
+                window.unminimize();
+                window.setFocus();
+
                 // Opcional: quitar la instancia después de un tiempo
                 setTimeout(() => removeInstance(id), 5000);
             });
@@ -115,6 +120,11 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     status: "error",
                     message: message || "Ha ocurrido un error"
                 });
+
+                // Unminima la ventana de la aplicación
+                const window = getCurrentWindow();
+                window.unminimize();
+                window.setFocus();
             });
             unlistenList.push(errorUnlisten);
         };

@@ -79,12 +79,12 @@ impl MinecraftInstance {
         }
     }
 
-    pub fn launch(&self) -> IoResult<()> {
-        // Implementar la lógica de lanzamiento de la instancia
-        println!("Launching Minecraft instance: {}", self.instanceName);
-
+    pub fn launch(&self) -> Result<(), String> {
         let launcher = InstanceLauncher::new(self.clone());
-        launcher.launch_instance()?;
+        launcher.launch_instance_async();
+
+    
+        println!("[Tauri Command] Successfully initiated async launch for {}", self.instanceName);
         Ok(())
     }
 }

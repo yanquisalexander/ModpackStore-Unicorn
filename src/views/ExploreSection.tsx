@@ -28,9 +28,7 @@ export const ExploreSection = () => {
             .setAssets(new Assets().setLargeImage("exploring").setSmallImage("exploring"))
         setActivity(activity)
 
-        return () => {
-            clearActivity()
-        }
+
     }, [])
 
     useEffect(() => {

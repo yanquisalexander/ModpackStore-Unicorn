@@ -56,6 +56,8 @@
     "http:default",
     "updater:default",
     "dialog:default",
-    "drpc:default"
+    "drpc:default",
+    "drpc:allow-clear-activity",
+    "drpc:allow-set-activity"
   ]
 }

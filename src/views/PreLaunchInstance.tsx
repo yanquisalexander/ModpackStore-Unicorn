@@ -44,21 +44,20 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     })
 
     useEffect(() => {
+        if (!prelaunchState.instance) return
 
         const stateText = isPlaying ? `Jugando "${prelaunchState.instance?.instanceName}"` : `Preparando "${prelaunchState.instance?.instanceName}"`
-        // Actualizamos el estado de Discord
         const activity = new Activity()
             .setState(isPlaying ? "Jugando" : "Preparando")
             .setDetails(stateText)
             .setTimestamps(new Timestamps(Date.now()))
-            .setAssets(new Assets().setLargeImage("null").setSmallImage("null"))
+            .setAssets(new Assets().setLargeImage("playing").setSmallImage("playing"))
 
-        setActivity(activity)
+        setActivity(activity).catch((error) => {
+            console.error("Error setting Discord activity:", error);
+        });
 
-        // Limpiamos la actividad al desmontar el componente
-        return () => {
-            clearActivity()
-        }
+
     }, [isPlaying, prelaunchState.instance?.instanceName])
 
     // Actualizamos el loadingStatus basado en el currentInstance

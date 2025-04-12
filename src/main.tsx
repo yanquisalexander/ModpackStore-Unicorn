@@ -18,16 +18,14 @@ if (!isTauri()) {
 
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <GlobalContextProvider>
-      <TasksProvider>
-        <InstancesProvider>
-          <AppTitleBar />
-          <App />
-          <Toaster theme="dark" />
-          <UpdateStatus />
-        </InstancesProvider>
-      </TasksProvider>
-    </GlobalContextProvider>
-  </React.StrictMode>,
+  <GlobalContextProvider>
+    <TasksProvider>
+      <InstancesProvider>
+        <AppTitleBar />
+        <App />
+        <Toaster theme="dark" />
+        <UpdateStatus />
+      </InstancesProvider>
+    </TasksProvider>
+  </GlobalContextProvider>
 );

@@ -4,7 +4,7 @@ import { LucideShoppingBag } from "lucide-react"
 import { getModpacks } from "@/services/getModpacks"
 import { invoke } from "@tauri-apps/api/core"
 import { CategoryHorizontalSection } from "../components/CategoryHorizontalSection"
-import { setActivity } from "tauri-plugin-drpc";
+import { clearActivity, setActivity } from "tauri-plugin-drpc";
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 
 export const ExploreSection = () => {
@@ -27,6 +27,10 @@ export const ExploreSection = () => {
             .setTimestamps(new Timestamps(Date.now()))
             .setAssets(new Assets().setLargeImage("exploring").setSmallImage("exploring"))
         setActivity(activity)
+
+        return () => {
+            clearActivity()
+        }
     }, [])
 
     useEffect(() => {

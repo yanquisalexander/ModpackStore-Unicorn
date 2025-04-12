@@ -8,6 +8,9 @@ import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
 import { useInstances } from "@/stores/InstancesContext" // Importamos el hook de instancias
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
+import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
+import { clearActivity, setActivity } from "tauri-plugin-drpc"
+
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -39,6 +42,24 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         progress: 0,
         logs: []
     })
+
+    useEffect(() => {
+
+        const stateText = isPlaying ? `Jugando "${prelaunchState.instance?.instanceName}"` : `Preparando "${prelaunchState.instance?.instanceName}"`
+        // Actualizamos el estado de Discord
+        const activity = new Activity()
+            .setState(isPlaying ? "Jugando" : "Preparando")
+            .setDetails(stateText)
+            .setTimestamps(new Timestamps(Date.now()))
+            .setAssets(new Assets().setLargeImage("null").setSmallImage("null"))
+
+        setActivity(activity)
+
+        // Limpiamos la actividad al desmontar el componente
+        return () => {
+            clearActivity()
+        }
+    }, [isPlaying, prelaunchState.instance?.instanceName])
 
     // Actualizamos el loadingStatus basado en el currentInstance
     useEffect(() => {

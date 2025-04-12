@@ -7,6 +7,7 @@ import { GlobalContextProvider } from "./stores/GlobalContext";
 import { isTauri } from "@tauri-apps/api/core";
 import { TasksProvider } from "./stores/TasksContext";
 import { InstancesProvider } from "./stores/InstancesContext";
+import { UpdateStatus } from "./components/UpdateStatus";
 
 if (!isTauri()) {
   const msg = "This app requires Tauri to run. Please run it in a Tauri environment.";
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
           <AppTitleBar />
           <App />
           <Toaster theme="dark" />
+          <UpdateStatus />
         </InstancesProvider>
       </TasksProvider>
     </GlobalContextProvider>

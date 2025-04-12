@@ -270,6 +270,36 @@ impl InstanceLauncher {
                 self.instance.instanceId, e
             );
         } else {
+            let config_manager = get_config_manager();
+            let close_on_launch = config_manager
+                .lock()
+                .expect("Failed to lock config manager mutex")
+                .get_close_on_launch();
+
+            if close_on_launch {
+                // Close the main process if configured to do so
+                println!(
+                    "[Launch Thread: {}] Closing main process as per configuration.",
+                    self.instance.instanceId
+                );
+                // Use the global app handle to close the main process
+                if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+                    if let Some(app_handle) = guard.as_ref() {
+                        app_handle.exit(0);
+                    } else {
+                        eprintln!(
+                            "[Launch Thread: {}] Error: GLOBAL_APP_HANDLE is None when trying to close.",
+                            self.instance.instanceId
+                        );
+                    }
+                } else {
+                    eprintln!(
+                        "[Launch Thread: {}] Error: Could not lock GLOBAL_APP_HANDLE mutex for closing.",
+                        self.instance.instanceId
+                    );
+                }
+            }
+
             println!(
                 "[Launch Thread: {}] Launch sequence initiated successfully (monitoring started).",
                 self.instance.instanceId
@@ -305,51 +335,4 @@ impl InstanceLauncher {
         // Return immediately to the caller.
         println!("[Main Thread] Finished spawning thread for {}. Caller continues.", instance_id);
     }
-} // end impl InstanceLauncher
-
-
-//-----------------------------------------------------------------------------
-// Example Tauri Command Usage
-//-----------------------------------------------------------------------------
-// This function would typically live in your main.rs or a commands module,
-// not usually directly in minecraft_launcher.rs, but shown here for context.
-
-/*
-#[tauri::command]
-pub fn launch_mc_instance_async(instance_id: String) -> Result<(), String> {
-    println!("[Tauri Command] Received async launch request for instance: {}", instance_id);
-
-    // 1. Retrieve the full MinecraftInstance details using the ID.
-    // Replace this with your actual logic to fetch instance data.
-    let instance = match crate::core::instance_manager::get_instance_by_id(&instance_id) {
-         Ok(inst) => inst,
-         Err(e) => {
-             let err_msg = format!("Instance '{}' not found: {}", instance_id, e);
-             eprintln!("[Tauri Command] {}", err_msg);
-             return Err(err_msg); // Report error back to frontend immediately
-         }
-    };
-
-    // Ensure the retrieved instance implements Clone if not already verified
-    // let instance: MinecraftInstance = instance; // Type annotation if needed
-
-    // 2. Create an InstanceLauncher for the specific instance.
-    let launcher = InstanceLauncher::new(instance);
-
-    // 3. Call the asynchronous launch method.
-    // This spawns the background thread and returns control immediately.
-    launcher.launch_instance_async();
-
-    // 4. Return success to the frontend immediately.
-    // This indicates the launch *process* has started, not that the game is running yet.
-    // The frontend relies on events ("instance-launch-start", etc.) for actual status.
-    println!("[Tauri Command] Successfully initiated async launch for {}", instance_id);
-    Ok(())
-}
-
-// Remember to register this command in your main.rs:
-// .invoke_handler(tauri::generate_handler![
-//     launch_mc_instance_async,
-//     // ... other commands
-// ])
-*/
+} 

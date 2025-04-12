@@ -88,7 +88,7 @@ impl ConfigManager {
             .unwrap_or(true)
     }
 
-    pub fn close_on_launch(&self) -> bool {
+    pub fn get_close_on_launch(&self) -> bool {
         self.content
             .get("closeOnLaunch")
             .and_then(Value::as_bool)

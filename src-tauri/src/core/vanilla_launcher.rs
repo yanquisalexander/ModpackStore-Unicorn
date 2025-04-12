@@ -40,7 +40,7 @@ impl GameLauncher for VanillaLauncher {
         .get_minecraft_account_by_uuid(self.instance.accountUuid.as_ref().unwrap_or(&"".to_string()))
         .unwrap_or_else(|| {
             println!("Account not found for UUID: {}", self.instance.accountUuid.as_ref().unwrap_or(&"".to_string()));
-            MinecraftAccount::new("offline".to_string(), Uuid::new_v4().to_string(), None, "offline".to_string())
+            MinecraftAccount::new("offline".to_string(), Uuid::new_v4().to_string(), None, "Local".to_string())
         });
 
         println!("Account: {:?}", account);
@@ -157,7 +157,7 @@ impl GameLauncher for VanillaLauncher {
         if account.user_type() != "offline" {
             command.args(["--userType", "mojang"]);
         } else {
-            command.args(["--userType", "offline"]);
+            command.args(["--userType", "Local"]);
         }
 
         command.current_dir(&game_dir);

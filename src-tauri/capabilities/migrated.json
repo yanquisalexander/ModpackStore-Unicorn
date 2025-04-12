@@ -55,6 +55,7 @@
     "process:default",
     "http:default",
     "updater:default",
-    "dialog:default"
+    "dialog:default",
+    "drpc:default"
   ]
 }

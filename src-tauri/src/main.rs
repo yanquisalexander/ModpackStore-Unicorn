@@ -18,6 +18,7 @@ pub fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_drpc::init())
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
             // Focus the main window

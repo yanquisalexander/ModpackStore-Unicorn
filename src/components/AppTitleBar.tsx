@@ -8,6 +8,7 @@ import PatreonIcon from "@/icons/PatreonIcon";
 import { open } from "@tauri-apps/plugin-shell";
 import { useTasksContext } from "@/stores/TasksContext";
 import { CurrentUser } from "./CurrentUser";
+import { RunningInstances } from "./RunningInstances";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState(getCurrentWindow());
@@ -104,7 +105,7 @@ export const AppTitleBar = () => {
                         <button
                             onClick={applyUpdate}
                             title="Listo para reiniciar"
-                            className="cursor-pointer flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center hover:bg-neutral-800" aria-label="Settings">
+                            className="cursor-pointer flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center hover:bg-neutral-800" aria-label="Update">
                             <LucideDownload className="size-4 text-green-400" />
                         </button>
                     )
@@ -123,6 +124,8 @@ export const AppTitleBar = () => {
                     )
                 }
 
+                <RunningInstances />
+
                 <button
                     onClick={handlePatreonClick}
                     title="Colaborar con el desarrollo"
@@ -130,7 +133,7 @@ export const AppTitleBar = () => {
                     <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500 transition duration-300" />
                 </button>
 
-                <CurrentUser />
+                <CurrentUser titleBarOpaque={titleBarState.opaque} />
             </div>
 
 

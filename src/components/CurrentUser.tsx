@@ -1,13 +1,11 @@
-export const CurrentUser = () => {
+export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     // Fake user data for demonstration purposes
     const user = {
         id: "1234567890",
-        name: "John Doe",
-
+        name: "Alexitoo_UY",
         email: "john.doe@example.com",
-        avatarUrl: "api.dicebear.com/v2/avataaars/john-doe.svg",
+        avatarUrl: "https://www.alexitoo.dev/favicon.svg",
         roles: ["user", "admin"],
-
     };
 
     if (!user) {
@@ -15,7 +13,17 @@ export const CurrentUser = () => {
             <button className="btn btn-primary" onClick={() => alert("Login")}>
                 Login
             </button>
-        )
+        );
     }
-    return <div>{user.name}</div>;
-}
+
+    const baseClasses = "flex h-7 items-center self-center space-x-2 transition-all px-2 rounded-md backdrop-blur-xl";
+    const lightMode = "hover:bg-white/40 text-neutral-800";
+    const darkMode = "hover:bg-neutral-700 text-white";
+
+    return (
+        <div className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}>
+            <img src={user.avatarUrl} alt="Avatar" className="size-4 rounded-sm" />
+            <span className="text-sm font-medium">{user.name}</span>
+        </div>
+    );
+};

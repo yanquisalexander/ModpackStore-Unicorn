@@ -92,7 +92,7 @@ impl ConfigManager {
         self.content
             .get("closeOnLaunch")
             .and_then(Value::as_bool)
-            .unwrap_or(true)
+            .unwrap_or(false)
     }
 }
 

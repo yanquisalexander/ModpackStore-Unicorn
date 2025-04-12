@@ -12,10 +12,14 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
     const { instances } = useInstances() // Usamos el contexto de instancias
-
+    console.log({ instances })
     // Obtenemos la instancia específica del contexto
     const currentInstance = instances.find(inst => inst.id === instanceId) || null
     const isPlaying = currentInstance?.status === "running"
+    const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+
+    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null)
+
     const [prelaunchState, setPrelaunchState] = useState<{
         isLoading: boolean,
         instanceId: string,
@@ -39,6 +43,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     // Actualizamos el loadingStatus basado en el currentInstance
     useEffect(() => {
         if (currentInstance) {
+            console.log("Current instance:", currentInstance)
             const isLoading = currentInstance.status === "preparing" || currentInstance.status === "downloading-assets";
             setLoadingStatus(prev => ({
                 ...prev,
@@ -46,22 +51,21 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 message: currentInstance.message || getRandomMessage(),
             }));
 
-            if (isPlaying) {
-                // Stop audio if the instance is running
-                if (audio) {
+            // Handle audio based on game status, but only if audio exists
+            if (audio) {
+                if (isPlaying) {
+                    // Stop audio if the instance is running
                     audio.pause()
                     audio.currentTime = 0
-                }
-            } else {
-                // Play audio if the instance is not running
-                if (audio) {
+                } else {
+                    // Play audio if the instance is not running
                     audio.play().catch((error) => {
                         console.error("Error playing audio:", error);
                     });
                 }
             }
         }
-    }, [currentInstance, isPlaying])
+    }, [currentInstance, isPlaying, audio])
 
     const getMinecraftInstance = async (instanceId: string) => {
         setTitleBarState({
@@ -103,9 +107,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         getMinecraftInstance(instanceId)
     }, [])
 
-    const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
 
-    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null)
 
     useEffect(() => {
         // Cargar la apariencia del modpack
@@ -125,21 +127,37 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     useEffect(() => {
         if (!appearance?.audio?.url) return
-        const audioElement = new Audio(appearance?.audio?.url)
-        setAudio(audioElement)
+
+        let audioElement;
+        if (!audio) {
+            audioElement = new Audio(appearance?.audio?.url)
+            setAudio(audioElement)
+        } else {
+            audioElement = audio
+        }
 
         audioElement.loop = true
         audioElement.volume = 0.01
 
-        audioElement.play().catch((error) => {
-            console.error("Error playing audio:", error);
-        });
+        if (isPlaying) {
+            audioElement.pause()
+            audioElement.currentTime = 0
+            return
+        }
+
+        // Only play the audio if the game is not already running
+        if (!isPlaying) {
+            audioElement.play().catch((error) => {
+                console.error("Error playing audio:", error);
+            })
+        }
 
         return () => {
             audioElement.pause()
             audioElement.currentTime = 0
         }
-    }, [appearance?.audio?.url])
+    }, [appearance?.audio?.url, currentInstance?.status, isPlaying, audio])
+
 
     // Verifica si hay una posición personalizada
     const hasCustomPosition = appearance?.playButton?.position &&

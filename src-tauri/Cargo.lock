@@ -365,7 +365,7 @@ checksum = "d38f2da7a0a2c4ccf0065be06397cc26a81f4e528be095826eee9d4adbb8c60f"
 dependencies = [
  "byteorder",
  "fnv",
- "uuid",
+ "uuid 1.16.0",
 ]
 
 [[package]]
@@ -677,6 +677,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-drpc",
  "tauri-plugin-fs",
  "tauri-plugin-http",
  "tauri-plugin-os",
@@ -684,7 +685,7 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-updater",
  "tokio",
- "uuid",
+ "uuid 1.16.0",
 ]
 
 [[package]]
@@ -2213,7 +2214,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 2.0.0",
+ "proc-macro-crate 3.3.0",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -3204,6 +3205,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcdiscord"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71aa9a2097dc0176805e24debcb5d3ea5a17b796cd1d28e76b29f78fb49d7d5d"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_repr",
+ "uuid 0.8.2",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3313,7 +3327,7 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
- "uuid",
+ "uuid 1.16.0",
 ]
 
 [[package]]
@@ -3945,7 +3959,7 @@ dependencies = [
  "thiserror 2.0.12",
  "time",
  "url",
- "uuid",
+ "uuid 1.16.0",
  "walkdir",
 ]
 
@@ -3999,6 +4013,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-drpc"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b291669b7dbc05471fba380eeecf31e3f733ae6013aaa5216a43ca376027e5a"
+dependencies = [
+ "log",
+ "rpcdiscord",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.12",
+ "tokio",
+]
+
+[[package]]
 name = "tauri-plugin-fs"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4018,7 +4048,7 @@ dependencies = [
  "thiserror 2.0.12",
  "toml",
  "url",
- "uuid",
+ "uuid 1.16.0",
 ]
 
 [[package]]
@@ -4207,7 +4237,7 @@ dependencies = [
  "toml",
  "url",
  "urlpattern",
- "uuid",
+ "uuid 1.16.0",
  "walkdir",
 ]
 
@@ -4664,6 +4694,15 @@ name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.15",
+]
 
 [[package]]
 name = "uuid"

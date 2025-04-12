@@ -4,6 +4,8 @@ import { LucideShoppingBag } from "lucide-react"
 import { getModpacks } from "@/services/getModpacks"
 import { invoke } from "@tauri-apps/api/core"
 import { CategoryHorizontalSection } from "../components/CategoryHorizontalSection"
+import { setActivity } from "tauri-plugin-drpc";
+import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -19,6 +21,11 @@ export const ExploreSection = () => {
             customIconClassName: "bg-pink-500/10",
             opaque: true,
         })
+
+        const activity = new Activity()
+            .setState("Explorando Modpacks")
+            .setTimestamps(new Timestamps(Date.now()))
+        setActivity(activity)
     }, [])
 
     useEffect(() => {

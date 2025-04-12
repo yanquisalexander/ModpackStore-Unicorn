@@ -1,7 +1,7 @@
 import { LucideLayoutGrid, LucideServer, LucideUsers, LucideWrench } from "lucide-react"
-import { Link, useLocation, useRoute } from "wouter"
+import { Link, useLocation } from "wouter"
 
-export const HomeMainHeader = ({ session }: { session: any }) => {
+export const HomeMainHeader = () => {
     const [location] = useLocation();
     const SECTIONS = [
         {
@@ -55,10 +55,7 @@ export const HomeMainHeader = ({ session }: { session: any }) => {
                     ))
                 }
             </nav>
-            <div className="flex-1"></div>
-            <div className="flex items-center gap-2">
 
-            </div>
         </header>
     )
 }

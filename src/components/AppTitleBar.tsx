@@ -7,6 +7,7 @@ import { exit } from '@tauri-apps/plugin-process';
 import PatreonIcon from "@/icons/PatreonIcon";
 import { open } from "@tauri-apps/plugin-shell";
 import { useTasksContext } from "@/stores/TasksContext";
+import { CurrentUser } from "./CurrentUser";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState(getCurrentWindow());
@@ -129,6 +130,7 @@ export const AppTitleBar = () => {
                     <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500 transition duration-300" />
                 </button>
 
+                <CurrentUser />
             </div>
 
 

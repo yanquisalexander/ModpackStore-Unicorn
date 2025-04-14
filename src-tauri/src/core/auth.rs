@@ -275,12 +275,11 @@ pub async fn start_discord_auth(
 
                 // --- Exchange code for tokens ---
                 let client = Client::new();
-                let token_endpoint = format!("{}/auth/callback", API_URL);
+                let token_endpoint = format!("{}/auth/callback?code={}", API_URL, code);
                 println!("Requesting tokens from: {}", token_endpoint);
 
                 match client
                     .post(&token_endpoint)
-                    .json(&serde_json::json!({ "code": code }))
                     .send()
                     .await
                 {

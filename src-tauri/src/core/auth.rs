@@ -235,6 +235,19 @@ pub async fn start_discord_auth(
              println!("Callback server shutting down."); // Log shutdown
         });
 
+        let auth_state_clone_for_poll = Arc::clone(auth_state.inner());
+
+        let app_handle = {
+            let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+            match binding.as_ref() {
+                Some(handle) => handle.clone(), // Asumiendo que AppHandle implementa Clone
+                None => {
+                    return Err("AppHandle not initialized".to_string());
+                }
+            }
+        };
+        
+
     // Run the server in a background task
     tokio::spawn(async move {
         println!("Callback server listening on http://{}", addr);
@@ -272,6 +285,24 @@ pub async fn start_discord_auth(
             if let Some(code) = code_option {
                 println!("Auth code received. Processing...");
                 let _ = emit_event("auth-step-changed", Some(AuthStep::ProcessingCallback));
+
+                // -- Focus to main window --
+                // Usar app_handle que ya ha sido clonado y es Send
+                match app_handle.get_webview_window("main") {
+                    Some(main_window) => {
+                        if let Err(e) = main_window.set_focus() {
+                            eprintln!("Failed to focus main window: {:?}", e);
+                        } else {
+                            println!("Main window focused");
+                        }
+                    },
+                    None => {
+                        eprintln!("Main window not found");
+                        // Continuar sin enfocar
+                    }
+                };
+            
+
 
                 // --- Exchange code for tokens ---
                 let client = Client::new();

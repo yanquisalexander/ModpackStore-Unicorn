@@ -65,7 +65,7 @@ impl AuthState {
 
 // --- Constants ---
 // !!! REPLACE THESE WITH YOUR ACTUAL VALUES !!!
-const API_URL: &str = "https://webhook.site/499cd46b-85d3-47c1-9b9e-ee1f57cd28e5";
+const API_URL: &str = "http://localhost:3000/v1"; // Replace with your actual API URLP
 const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
 // --- /Constants ---
@@ -275,7 +275,7 @@ pub async fn start_discord_auth(
 
                 // --- Exchange code for tokens ---
                 let client = Client::new();
-                let token_endpoint = format!("{}/oauth/discord/callback", API_URL);
+                let token_endpoint = format!("{}/auth/callback", API_URL);
                 println!("Requesting tokens from: {}", token_endpoint);
 
                 match client

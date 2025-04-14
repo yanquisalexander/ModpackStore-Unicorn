@@ -57,6 +57,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Listen for auth status updates from Tauri backend
         authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', (event) => {
+          console.log('Auth status changed:', event.payload);
           setSession(event.payload);
           setLoading(false);
           // Reset auth step cuando se completa la autenticación
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Listen for auth errors from Tauri backend
         authErrorUnlisten = await listen<string>('auth-error', (event) => {
+          console.error('Auth error:', event.payload);
           setError(event.payload);
           setLoading(false);
           setAuthStep(null);
@@ -72,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Listen for auth step updates
         authStepUnlisten = await listen<AuthStep>('auth-step-changed', (event) => {
+          console.log('Auth step changed:', event.payload);
           setAuthStep(event.payload);
         });
 

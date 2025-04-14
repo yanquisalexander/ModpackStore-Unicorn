@@ -65,8 +65,8 @@ impl AuthState {
 
 // --- Constants ---
 // !!! REPLACE THESE WITH YOUR ACTUAL VALUES !!!
-const API_URL: &str = "YOUR_API_ENDPOINT";
-const CLIENT_ID: &str = "YOUR_CLIENT_ID";
+const API_URL: &str = "https://webhook.site/499cd46b-85d3-47c1-9b9e-ee1f57cd28e5";
+const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
 // --- /Constants ---
 

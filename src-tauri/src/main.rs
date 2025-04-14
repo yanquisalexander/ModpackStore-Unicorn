@@ -7,12 +7,14 @@ mod utils;
 use core::auth::*;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
+use std::sync::Arc;
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
 pub fn main() {
     tauri::Builder::default()
+        
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -21,6 +23,7 @@ pub fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drpc::init())
+        .manage(Arc::new(AuthState::new()))
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
             // Focus the main window

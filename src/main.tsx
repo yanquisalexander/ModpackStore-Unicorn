@@ -9,6 +9,7 @@ import { TasksProvider } from "./stores/TasksContext";
 import { InstancesProvider } from "./stores/InstancesContext";
 import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
+import { AuthProvider } from "./stores/AuthContext";
 
 if (!isTauri()) {
   const msg = "This app requires Tauri to run. Please run it in a Tauri environment.";
@@ -25,13 +26,15 @@ startDiscordRpc("943184136976334879").catch((err) => {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <GlobalContextProvider>
-    <TasksProvider>
-      <InstancesProvider>
-        <AppTitleBar />
-        <App />
-        <Toaster theme="dark" />
-        <UpdateStatus />
-      </InstancesProvider>
-    </TasksProvider>
+    <AuthProvider>
+      <TasksProvider>
+        <InstancesProvider>
+          <AppTitleBar />
+          <App />
+          <Toaster theme="dark" />
+          <UpdateStatus />
+        </InstancesProvider>
+      </TasksProvider>
+    </AuthProvider>
   </GlobalContextProvider>
 );

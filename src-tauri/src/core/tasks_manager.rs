@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
-use uuid::Uuid;
-use tauri::{AppHandle, Emitter, Wry}; // Asegúrate de importar Wry si no lo estaba
+use tauri::{AppHandle, Emitter, Wry};
+use uuid::Uuid; // Asegúrate de importar Wry si no lo estaba
 
 // --- TaskStatus y TaskInfo permanecen iguales ---
 
@@ -25,7 +25,6 @@ pub struct TaskInfo {
     pub data: Option<serde_json::Value>,
     pub created_at: String,
 }
-
 
 // --- Importa tu variable estática ---
 // Asumiendo que main.rs está en la raíz del crate (src/main.rs)
@@ -58,38 +57,54 @@ impl TasksManager {
 
         println!("Task created: {}", task.id);
 
-        self.tasks.lock().expect("Failed to lock tasks mutex for add").insert(id.clone(), task.clone());
+        self.tasks
+            .lock()
+            .expect("Failed to lock tasks mutex for add")
+            .insert(id.clone(), task.clone());
 
         // Emitir evento usando el AppHandle global
-        println!("Attempting to emit task-created event for task: {}", task.id);
+        println!(
+            "Attempting to emit task-created event for task: {}",
+            task.id
+        );
         // Bloquea el Mutex para acceder al Option<AppHandle> global
         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
             // Verifica si el AppHandle ya fue inicializado en setup
             if let Some(app_handle) = guard.as_ref() {
                 // Usa app_handle para emitir el evento
-                if let Err(e) = app_handle.emit("task-created", task.clone()) { // Clonar task aquí
+                if let Err(e) = app_handle.emit("task-created", task.clone()) {
+                    // Clonar task aquí
                     eprintln!("Failed to emit task-created event: {}", e);
                 } else {
-                     println!("Successfully emitted task-created event.");
+                    println!("Successfully emitted task-created event.");
                 }
             } else {
                 eprintln!("Error: GLOBAL_APP_HANDLE is None when trying to emit task-created.");
             }
         } else {
-             eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-created.");
+            eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-created.");
         }
-
 
         id
     }
 
     // Ya no necesita app_handle como parámetro
-    pub fn update_task(&self, id: &str, status: TaskStatus, progress: f32, message: &str, data: Option<serde_json::Value>) {
+    pub fn update_task(
+        &self,
+        id: &str,
+        status: TaskStatus,
+        progress: f32,
+        message: &str,
+        data: Option<serde_json::Value>,
+    ) {
         let mut updated_task_clone = None;
 
         // Alcance del bloqueo para las tareas
         {
-            let mut tasks = self.tasks.lock().expect("Failed to lock tasks mutex for update");
+            let mut tasks = self
+                .tasks
+                .lock()
+                .expect("Failed to lock tasks mutex for update");
             if let Some(task) = tasks.get_mut(id) {
                 task.status = status;
                 task.progress = progress;
@@ -101,11 +116,15 @@ impl TasksManager {
 
         // Si la tarea fue actualizada, intenta emitir el evento
         if let Some(task_to_emit) = updated_task_clone {
-            println!("Attempting to emit task-updated event for task: {}", task_to_emit.id);
+            println!(
+                "Attempting to emit task-updated event for task: {}",
+                task_to_emit.id
+            );
             // Bloquea el Mutex para acceder al Option<AppHandle> global
-             if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
                 if let Some(app_handle) = guard.as_ref() {
-                    if let Err(e) = app_handle.emit("task-updated", task_to_emit) { // Usar el clon
+                    if let Err(e) = app_handle.emit("task-updated", task_to_emit) {
+                        // Usar el clon
                         eprintln!("Failed to emit task-updated event: {}", e);
                     } else {
                         println!("Successfully emitted task-updated event.");
@@ -120,7 +139,12 @@ impl TasksManager {
     }
 
     pub fn get_all_tasks(&self) -> Vec<TaskInfo> {
-        self.tasks.lock().expect("Failed to lock tasks mutex for get").values().cloned().collect()
+        self.tasks
+            .lock()
+            .expect("Failed to lock tasks mutex for get")
+            .values()
+            .cloned()
+            .collect()
     }
 }
 

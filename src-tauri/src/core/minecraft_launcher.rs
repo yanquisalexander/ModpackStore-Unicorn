@@ -9,14 +9,14 @@ use std::thread; // Crucial for asynchronous operations
 
 // --- Crate Imports ---
 // Core components
-use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
 use crate::core::minecraft_account::MinecraftAccount; // If needed for validation
+use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
 use crate::core::vanilla_launcher::VanillaLauncher; // Vanilla launch logic
 use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic
 
 // Utilities & Managers (adjust paths if needed)
 use crate::utils::config_manager::get_config_manager; // Access configuration
-// use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo}; // Keep if used elsewhere
+                                                      // use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo}; // Keep if used elsewhere
 
 // Global App Handle (or use Tauri Managed State)
 use crate::GLOBAL_APP_HANDLE; // Accessing the globally stored AppHandle
@@ -73,7 +73,7 @@ impl InstanceLauncher {
                 });
                 // Use emit to notify the specific window listening for this event
                 if let Err(e) = app_handle.emit(event_name, payload) {
-                     eprintln!(
+                    eprintln!(
                         "[Instance: {}] Failed to emit event '{}': {}",
                         self.instance.instanceId, event_name, e
                     );
@@ -141,10 +141,11 @@ impl InstanceLauncher {
                     eprintln!("[Monitor: {}] {}", instance_id, error_message);
                     // Emit both error and exited events as the process state is uncertain but terminated.
                     emitter_launcher.emit_error(&error_message);
-                    emitter_launcher.emit_status("instance-exited", "Minecraft process ended unexpectedly.");
+                    emitter_launcher
+                        .emit_status("instance-exited", "Minecraft process ended unexpectedly.");
                 }
             }
-             println!("[Monitor: {}] Finished monitoring.", instance_id);
+            println!("[Monitor: {}] Finished monitoring.", instance_id);
         });
     }
 
@@ -153,7 +154,10 @@ impl InstanceLauncher {
     /// Validates the Minecraft account associated with the launch (if necessary).
     /// TODO: Replace with actual account validation logic.
     fn validate_account(&self) -> IoResult<Value> {
-        println!("[Instance: {}] Validating account...", self.instance.instanceId);
+        println!(
+            "[Instance: {}] Validating account...",
+            self.instance.instanceId
+        );
         // --- Replace with your actual validation logic ---
         // Example: Check credentials, refresh tokens, etc.
         // If validation fails, return an appropriate IoError:
@@ -165,8 +169,14 @@ impl InstanceLauncher {
     /// Revalidates or downloads necessary game assets, libraries, etc.
     /// TODO: Replace with actual asset checking/downloading logic.
     fn revalidate_assets(&self) -> IoResult<()> {
-        println!("[Instance: {}] Revalidating assets...", self.instance.instanceName);
-        self.emit_status("instance-downloading-assets", "Verificando/Descargando assets...");
+        println!(
+            "[Instance: {}] Revalidating assets...",
+            self.instance.instanceName
+        );
+        self.emit_status(
+            "instance-downloading-assets",
+            "Verificando/Descargando assets...",
+        );
 
         // Check if Minecraft version is known
         if self.instance.minecraftVersion.is_empty() {
@@ -197,7 +207,6 @@ impl InstanceLauncher {
         Ok(())
     }
 
-
     // --- Internal Synchronous Launch Logic ---
 
     /// Contains the core, sequential steps for launching the instance.
@@ -207,7 +216,10 @@ impl InstanceLauncher {
     fn perform_launch_steps(&self) {
         // Note: Initial "instance-launch-start" event is emitted by this function.
         self.emit_status("instance-launch-start", "Preparando lanzamiento...");
-        println!("[Launch Thread: {}] Starting launch steps.", self.instance.instanceId);
+        println!(
+            "[Launch Thread: {}] Starting launch steps.",
+            self.instance.instanceId
+        );
 
         // 1. Validate Account
         if let Err(e) = self.validate_account() {
@@ -216,7 +228,10 @@ impl InstanceLauncher {
             self.emit_error(&err_msg);
             return; // Stop the thread execution
         }
-         println!("[Launch Thread: {}] Account validation successful.", self.instance.instanceId);
+        println!(
+            "[Launch Thread: {}] Account validation successful.",
+            self.instance.instanceId
+        );
 
         // 2. Revalidate Assets
         if let Err(e) = self.revalidate_assets() {
@@ -225,28 +240,38 @@ impl InstanceLauncher {
             // Assuming revalidate_assets already emitted a specific error message
             return; // Stop the thread execution
         }
-        println!("[Launch Thread: {}] Asset revalidation successful.", self.instance.instanceId);
+        println!(
+            "[Launch Thread: {}] Asset revalidation successful.",
+            self.instance.instanceId
+        );
 
         // 3. Determine Launch Type and Execute
         let final_launch_result: Result<(), IoError> = if self.instance.is_forge_instance() {
             // --- Forge Launch ---
-            println!("[Launch Thread: {}] Preparing Forge launch...", self.instance.instanceId);
+            println!(
+                "[Launch Thread: {}] Preparing Forge launch...",
+                self.instance.instanceId
+            );
             let err_msg = "Lanzamiento de Forge aún no implementado.";
             self.emit_error(err_msg);
             Err(IoError::new(IoErrorKind::Unsupported, err_msg))
-
         } else {
             // --- Vanilla Launch ---
-            println!("[Launch Thread: {}] Preparing Vanilla launch...", self.instance.instanceId);
+            println!(
+                "[Launch Thread: {}] Preparing Vanilla launch...",
+                self.instance.instanceId
+            );
             let launcher = VanillaLauncher::new(self.instance.clone());
 
             // Execute the launch command via the GameLauncher trait/implementation
-            match GameLauncher::launch(&launcher) { // Assumes this returns Option<Child>
+            match GameLauncher::launch(&launcher) {
+                // Assumes this returns Option<Child>
                 Some(child_process) => {
                     // Success! Game process obtained.
                     println!(
                         "[Launch Thread: {}] Minecraft process started successfully (PID: {}).",
-                        self.instance.instanceId, child_process.id()
+                        self.instance.instanceId,
+                        child_process.id()
                     );
                     self.emit_status("instance-launched", "Minecraft se está ejecutando.");
                     // Start monitoring the process in its own background thread.
@@ -255,7 +280,8 @@ impl InstanceLauncher {
                 }
                 None => {
                     // Failure: GameLauncher::launch returned None.
-                    let err_msg = "Fallo al iniciar el proceso de Minecraft (GameLauncher retornó None).";
+                    let err_msg =
+                        "Fallo al iniciar el proceso de Minecraft (GameLauncher retornó None).";
                     eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
                     self.emit_error(err_msg);
                     Err(IoError::new(IoErrorKind::Other, err_msg))
@@ -305,10 +331,12 @@ impl InstanceLauncher {
                 self.instance.instanceId
             );
         }
-         println!("[Launch Thread: {}] Finishing execution.", self.instance.instanceId);
-         // Thread finishes here.
+        println!(
+            "[Launch Thread: {}] Finishing execution.",
+            self.instance.instanceId
+        );
+        // Thread finishes here.
     }
-
 
     // --- Public Asynchronous Launch Method ---
 
@@ -321,7 +349,10 @@ impl InstanceLauncher {
         let instance_data_clone = self.instance.clone();
         let instance_id = instance_data_clone.instanceId.clone(); // For logging before spawn
 
-        println!("[Main Thread] Spawning launch thread for instance: {}", instance_id);
+        println!(
+            "[Main Thread] Spawning launch thread for instance: {}",
+            instance_id
+        );
 
         // Spawn the background thread
         thread::spawn(move || {
@@ -333,6 +364,9 @@ impl InstanceLauncher {
         });
 
         // Return immediately to the caller.
-        println!("[Main Thread] Finished spawning thread for {}. Caller continues.", instance_id);
+        println!(
+            "[Main Thread] Finished spawning thread for {}. Caller continues.",
+            instance_id
+        );
     }
-} 
+}

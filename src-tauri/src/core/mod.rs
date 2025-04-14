@@ -1,4 +1,5 @@
 pub mod accounts_manager;
+pub mod auth;
 pub mod instance_bootstrap;
 pub mod instance_manager;
 pub mod minecraft_account;

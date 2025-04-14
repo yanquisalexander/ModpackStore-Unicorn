@@ -63,10 +63,7 @@ impl AccountsManager {
     }
 
     pub fn get_minecraft_account_by_uuid(&self, uuid: &str) -> Option<MinecraftAccount> {
-        self.accounts
-            .iter()
-            .find(|a| a.uuid() == uuid)
-            .cloned()
+        self.accounts.iter().find(|a| a.uuid() == uuid).cloned()
     }
 
     fn load(&mut self) {

@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod core;
-mod utils;
 mod interfaces;
+mod utils;
 
+use core::auth::{get_current_session, logout, start_discord_auth, AuthState};
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 
@@ -12,6 +13,7 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
 
 pub fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -39,6 +41,9 @@ pub fn main() {
             utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
             core::accounts_manager::get_all_accounts,
+            get_current_session,
+            start_discord_auth,
+            logout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

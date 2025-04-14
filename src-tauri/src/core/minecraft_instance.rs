@@ -1,11 +1,10 @@
 // src-tauri/src/minecraft_instance.rs
 use crate::core::minecraft_launcher::InstanceLauncher;
+use crate::core::tasks_manager::{TaskInfo, TaskStatus, TasksManager};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
-use crate::core::tasks_manager::{TasksManager, TaskStatus, TaskInfo};
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackInfo {
@@ -83,8 +82,10 @@ impl MinecraftInstance {
         let launcher = InstanceLauncher::new(self.clone());
         launcher.launch_instance_async();
 
-    
-        println!("[Tauri Command] Successfully initiated async launch for {}", self.instanceName);
+        println!(
+            "[Tauri Command] Successfully initiated async launch for {}",
+            self.instanceName
+        );
         Ok(())
     }
 }
@@ -93,8 +94,6 @@ impl MinecraftInstance {
 pub fn save_minecraft_instance(instance: MinecraftInstance) -> bool {
     instance.save().is_ok()
 }
-
-
 
 #[tauri::command]
 pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {

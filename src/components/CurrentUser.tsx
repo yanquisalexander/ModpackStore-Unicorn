@@ -1,5 +1,9 @@
+import { useAuthentication } from "@/stores/AuthContext";
+
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     // Fake user data for demonstration purposes
+
+    const { startDiscordAuth } = useAuthentication()
     const user = {
         id: "1234567890",
         name: "Alexitoo_UY",
@@ -21,7 +25,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const darkMode = "hover:bg-neutral-700 text-white";
 
     return (
-        <div className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}>
+        <div onClick={startDiscordAuth} className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}>
             <img src={user.avatarUrl} alt="Avatar" className="size-4 rounded-sm" />
             <span className="text-sm font-medium">{user.name}</span>
         </div>

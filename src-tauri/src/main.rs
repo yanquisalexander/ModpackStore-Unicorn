@@ -4,7 +4,7 @@ mod core;
 mod interfaces;
 mod utils;
 
-use core::auth::{get_current_session, logout, start_discord_auth, AuthState};
+use core::auth::*;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 
@@ -41,9 +41,9 @@ pub fn main() {
             utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
             core::accounts_manager::get_all_accounts,
-            get_current_session,
-            start_discord_auth,
-            logout,
+            core::auth::start_discord_auth,
+            core::auth::get_current_session,
+            core::auth::logout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

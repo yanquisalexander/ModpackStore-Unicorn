@@ -84,24 +84,8 @@ export const CategoryHorizontalSection = ({
                                 <ModpackCard modpack={modpack} href={'/prelaunch/THIS_SHOULD_BE_UNIQUE_UUID'} />
                             </div>
                         ))
-                    ) : (
-                        // Placeholder items
-                        Array.from({ length: 5 }).map((_, index) => (
-                            <div
-                                key={index}
-                                className="snap-start scroll-ml-4 flex-shrink-0 w-80 mr-4 first:ml-0"
-                            >
-                                <ModpackCard
-                                    modpack={{
-                                        id: `placeholder-${index}`,
-                                        title: `Modpack ${index + 1}`,
-                                        imageUrl: "/api/placeholder/400/225"
-                                    }}
-                                    href={href}
-                                />
-                            </div>
-                        ))
-                    )}
+                    ) : null
+                    }
                 </div>
 
                 {/* Right scroll button */}

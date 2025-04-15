@@ -9,7 +9,7 @@ import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
-    const [modpacks, setModpacks] = useState([])
+    const [modpackCategories, setModpackCategories] = useState([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -36,7 +36,8 @@ export const ExploreSection = () => {
 
         getModpacks()
             .then((res) => {
-                setModpacks(res)
+                setModpackCategories(res)
+                console.log(res)
             })
             .catch((err) => {
                 console.error(err)
@@ -45,27 +46,11 @@ export const ExploreSection = () => {
                 setLoading(false)
             })
 
-        invoke("get_all_instances").then((res) => {
-            console.log("Instances", res)
-        })
+
     }, [])
 
-    // Sample categories - you'd likely get these from your API
-    const categories = [
-        { id: "featured", name: "Destacados" },
-        { id: "popular", name: "Populares" },
-        { id: "new", name: "Recién agregados" },
-        { id: "tech", name: "Tecnología" }
-    ]
 
-    // For demonstration, we'll just divide the modpacks into categories
-    // In a real app, your modpacks would have category information
-    const getCategoryModpacks = (categoryId: string) => {
-        if (loading || !modpacks.length) return []
 
-        // This is just for demo - you'd filter based on actual category data
-        return modpacks.slice(0, 8)
-    }
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-10">
@@ -80,17 +65,25 @@ export const ExploreSection = () => {
             ) : (
                 <>
 
+                    {
+                        modpackCategories.map((category) => (
+                            <CategoryHorizontalSection
+                                key={category.id}
+                                title={category.name}
+                                modpacks={category.modpacks}
+                                href="/prelaunch/"
+                                viewAllLink={`/category/${category.id}`}
+                            />
+                        ))
+                    }
 
-                    {/* Horizontal scrolling categories */}
-                    {categories.map(category => (
-                        <CategoryHorizontalSection
-                            key={category.id}
-                            title={category.name}
-                            modpacks={getCategoryModpacks(category.id)}
-                            href="/prelaunch/"
-                            viewAllLink={`/category/${category.id}`}
-                        />
-                    ))}
+                    <div className="text-center text-white mt-8"> {/* New section for additional content */}
+                        <p>
+                            Explora una amplia variedad de modpacks y personaliza tu experiencia de juego <br />¡Descubre nuevos mundos y aventuras!
+                        </p>
+                    </div>
+
+
                 </>
             )}
         </div>

@@ -1,10 +1,7 @@
+import { API_ENDPOINT } from "@/consts"
+
 export const getModpacks = async () => {
-
-    /* 
-        Para DEMO, usamos los de heberon multimc
-    */
-
-    const response = await fetch("https://api.modrinth.com/v2/search?query=&facets=[[\"project_type:modpack\"]]", {
+    const response = await fetch(`${API_ENDPOINT}/explore`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
@@ -12,7 +9,11 @@ export const getModpacks = async () => {
         }
     })
 
-    const data = await response.json()
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
 
-    return data.hits
+    const { data } = await response.json()
+
+    return data
 }

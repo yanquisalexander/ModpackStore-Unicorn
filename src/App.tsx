@@ -37,7 +37,7 @@ function App() {
   // Mostrar loader mientras se verifica la autenticación
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-dvh h-full w-full">
+      <div className="absolute inset-0 flex items-center justify-center">
         <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
       </div>
     );

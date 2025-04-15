@@ -191,8 +191,8 @@ impl InstanceBootstrap {
             let hash_prefix = &hash[0..2];
             let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
     
-            // Informar progreso ocasionalmente
-            if processed_assets % 1000 == 0 || processed_assets == total_assets {
+            // Informar progreso
+            
                 println!(
                     "Validando assets: {}/{} ({:.1}%)",
                     processed_assets,
@@ -204,7 +204,7 @@ impl InstanceBootstrap {
                     "instance-downloading-assets",
                     &format!("Validando assets: {}/{} ({:.1}%)", processed_assets, total_assets, (processed_assets as f64 * 100.0 / total_assets as f64)),
                 );
-            }
+            
     
             if !asset_file.exists() {
                 missing_assets += 1;

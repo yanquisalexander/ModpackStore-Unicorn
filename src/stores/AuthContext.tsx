@@ -24,13 +24,17 @@ type AuthStep =
 interface AuthContextType {
   session: any | null;
   loading: boolean;
-  error: string | null;
+  error: AuthError | null;
   authStep: AuthStep;
   startDiscordAuth: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
+interface AuthError {
+  error_code: string;
+  error: string;
+}
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -42,7 +46,7 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AuthError | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>(null);
 
   // Initialize auth state on load
@@ -68,7 +72,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Listen for auth errors from Tauri backend
         authErrorUnlisten = await listen<string>('auth-error', (event) => {
           console.error('Auth error:', event.payload);
-          setError(event.payload);
+          let parsedError: AuthError | null = null;
+          try {
+            parsedError = JSON.parse(event.payload) as AuthError;
+          }
+          catch (e) {
+            console.error('Failed to parse auth error:', e);
+          }
+          setError(parsedError);
           setLoading(false);
           setAuthStep(null);
         });
@@ -84,7 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(currentSession);
       } catch (err) {
         console.error('Auth initialization error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize authentication');
+        setError(err instanceof Error ? { error_code: 'INIT_ERROR', error: err.message } : { error_code: 'INIT_ERROR', error: 'Failed to initialize authentication' });
       } finally {
         setLoading(false);
       }
@@ -109,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Invoke the Tauri command to start Discord OAuth flow
       await invoke('start_discord_auth');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start Discord login');
+      setError(err instanceof Error ? { error_code: 'DISCORD_AUTH_ERROR', error: err.message } : { error_code: 'DISCORD_AUTH_ERROR', error: 'Failed to start Discord login' });
       setAuthStep(null);
       throw err;
     }
@@ -125,7 +136,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(null);
       setAuthStep(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to logout');
+      setError(err instanceof Error ? { error_code: 'LOGOUT_ERROR', error: err.message } : { error_code: 'LOGOUT_ERROR', error: 'Failed to logout' });
       throw err;
     }
   };

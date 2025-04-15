@@ -73,9 +73,9 @@ impl InstanceBootstrap {
         Ok(forge_versions)
     }
 
-    pub fn revalidate_assets(&self, instance: &MinecraftInstance) -> IoResult<()> {
-        println!("Revalidating assets for: {}", instance.instanceName);
-
+    pub fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> {
+        println!("Revalidando assets para: {}", instance.instanceName);
+    
         // Verificar si la versión de Minecraft está disponible
         if instance.minecraftVersion.is_empty() {
             return Err(io::Error::new(
@@ -83,23 +83,156 @@ impl InstanceBootstrap {
                 "No se pudo determinar la versión de Minecraft",
             ));
         }
-
+    
         // Obtener la ruta de la instancia
         let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
         let minecraft_folder = instance_dir.join("minecraft");
         let assets_dir = minecraft_folder.join("assets");
         let assets_indexes_dir = assets_dir.join("indexes");
         let assets_objects_dir = assets_dir.join("objects");
-
+    
         // Crear directorios si no existen
         fs::create_dir_all(&assets_indexes_dir)?;
         fs::create_dir_all(&assets_objects_dir)?;
-
-        // Aquí iría el resto de la lógica para revalidar assets
-        // Esto incluiría descargar el índice de assets, verificar los assets existentes
-        // y descargar los faltantes
-
+    
+        // Obtener detalles de la versión
+        let version_details = self.get_version_details(&instance.minecraftVersion)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Error al obtener detalles de versión: {}", e)))?;
+    
+        // Obtener información del índice de assets
+        let asset_index_node = version_details.get("assetIndex")
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "No se encontró información del índice de assets"))?;
+    
+        let assets_index_id = asset_index_node.get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ID de índice de assets inválido"))?;
+    
+        let assets_index_url = asset_index_node.get("url")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "URL de índice de assets inválido"))?;
+    
+        let assets_index_file = assets_indexes_dir.join(format!("{}.json", assets_index_id));
+    
+        // Descargar o validar el índice de assets
+        if !assets_index_file.exists() {
+            println!("Descargando índice de assets para la versión {}", instance.minecraftVersion);
+            self.download_file(assets_index_url, &assets_index_file)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Error al descargar índice de assets: {}", e)))?;
+        }
+    
+        // Leer y procesar el índice de assets
+        let assets_index_content = fs::read_to_string(&assets_index_file)?;
+        let assets_index_root: Value = serde_json::from_str(&assets_index_content)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Error al parsear índice de assets: {}", e)))?;
+    
+        let objects = assets_index_root.get("objects")
+            .and_then(|v| v.as_object())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No se encontraron objetos de assets en el índice"))?;
+    
+        let total_assets = objects.len();
+        let mut processed_assets = 0;
+        let mut missing_assets = 0;
+    
+        println!("Validando {} assets...", total_assets);
+    
+        // Procesar cada asset
+        for (asset_name, asset_info) in objects {
+            processed_assets += 1;
+    
+            let hash = asset_info.get("hash")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("Hash inválido para asset: {}", asset_name)))?;
+    
+            let hash_prefix = &hash[0..2];
+            let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
+    
+            // Informar progreso ocasionalmente
+            if processed_assets % 1000 == 0 || processed_assets == total_assets {
+                println!(
+                    "Validando assets: {}/{} ({:.1}%)",
+                    processed_assets,
+                    total_assets,
+                    (processed_assets as f64 * 100.0 / total_assets as f64)
+                );
+            }
+    
+            if !asset_file.exists() {
+                missing_assets += 1;
+                let asset_url = format!("https://resources.download.minecraft.net/{}/{}", hash_prefix, hash);
+                let target_dir = assets_objects_dir.join(hash_prefix);
+                
+                if !target_dir.exists() {
+                    fs::create_dir_all(&target_dir)?;
+                }
+                
+                self.download_file(&asset_url, &asset_file)
+                    .map_err(|e| io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Error al descargar asset {}: {}", asset_name, e)
+                    ))?;
+            }
+        }
+    
+        if missing_assets > 0 {
+            println!("Se han descargado {} assets faltantes.", missing_assets);
+        } else {
+            println!("Todos los assets están validados.");
+        }
+    
         println!("Asset revalidation completed");
+        Ok(())
+    }
+    
+    // Método para obtener detalles de la versión
+    fn get_version_details(&mut self, version: &str) -> Result<Value, String> {
+        // Obtener el manifiesto de versiones
+        let version_manifest = self
+            .get_version_manifest()
+            .map_err(|e| format!("Error fetching version manifest: {}", e))?;
+    
+        let versions_node = version_manifest["versions"]
+            .as_array()
+            .ok_or_else(|| "Invalid version manifest format".to_string())?;
+    
+        // Buscar la versión específica
+        let version_info = versions_node.iter()
+            .find(|v| v["id"].as_str() == Some(version))
+            .ok_or_else(|| format!("Version {} not found in manifest", version))?;
+    
+        let version_url = version_info["url"]
+            .as_str()
+            .ok_or_else(|| "Invalid version info format".to_string())?;
+    
+        // Descargar detalles de la versión
+        self.client.get(version_url)
+            .send()
+            .map_err(|e| format!("Error fetching version details: {}", e))?
+            .json::<Value>()
+            .map_err(|e| format!("Error parsing version details: {}", e))
+    }
+    
+    // Método para descargar archivos
+    fn download_file(&self, url: &str, destination: &Path) -> Result<(), String> {
+        // Asegurarse de que el directorio padre existe
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Error creating directory: {}", e))?;
+        }
+    
+        let mut response = self.client.get(url)
+            .send()
+            .map_err(|e| format!("Download error: {}", e))?;
+    
+        if !response.status().is_success() {
+            return Err(format!("Download failed with status: {}", response.status()));
+        }
+    
+        let mut file = fs::File::create(destination)
+            .map_err(|e| format!("Error creating file: {}", e))?;
+    
+        response.copy_to(&mut file)
+            .map_err(|e| format!("Error writing file: {}", e))?;
+    
         Ok(())
     }
 

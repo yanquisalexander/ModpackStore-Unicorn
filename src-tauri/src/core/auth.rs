@@ -313,10 +313,12 @@ pub async fn start_discord_auth(
                                 .await
                                 .unwrap_or_else(|_| "Could not read error body".to_string());
                             eprintln!("Token API error: {} - {}", status, error_body);
-                            let _ = emit_event::<String>(
-                                "auth-error",
-                                Some(format!("API token error: {} - {}", status, error_body)),
-                            );
+                            // Return the raw json object to frontend (Without formatting, just json)
+                            let _ = emit_event::<String>("auth-error", Some(error_body.clone()));
+
+                        
+                     
+                            
                             return; // Stop processing on error
                         }
 

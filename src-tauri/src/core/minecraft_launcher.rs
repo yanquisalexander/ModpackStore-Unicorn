@@ -13,6 +13,7 @@ use crate::core::minecraft_account::MinecraftAccount; // If needed for validatio
 use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
 use crate::core::vanilla_launcher::VanillaLauncher; // Vanilla launch logic
 use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic
+use crate::core::instance_bootstrap::InstanceBootstrap; // Asset revalidation logic
 
 // Utilities & Managers (adjust paths if needed)
 use crate::utils::config_manager::get_config_manager; // Access configuration
@@ -168,7 +169,7 @@ impl InstanceLauncher {
 
     /// Revalidates or downloads necessary game assets, libraries, etc.
     /// TODO: Replace with actual asset checking/downloading logic.
-    fn revalidate_assets(&self) -> IoResult<()> {
+    fn revalidate_assets(&mut self) -> IoResult<()> {
         println!(
             "[Instance: {}] Revalidating assets...",
             self.instance.instanceName
@@ -186,17 +187,10 @@ impl InstanceLauncher {
             return Err(IoError::new(IoErrorKind::InvalidData, err_msg));
         }
 
-        // --- Replace with your actual asset/library download/check logic ---
-        // This could involve checking checksums, downloading missing files, etc.
-        // Use libraries like reqwest for downloads, manage progress if possible.
-        // If any step fails, emit an error and return Err(...):
-        // let download_error_msg = "Failed to download critical asset XYZ";
-        // self.emit_error(download_error_msg);
-        // return Err(IoError::new(IoErrorKind::Other, download_error_msg));
-
-        // Simulate work
-        // thread::sleep(std::time::Duration::from_secs(2)); // Remove in production
-        // --- End Placeholder ---
+       // Call revalidate_assets from InstanceBootstrap (We pass MinecraftInstance to it)
+   
+       let mut instance_bootstrap = InstanceBootstrap::new();
+         let result = instance_bootstrap.revalidate_assets(&mut self.instance)?;
 
         println!(
             "[Instance: {}] Asset revalidation completed.",
@@ -213,7 +207,7 @@ impl InstanceLauncher {
     /// This method is intended to be run within a dedicated thread.
     /// It handles validation, asset checks, and the actual game launch command.
     /// Errors encountered stop the process and emit an "instance-error" event.
-    fn perform_launch_steps(&self) {
+    fn perform_launch_steps(&mut self) {
         // Note: Initial "instance-launch-start" event is emitted by this function.
         self.emit_status("instance-launch-start", "Preparando lanzamiento...");
         println!(
@@ -357,7 +351,7 @@ impl InstanceLauncher {
         // Spawn the background thread
         thread::spawn(move || {
             // Create a new InstanceLauncher specific to this thread.
-            let thread_launcher = InstanceLauncher::new(instance_data_clone);
+            let mut thread_launcher = InstanceLauncher::new(instance_data_clone);
             // Execute the sequential, potentially blocking launch steps within this thread.
             thread_launcher.perform_launch_steps();
             // The thread will terminate automatically after perform_launch_steps finishes.

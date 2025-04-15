@@ -5,16 +5,16 @@ mod interfaces;
 mod utils;
 
 use core::auth::*;
+use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
-use std::sync::Arc;
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
 pub fn main() {
     tauri::Builder::default()
-        
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

@@ -1,5 +1,6 @@
 use crate::GLOBAL_APP_HANDLE; // Assuming this is defined elsewhere
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::Emitter;
@@ -7,24 +8,19 @@ use tauri::{Manager, State};
 use tauri_plugin_http::reqwest::Client;
 use tauri_plugin_opener;
 use tokio::sync::Mutex;
-use std::convert::Infallible;
 // Removed unused FromStr import: use std::str::FromStr;
 
 // Importaciones correctas de Hyper
+use hyper::header::HeaderValue;
 use hyper::server::Server;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, StatusCode};
-use hyper::header::HeaderValue;
 
 // User session structure
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserSession {
-    pub id: String,
-    pub name: String,
-    pub email: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avatar_url: Option<String>,
-    pub roles: Vec<String>,
+   #[serde(flatten)]
+   pub extra: serde_json::Value, // Use serde_json::Value for dynamic fields
 }
 
 // Token response from API
@@ -70,13 +66,12 @@ const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
 // --- /Constants ---
 
-
 // Helper to emit events
 fn emit_event<T: Serialize + Clone>(event: &str, payload: Option<T>) -> Result<(), String> {
     let binding = GLOBAL_APP_HANDLE.lock().unwrap(); // Ensure GLOBAL_APP_HANDLE is correctly setup
     let app = match binding.as_ref() {
-         Some(handle) => handle,
-         None => return Err("AppHandle missing or not initialized".to_string()),
+        Some(handle) => handle,
+        None => return Err("AppHandle missing or not initialized".to_string()),
     };
     // Prefer get_webview_window over deprecated get_window
     let main_window = app
@@ -138,15 +133,14 @@ async fn handle_callback(
 
     // Extract the authorization code from the query string
     let query = uri.query().unwrap_or("");
-    let code = query.split('&')
-        .find_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            if parts.next() == Some("code") {
-                parts.next().map(|v| v.to_string())
-            } else {
-                None
-            }
-        });
+    let code = query.split('&').find_map(|pair| {
+        let mut parts = pair.splitn(2, '=');
+        if parts.next() == Some("code") {
+            parts.next().map(|v| v.to_string())
+        } else {
+            None
+        }
+    });
 
     if let Some(code_str) = code {
         // Lock the AppState mutex to access its fields
@@ -173,7 +167,9 @@ async fn handle_callback(
     } else {
         // Error if no code found
         eprintln!("OAuth Callback Error: No authorization code received."); // Log error server-side
-        let mut response = Response::new(Body::from("Error: No authorization code received. Check Discord consent screen."));
+        let mut response = Response::new(Body::from(
+            "Error: No authorization code received. Check Discord consent screen.",
+        ));
         *response.status_mut() = StatusCode::BAD_REQUEST;
         Ok(response)
     }
@@ -231,29 +227,29 @@ pub async fn start_discord_auth(
     let server = Server::bind(&addr)
         .serve(make_svc)
         .with_graceful_shutdown(async {
-             shutdown_rx.await.ok(); // Wait for the shutdown signal
-             println!("Callback server shutting down."); // Log shutdown
+            shutdown_rx.await.ok(); // Wait for the shutdown signal
+            println!("Callback server shutting down."); // Log shutdown
         });
 
-        let auth_state_clone_for_poll = Arc::clone(auth_state.inner());
+    let auth_state_clone_for_poll = Arc::clone(auth_state.inner());
 
-        let app_handle = {
-            let binding = GLOBAL_APP_HANDLE.lock().unwrap();
-            match binding.as_ref() {
-                Some(handle) => handle.clone(), // Asumiendo que AppHandle implementa Clone
-                None => {
-                    return Err("AppHandle not initialized".to_string());
-                }
+    let app_handle = {
+        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+        match binding.as_ref() {
+            Some(handle) => handle.clone(), // Asumiendo que AppHandle implementa Clone
+            None => {
+                return Err("AppHandle not initialized".to_string());
             }
-        };
-        
+        }
+    };
 
     // Run the server in a background task
     tokio::spawn(async move {
         println!("Callback server listening on http://{}", addr);
         if let Err(e) = server.await {
             eprintln!("Server error: {}", e);
-            let _ = emit_event::<String>("auth-error", Some(format!("Callback server failed: {}", e)));
+            let _ =
+                emit_event::<String>("auth-error", Some(format!("Callback server failed: {}", e)));
         }
     });
 
@@ -277,7 +273,8 @@ pub async fn start_discord_auth(
         const MAX_WAIT_SECS: u64 = 120; // 2 minutes timeout
         for i in 0..MAX_WAIT_SECS {
             // Check if code exists
-            let code_option = { // Scoped lock
+            let code_option = {
+                // Scoped lock
                 let auth_code_guard = auth_state_clone_for_poll.auth_code.lock().await;
                 auth_code_guard.clone() // Clone the Option<String>
             }; // Lock released here
@@ -295,46 +292,52 @@ pub async fn start_discord_auth(
                         } else {
                             println!("Main window focused");
                         }
-                    },
+                    }
                     None => {
                         eprintln!("Main window not found");
                         // Continuar sin enfocar
                     }
                 };
-            
-
 
                 // --- Exchange code for tokens ---
                 let client = Client::new();
                 let token_endpoint = format!("{}/auth/discord/callback?code={}", API_URL, code);
                 println!("Requesting tokens from: {}", token_endpoint);
 
-                match client
-                    .get(&token_endpoint)
-                    .send()
-                    .await
-                {
+                match client.get(&token_endpoint).send().await {
                     Ok(resp) => {
-                         if !resp.status().is_success() {
+                        if !resp.status().is_success() {
                             let status = resp.status();
-                            let error_body = resp.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
+                            let error_body = resp
+                                .text()
+                                .await
+                                .unwrap_or_else(|_| "Could not read error body".to_string());
                             eprintln!("Token API error: {} - {}", status, error_body);
-                            let _ = emit_event::<String>("auth-error", Some(format!("API token error: {} - {}", status, error_body)));
+                            let _ = emit_event::<String>(
+                                "auth-error",
+                                Some(format!("API token error: {} - {}", status, error_body)),
+                            );
                             return; // Stop processing on error
                         }
 
                         match resp.json::<TokenResponse>().await {
                             Ok(tokens) => {
                                 println!("Tokens received successfully.");
+                                println!("Tokens: {:?}", tokens);
                                 // Store tokens
-                                { // Scoped lock
-                                    let mut tokens_guard = auth_state_clone_for_poll.tokens.lock().await;
+                                {
+                                    // Scoped lock
+                                    let mut tokens_guard =
+                                        auth_state_clone_for_poll.tokens.lock().await;
                                     *tokens_guard = Some(tokens.clone());
                                 } // Lock released
 
                                 // --- Fetch user session ---
-                                let _ = emit_event("auth-step-changed", Some(AuthStep::RequestingSession));
-                                let session_endpoint = format!("{}/me", API_URL);
+                                let _ = emit_event(
+                                    "auth-step-changed",
+                                    Some(AuthStep::RequestingSession),
+                                );
+                                let session_endpoint = format!("{}/auth/me", API_URL);
                                 println!("Requesting user session from: {}", session_endpoint);
 
                                 match client
@@ -344,58 +347,92 @@ pub async fn start_discord_auth(
                                     .await
                                 {
                                     Ok(user_resp) => {
-                                         if !user_resp.status().is_success() {
+                                        if !user_resp.status().is_success() {
                                             let status = user_resp.status();
-                                            let error_body = user_resp.text().await.unwrap_or_else(|_| "Could not read error body".to_string());
-                                            eprintln!("Session API error: {} - {}", status, error_body);
-                                            let _ = emit_event::<String>("auth-error", Some(format!("API session error: {} - {}", status, error_body)));
+                                            let error_body =
+                                                user_resp.text().await.unwrap_or_else(|_| {
+                                                    "Could not read error body".to_string()
+                                                });
+                                            eprintln!(
+                                                "Session API error: {} - {}",
+                                                status, error_body
+                                            );
+                                            let _ = emit_event::<String>(
+                                                "auth-error",
+                                                Some(format!(
+                                                    "API session error: {} - {}",
+                                                    status, error_body
+                                                )),
+                                            );
                                             // Optionally clear tokens here if session fails?
                                             return; // Stop processing
                                         }
 
                                         match user_resp.json::<UserSession>().await {
                                             Ok(user) => {
-                                                println!("User session received: {}", user.name);
+                                                println!("User session received: {}", user.extra);
                                                 // Store session
-                                                { // Scoped lock
-                                                    let mut session_guard = auth_state_clone_for_poll.session.lock().await;
+                                                {
+                                                    // Scoped lock
+                                                    let mut session_guard =
+                                                        auth_state_clone_for_poll
+                                                            .session
+                                                            .lock()
+                                                            .await;
                                                     *session_guard = Some(user.clone());
                                                 } // Lock released
-                                                // Emit success with user data
-                                                let _ = emit_event("auth-status-changed", Some(user));
+                                                  // Emit success with user data
+                                                let _ =
+                                                    emit_event("auth-status-changed", Some(user));
                                                 return; // Authentication successful! Exit task.
-                                            },
+                                            }
                                             Err(e) => {
                                                 eprintln!("Failed to parse user session: {}", e);
-                                                let _ = emit_event::<String>("auth-error", Some(format!("Failed to parse user session: {}", e)));
+                                                let _ = emit_event::<String>(
+                                                    "auth-error",
+                                                    Some(format!(
+                                                        "Failed to parse user session: {}",
+                                                        e
+                                                    )),
+                                                );
                                                 return; // Stop processing
                                             }
                                         }
-                                    },
+                                    }
                                     Err(e) => {
                                         eprintln!("Failed to request user session: {}", e);
-                                        let _ = emit_event::<String>("auth-error", Some(format!("Failed to request session: {}", e)));
+                                        let _ = emit_event::<String>(
+                                            "auth-error",
+                                            Some(format!("Failed to request session: {}", e)),
+                                        );
                                         return; // Stop processing
                                     }
                                 }
-                            },
+                            }
                             Err(e) => {
                                 eprintln!("Failed to parse token response: {}", e);
-                                let _ = emit_event::<String>("auth-error", Some(format!("Failed to parse tokens: {}", e)));
+                                let _ = emit_event::<String>(
+                                    "auth-error",
+                                    Some(format!("Failed to parse tokens: {}", e)),
+                                );
                                 return; // Stop processing
                             }
                         }
-                    },
+                    }
                     Err(e) => {
                         eprintln!("Failed to call token API: {}", e);
-                        let _ = emit_event::<String>("auth-error", Some(format!("Failed to call token API: {}", e)));
+                        let _ = emit_event::<String>(
+                            "auth-error",
+                            Some(format!("Failed to call token API: {}", e)),
+                        );
                         return; // Stop processing
                     }
                 }
             }
 
             // Wait 1 second before checking again
-            if i % 10 == 0 && i > 0 { // Log progress every 10 seconds
+            if i % 10 == 0 && i > 0 {
+                // Log progress every 10 seconds
                 println!("Waiting for auth code... ({}s / {}s)", i, MAX_WAIT_SECS);
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -410,12 +447,10 @@ pub async fn start_discord_auth(
             let _ = tx.send(()); // Ignore error if receiver dropped
         }
         println!("Callback server shut down due to timeout.");
-
     });
 
     Ok(())
 }
-
 
 #[tauri::command]
 pub async fn poll_session(
@@ -435,21 +470,25 @@ pub async fn logout(
     println!("Logout requested.");
 
     // Get current tokens before clearing them
-    let tokens_to_revoke = { // Scoped lock
+    let tokens_to_revoke = {
+        // Scoped lock
         let tokens_guard = auth_state.tokens.lock().await;
         tokens_guard.clone()
     }; // Lock released
 
     // Clear local state first
-    { // Scoped lock
+    {
+        // Scoped lock
         let mut session_guard = auth_state.session.lock().await;
         *session_guard = None;
     } // Lock released
-    { // Scoped lock
+    {
+        // Scoped lock
         let mut tokens_guard = auth_state.tokens.lock().await;
         *tokens_guard = None;
     } // Lock released
-    { // Scoped lock
+    {
+        // Scoped lock
         let mut code_guard = auth_state.auth_code.lock().await;
         *code_guard = None;
     } // Lock released
@@ -458,27 +497,27 @@ pub async fn logout(
 
     // Attempt to revoke tokens on the backend (best effort)
     if let Some(tokens) = tokens_to_revoke {
-         let logout_endpoint = format!("{}/logout", API_URL);
-         println!("Calling backend logout: {}", logout_endpoint);
-         match Client::new()
+        let logout_endpoint = format!("{}/logout", API_URL);
+        println!("Calling backend logout: {}", logout_endpoint);
+        match Client::new()
             .post(&logout_endpoint)
             .bearer_auth(&tokens.access_token)
             // Optionally send refresh token if backend needs it for full revocation
             // .json(&serde_json::json!({ "refresh_token": tokens.refresh_token }))
             .send()
             .await
-         {
-             Ok(resp) => {
-                 if resp.status().is_success() {
-                     println!("Backend logout successful.");
-                 } else {
-                     eprintln!("Backend logout failed: Status {}", resp.status());
-                 }
-             },
-             Err(e) => {
-                 eprintln!("Failed to call backend logout: {}", e);
-             }
-         }
+        {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    println!("Backend logout successful.");
+                } else {
+                    eprintln!("Backend logout failed: Status {}", resp.status());
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to call backend logout: {}", e);
+            }
+        }
     } else {
         println!("No tokens found to revoke on backend.");
     }

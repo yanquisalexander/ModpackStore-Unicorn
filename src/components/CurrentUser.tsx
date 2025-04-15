@@ -17,7 +17,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     return (
         <div onClick={logout} className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}>
-            <img src={session.avatarUrl} alt="Avatar" className="size-4 rounded-sm" />
+            <img src={session.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
             <span className="text-sm font-medium">{session.username}</span>
         </div>
     );

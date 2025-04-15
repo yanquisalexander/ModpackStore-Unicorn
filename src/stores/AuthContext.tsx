@@ -22,7 +22,7 @@ type AuthStep =
   | 'requesting-session';
 
 interface AuthContextType {
-  session: UserSession | null;
+  session: any | null;
   loading: boolean;
   error: string | null;
   authStep: AuthStep;
@@ -62,6 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setLoading(false);
           // Reset auth step cuando se completa la autenticación
           setAuthStep(null);
+          setError(null);
         });
 
         // Listen for auth errors from Tauri backend

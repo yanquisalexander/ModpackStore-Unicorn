@@ -6,6 +6,8 @@ use std::io::{self, Result as IoResult};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri_plugin_http::reqwest;
+use crate::GLOBAL_APP_HANDLE;
+use tauri::Emitter;
 
 pub struct InstanceBootstrap {
     client: reqwest::blocking::Client,
@@ -24,6 +26,49 @@ impl InstanceBootstrap {
         Self {
             client: reqwest::blocking::Client::new(),
             version_manifest_cache: None,
+        }
+    }
+
+     // --- Helper Methods for Event Emission ---
+
+    /// Emits a status update event to the frontend.
+    /// Uses the global `AppHandle` to send events to all windows.
+    ///
+    /// # Arguments
+    ///
+    /// * `event_name` - The name of the event (e.g., "instance-launch-start").
+    /// * `message` - A descriptive message for the frontend.
+    fn emit_status(instance: &MinecraftInstance, event_name: &str, message: &str) {
+        println!(
+            "[Instance: {}] Emitting Event: {} - Message: {}",
+            instance.instanceId, event_name, message
+        );
+        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                let payload = serde_json::json!({
+                    "id": instance.instanceId,
+                    "name": instance.instanceName, 
+                    "message": message
+                });
+                // Use emit to notify the specific window listening for this event
+                if let Err(e) = app_handle.emit(event_name, payload) {
+                    eprintln!(
+                        "[Bootstrap] Error emitting event '{}': {}",
+                        event_name, e
+                    );
+                }
+            } else {
+                eprintln!(
+                    "[Bootstrap] Error: GLOBAL_APP_HANDLE is None when trying to emit '{}'.",
+                    event_name
+                );
+            }
+        } else {
+            eprintln!(
+                "[Bootstrap] Error: Failed to lock GLOBAL_APP_HANDLE when trying to emit '{}'.",
+                
+                event_name
+            );
         }
     }
 
@@ -153,6 +198,11 @@ impl InstanceBootstrap {
                     processed_assets,
                     total_assets,
                     (processed_assets as f64 * 100.0 / total_assets as f64)
+                );
+                Self::emit_status(
+                    instance,
+                    "instance-downloading-assets",
+                    &format!("Validando assets: {}/{} ({:.1}%)", processed_assets, total_assets, (processed_assets as f64 * 100.0 / total_assets as f64)),
                 );
             }
     

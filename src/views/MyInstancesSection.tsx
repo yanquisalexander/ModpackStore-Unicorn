@@ -18,7 +18,7 @@ export const MyInstancesSection = () => {
     }, [])
 
     return (
-        <div className="flex items-center justify-center min-h-dvh h-full w-full">
+        <div className="flex items-center justify-center min-h-dvh w-full">
             <div className="text-white text-2xl font-semibold">
                 Mis instancias
             </div>

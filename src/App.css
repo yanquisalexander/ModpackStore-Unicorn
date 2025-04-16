@@ -31,7 +31,8 @@
 }
 
 html,
-body {
+body,
+#root {
   @apply h-full w-full custom-scrollbar;
   /* Scrollar */
   --color-background: var(--color-ms-primary);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useGlobalContext } from "../stores/GlobalContext"
-import { LucideShoppingBag } from "lucide-react"
+import { LucideLoader, LucideShoppingBag } from "lucide-react"
 import { getModpacks } from "@/services/getModpacks"
 import { invoke } from "@tauri-apps/api/core"
 import { CategoryHorizontalSection } from "../components/CategoryHorizontalSection"
@@ -53,20 +53,21 @@ export const ExploreSection = () => {
 
 
     return (
-        <div className="mx-auto max-w-7xl px-4 py-10">
+        <div className="mx-auto max-w-7xl px-4 py-10 overflow-y-auto">
             <h1 className="text-3xl font-semibold mb-8 text-white animate-fade-in-up">
                 Explorar Modpacks
             </h1>
 
             {loading ? (
-                <div className="flex justify-center items-center py-20">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
                 </div>
             ) : (
                 <>
 
                     {
                         modpackCategories.map((category) => (
+
                             <CategoryHorizontalSection
                                 key={category.id}
                                 title={category.name}

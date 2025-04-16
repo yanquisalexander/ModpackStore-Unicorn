@@ -2,7 +2,7 @@ import { useGlobalContext } from "@/stores/GlobalContext"
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideGamepad2, LucideLoaderCircle } from "lucide-react"
+import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings } from "lucide-react"
 import { CSSProperties, useEffect, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
@@ -10,6 +10,8 @@ import { useInstances } from "@/stores/InstancesContext"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
+import { openPath } from '@tauri-apps/plugin-opener';
+
 
 // Constantes movidas fuera del componente para evitar recreaciones
 const DEFAULT_LOADING_STATE = {
@@ -32,14 +34,32 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const { instances } = useInstances()
 
     // Obtenemos la instancia específica del contexto
-    const currentInstance = instances.find(inst => inst.id === instanceId) || null
-    const isPlaying = currentInstance?.status === "running"
+    const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null
+    const isPlaying = currentInstanceRunning?.status === "running"
 
     // Refs para evitar dependencias circulares en efectos
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
 
     const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null)
+    const [quickActionsOpen, setQuickActionsOpen] = useState(false)
+    const quickActionsRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                quickActionsRef.current &&
+                !quickActionsRef.current.contains(event.target as Node)
+            ) {
+                setQuickActionsOpen(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     const [prelaunchState, setPrelaunchState] = useState({
         isLoading: true,
@@ -95,6 +115,27 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
         getMinecraftInstance();
     }, [instanceId, setTitleBarState]);
+
+    const openGameDir = useCallback(async () => {
+        try {
+            console.log("Opening game directory...");
+            if (!prelaunchState.instance) return;
+            const gameDir = prelaunchState.instance.minecraftPath;
+            console.log("Opening game directory:", prelaunchState.instance);
+            await openPath(gameDir);
+            toast.success("Directorio del juego abierto", {
+                description: "Se ha abierto el directorio del juego.",
+                dismissible: true,
+            });
+        }
+        catch (error) {
+            console.error("Error opening game directory:", error);
+            toast.error("Error al abrir el directorio del juego", {
+                description: "No se pudo abrir el directorio del juego. Intenta nuevamente.",
+                dismissible: true,
+            });
+        }
+    }, [instanceId]);
 
     // Carga de la apariencia - ejecutada solo una vez
     useEffect(() => {
@@ -168,25 +209,25 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     // Actualiza el estado de carga basado en la instancia actual
     useEffect(() => {
-        if (!currentInstance) return;
+        if (!currentInstanceRunning) return;
 
-        const isLoading = currentInstance.status === "preparing" || currentInstance.status === "downloading-assets";
+        const isLoading = currentInstanceRunning.status === "preparing" || currentInstanceRunning.status === "downloading-assets";
 
         setLoadingStatus(prev => ({
             ...prev,
             isLoading,
-            message: currentInstance.message || getRandomMessage(),
+            message: currentInstanceRunning.message || getRandomMessage(),
         }));
 
         // Mostrar toast de error si la instancia tiene un error
-        if (currentInstance.status === "error") {
+        if (currentInstanceRunning.status === "error") {
             toast.error("Error en la instancia", {
                 id: "instance-runtime-error",
-                description: currentInstance.message || "Ha ocurrido un error al ejecutar la instancia.",
+                description: currentInstanceRunning.message || "Ha ocurrido un error al ejecutar la instancia.",
                 dismissible: false,
             });
         }
-    }, [currentInstance, getRandomMessage]);
+    }, [currentInstanceRunning, getRandomMessage]);
 
     const handlePlayButtonClick = useCallback(async () => {
         console.log("Launching Minecraft instance...");
@@ -202,7 +243,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             }
 
             messageIntervalRef.current = window.setInterval(() => {
-                if (currentInstance?.status !== "running" && currentInstance?.status !== "preparing") {
+                if (currentInstanceRunning?.status !== "running" && currentInstanceRunning?.status !== "preparing") {
                     if (messageIntervalRef.current) {
                         window.clearInterval(messageIntervalRef.current);
                         messageIntervalRef.current = null;
@@ -222,7 +263,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 dismissible: true,
             });
         }
-    }, [instanceId, currentInstance?.status, getRandomMessage]);
+    }, [instanceId, currentInstanceRunning?.status, getRandomMessage]);
 
     // Limpieza de intervalos al desmontar
     useEffect(() => {
@@ -352,6 +393,38 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         </div>
                     </div>
                 </footer>
+
+                {prelaunchState.instance && (
+                    <div className="absolute right-0 bottom-16 z-40 group" ref={quickActionsRef}>
+                        <div className="flex items-center justify-end relative w-fit">
+                            {/* Contenedor que se queda visible */}
+                            <button
+                                onClick={() => setQuickActionsOpen(!quickActionsOpen)}
+                                className="size-12 cursor-pointer hover:bg-neutral-900 transition bg-neutral-800 rounded-l-md flex items-center justify-center">
+                                <LucideSettings className="size-5 text-white" />
+                            </button>
+
+                            {/* Menú desplegable con hover persistente */}
+                            <div className={`absolute right-full top-0 mr-2 ${quickActionsOpen
+                                ? "opacity-100 pointer-events-auto translate-x-0"
+                                : "opacity-0 pointer-events-none translate-x-2"
+                                } transition-all duration-300`}>
+                                <div className="bg-neutral-900 border border-neutral-700 rounded-md shadow-md p-2 space-y-2 w-48">
+                                    <button
+                                        onClick={openGameDir}
+                                        className="flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                                    >
+                                        <LucideFolderOpen className="size-4" />
+                                        Abrir .minecraft
+                                    </button>
+                                    {/* Agregá más acciones si querés */}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+
             </div>
         </div>
     );

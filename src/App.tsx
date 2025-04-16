@@ -56,15 +56,17 @@ function App() {
       ) : (
         <>
           <HomeMainHeader />
-          <Switch>
-            <Route path="/" component={ExploreSection} />
-            <Route path="/my-instances" component={MyInstancesSection} />
-            <Route path="/prelaunch/:instanceId">
-              {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
-            </Route>
-            <Route path="/settings" component={ConfigurationSection} />
-            <Route>404: No such page!</Route>
-          </Switch>
+          <div className="h-[calc(100vh-6rem)]">
+            <Switch>
+              <Route path="/" component={ExploreSection} />
+              <Route path="/my-instances" component={MyInstancesSection} />
+              <Route path="/prelaunch/:instanceId">
+                {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
+              </Route>
+              <Route path="/settings" component={ConfigurationSection} />
+              <Route>404: No such page!</Route>
+            </Switch>
+          </div>
         </>
       )}
     </main>

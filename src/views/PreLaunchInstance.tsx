@@ -118,6 +118,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     const openGameDir = useCallback(async () => {
         try {
+            console.log({ instanceId });
             await invoke("open_game_dir", { instanceId });
             toast.success("Abriendo carpeta de la instancia...");
         } catch (error) {

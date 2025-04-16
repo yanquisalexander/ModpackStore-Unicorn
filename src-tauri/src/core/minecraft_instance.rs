@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::thread;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackInfo {
@@ -33,6 +35,39 @@ pub struct MinecraftInstance {
 impl MinecraftInstance {
     pub fn is_forge_instance(&self) -> bool {
         self.forgeVersion.is_some()
+    }
+
+    pub fn from_instance_id(instance_id: &str) -> Option<Self> {
+        let instance_directory = Path::new("instances").join(instance_id);
+        if !instance_directory.exists() {
+            return None;
+        }
+
+        let config_file = instance_directory.join("instance.json");
+        if !config_file.exists() {
+            return None;
+        }
+
+        match fs::read_to_string(config_file) {
+            Ok(content) => {
+                match serde_json::from_str::<MinecraftInstance>(&content) {
+                    Ok(mut instance) => {
+                        // Aseguramos que instanceDirectory sea una ruta válida
+                        // y que no esté vacía
+                        if instance.instanceDirectory.is_none() {
+                            instance.instanceDirectory =
+                                Some(instance_directory.to_string_lossy().to_string());
+                        } else {
+                            instance.instanceDirectory =
+                                Some(instance.instanceDirectory.unwrap_or_default());
+                        }
+                        Some(instance)
+                    }
+                    Err(_) => None,
+                }
+            }
+            Err(_) => None,
+        }
     }
 
     pub fn from_directory(directory: &Path) -> Option<Self> {
@@ -106,17 +141,20 @@ pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_game_dir (instance_id: String) -> Result<(), String> {
-    let instance = MinecraftInstance::from_directory(&PathBuf::from(instance_id))
-        .ok_or("Instance not found".to_string())?;
-    let path = Path::new(&instance.minecraftPath);
-    if path.exists() {
-        std::process::Command::new("explorer")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        Ok(())
+pub fn open_game_dir(instance_id: String) -> Result<(), String> {
+    let instance = MinecraftInstance::from_instance_id(&instance_id);
+    if let Some(instance) = instance {
+        let path = PathBuf::from(instance.minecraftPath);
+        if path.exists() {
+            // Abre el directorio del juego con el programa predeterminado del sistema
+            if let Err(e) = tauri_plugin_opener::open_path(path,  None::<&str>) {
+                return Err(format!("Error opening game directory: {}", e));
+            }
+            Ok(())
+        } else {
+            Err("Game directory does not exist".to_string())
+        }
     } else {
-        Err("Minecraft path does not exist".to_string())
+        Err("Instance not found".to_string())
     }
 }

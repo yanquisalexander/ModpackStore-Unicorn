@@ -59,6 +59,7 @@
     "drpc:default",
     "drpc:allow-clear-activity",
     "drpc:allow-set-activity",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

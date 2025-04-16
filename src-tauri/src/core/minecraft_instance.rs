@@ -104,3 +104,19 @@ pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {
     );
     Ok(())
 }
+
+#[tauri::command]
+pub fn open_game_dir (instance_id: String) -> Result<(), String> {
+    let instance = MinecraftInstance::from_directory(&PathBuf::from(instance_id))
+        .ok_or("Instance not found".to_string())?;
+    let path = Path::new(&instance.minecraftPath);
+    if path.exists() {
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Minecraft path does not exist".to_string())
+    }
+}

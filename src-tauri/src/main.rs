@@ -43,6 +43,7 @@ pub fn main() {
             core::instance_manager::delete_instance,
             utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
+            core::minecraft_instance::open_game_dir,
             core::accounts_manager::get_all_accounts,
             core::auth::start_discord_auth,
             core::auth::get_current_session,

@@ -10,7 +10,7 @@ import { useInstances } from "@/stores/InstancesContext"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
-import { openPath } from '@tauri-apps/plugin-opener';
+import { open } from '@tauri-apps/plugin-dialog';
 
 
 // Constantes movidas fuera del componente para evitar recreaciones
@@ -118,20 +118,12 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     const openGameDir = useCallback(async () => {
         try {
-            console.log("Opening game directory...");
-            if (!prelaunchState.instance) return;
-            const gameDir = prelaunchState.instance.minecraftPath;
-            console.log("Opening game directory:", prelaunchState.instance);
-            await openPath(gameDir);
-            toast.success("Directorio del juego abierto", {
-                description: "Se ha abierto el directorio del juego.",
-                dismissible: true,
-            });
-        }
-        catch (error) {
+            await invoke("open_game_dir", { instanceId });
+            toast.success("Abriendo carpeta de la instancia...");
+        } catch (error) {
             console.error("Error opening game directory:", error);
-            toast.error("Error al abrir el directorio del juego", {
-                description: "No se pudo abrir el directorio del juego. Intenta nuevamente.",
+            toast.error("Error al abrir la carpeta de la instancia", {
+                description: "No se pudo abrir la carpeta de la instancia. Intenta nuevamente.",
                 dismissible: true,
             });
         }

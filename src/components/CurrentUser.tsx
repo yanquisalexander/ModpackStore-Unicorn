@@ -7,7 +7,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const [openMenu, setOpenMenu] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    if (!isAuthenticated) return null;
+
 
     const toggleMenu = () => {
         setOpenMenu(prev => !prev);
@@ -34,6 +34,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const baseClasses = "flex h-7 items-center self-center space-x-2 transition-all px-2 rounded-md backdrop-blur-xl cursor-pointer";
     const lightMode = "hover:bg-white/40 text-neutral-800";
     const darkMode = "hover:bg-neutral-700 text-white";
+
+    if (!isAuthenticated) return null;
 
     return (
         <div className="relative self-center" ref={containerRef}>

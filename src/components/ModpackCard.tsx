@@ -20,7 +20,7 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                 <img
                     src={modpack.bannerUrl}
                     onError={(e) => { e.currentTarget.src = "https://i.pinimg.com/736x/90/28/33/90283331ef9aea8e1cfc45187d1a0848.jpg" }}
-                    className="absolute inset-0 -z-20 transform-gpu object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
+                    className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
                     alt={modpack.name}
                 />
 

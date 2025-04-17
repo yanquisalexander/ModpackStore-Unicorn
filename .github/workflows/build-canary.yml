@@ -5,17 +5,11 @@ on:
     branches:
       - main
 
-
 jobs:
-  build-canary:
-    permissions:
-      contents: write
+  cache-pnpm:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      # Cache de dependencias de Node.js
       - name: Cache pnpm dependencies
         uses: actions/cache@v3
         with:
@@ -24,18 +18,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+  setup-node:
+    runs-on: windows-latest
+    needs: cache-pnpm
+    steps:
+      - uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-
       - name: Install pnpm
-        run: npm install -g pnpm # Cambia si usás npm, pnpm o bun
-
+        run: npm install -g pnpm
       - name: Install frontend dependencies
-        run: pnpm install # Cambia si usás npm, pnpm o bun
+        run: pnpm install
 
-      # Cache de dependencias de Rust
+  cache-rust:
+    runs-on: windows-latest
+    needs: setup-node
+    steps:
+      - uses: actions/checkout@v4
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -46,15 +47,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-rust-
 
+  setup-rust:
+    runs-on: windows-latest
+    needs: cache-rust
+    steps:
+      - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-       - name: Set up Tauri signing private key
+  publish-canary:
+    runs-on: windows-latest
+    needs: [setup-rust]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Tauri signing private key
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           echo "Private key set as environment variable."
-
       - name: Publish canary build
         uses: tauri-apps/tauri-action@v0
         env:

@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  publish-tauri:
+  build-canary:
     permissions:
       contents: write
     runs-on: windows-latest
@@ -23,8 +23,11 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install pnpm
+        run: npm install -g pnpm # Cambia si usás npm, pnpm o bun
+        
       - name: Install frontend dependencies
-        run: yarn install # Cambia si usás npm, pnpm o bun
+        run: pnpm install # Cambia si usás npm, pnpm o bun
 
       - name: Publish canary build
         uses: tauri-apps/tauri-action@v0

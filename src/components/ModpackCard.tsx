@@ -1,11 +1,24 @@
 import { Link } from "wouter"
-import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2 } from "lucide-react"
+import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
 
 export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
 
+    const publisherVerified = modpack.publisher.verified
+    const publisherPartner = modpack.publisher.partnered
+
+    const publisherName = modpack.publisher.publisherName
+
+    const publisherTagClasses = {
+        NORMAL: "",
+        VERIFIED: "bg-green-700 text-white",
+        PARTNERED: "bg-indigo-500 text-white",
+
+    }
+
+    const publisherClass = publisherPartner ? publisherTagClasses.PARTNERED : publisherVerified ? publisherTagClasses.VERIFIED : publisherTagClasses.NORMAL;
 
     return (
-        <article className={`group relative overflow-hidden rounded-xl border border-white/20 h-full
+        <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
       transition 
       before:left-1/2 before:bottom-0 before:-translate-x-1/2 before:w-full before:h-1/2 
       before:rounded-full before:bg-black before:absolute before:translate-y-full 
@@ -24,15 +37,19 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                     alt={modpack.name}
                 />
 
+
+
                 {/* Tags section */}
                 <div className="opacity-100 flex transition flex-col gap-2 flex-1">
                     <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                        <span className="backdrop-blur-2xl bg-gradient-to-br from-blue-500 to-sky-800 text-green-100 text-xs border rounded-full inline-flex items-center gap-1 border-green-200/40 py-1 px-2">
-                            <LucideUser2 className="h-4 w-auto" />
-                            {modpack.publisher.publisherName}
+                        <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass || "bg-gray-800 text-white border-white/10"}`}>
+                            {publisherPartner || publisherVerified ? (
+                                <LucideVerified className="h-4 w-auto" />
+                            ) : (
+                                <LucideUser2 className="h-4 w-auto" />
+                            )}
+                            {publisherName}
                         </span>
-
-
                     </div>
                 </div>
 
@@ -40,7 +57,7 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                 <div className="flex flex-wrap gap-y-6 items-end justify-between mt-8 transition group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
                     <div>
                         <h2 className="text-lg mt-auto text-white leading-snug font-medium text-balance max-w-[28ch] group-hover:text-sky-200">
-                            {modpack.title}
+                            {modpack.name}
                         </h2>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-300 flex-wrap">
                             <p className="flex items-center gap-1">

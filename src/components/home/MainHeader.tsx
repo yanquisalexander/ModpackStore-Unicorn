@@ -18,11 +18,6 @@ export const HomeMainHeader = () => {
             path: "/mc-accounts",
             title: "Cuentas",
             icon: LucideUsers
-        },
-        {
-            path: "/settings",
-            title: "Configuración",
-            icon: LucideWrench
         }
     ]
 

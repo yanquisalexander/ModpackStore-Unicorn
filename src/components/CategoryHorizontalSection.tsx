@@ -3,15 +3,16 @@ import { ModpackCard } from "./ModpackCard"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export const CategoryHorizontalSection = ({
+    id,
     title,
+    shortDescription,
     modpacks = [],
-    href = "/prelaunch/",
-    viewAllLink = "#"
 }: {
+    id: string,
     title: string,
+    shortDescription?: string,
     modpacks: any[],
     href?: string,
-    viewAllLink?: string
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const [showLeftArrow, setShowLeftArrow] = useState(false)
@@ -39,11 +40,16 @@ export const CategoryHorizontalSection = ({
     }
 
     return (
-        <div className="mb-12 px-4">
+        <div className="mb-12 px-4 z-10">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold text-white">{title}</h2>
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-semibold text-white">{title}</h2>
+                    {shortDescription && (
+                        <p className="text-gray-400 text-sm">{shortDescription}</p>
+                    )}
+                </div>
                 <a
-                    href={viewAllLink}
+                    href={`/category/${id}`}
                     className="text-blue-400 hover:text-blue-300 text-sm font-medium transition"
                 >
                     Ver todo

@@ -405,7 +405,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                                 <div className="bg-neutral-900 border border-neutral-700 rounded-md shadow-md p-2 space-y-2 w-48">
                                     <button
                                         onClick={openGameDir}
-                                        className="flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                                        className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
                                     >
                                         <LucideFolderOpen className="size-4" />
                                         Abrir .minecraft

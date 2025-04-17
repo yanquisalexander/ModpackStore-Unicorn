@@ -1,4 +1,5 @@
 import { useAuthentication } from "@/stores/AuthContext";
+import { LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 
@@ -37,6 +38,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     if (!isAuthenticated) return null;
 
+    const isPublisher = session.publisher?.id !== undefined;
+
     return (
         <div className="relative self-center" ref={containerRef}>
             <div
@@ -53,20 +56,33 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     <ul className="text-sm text-white flex flex-col">
                         <Link
                             href="/profile"
-                            className="w-full py-1 px-2 hover:bg-neutral-800 rounded"
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
                         >
+                            <LucideSquareUserRound size={16} />
                             Ver perfil
                         </Link>
                         <Link
                             href="/settings"
-                            className="w-full py-1 px-2 hover:bg-neutral-800 rounded"
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
                         >
+                            <LucideSettings2 size={16} />
                             Configuración
                         </Link>
+                        {isPublisher && (
+                            <Link
+                                href="/publisher"
+                                className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                            >
+                                <LucidePackageOpen size={16} />
+                                Centro de creadores
+                            </Link>
+                        )}
+
                         <button
                             onClick={logout}
-                            className="cursor-pointer text-left w-full py-1 px-2 hover:bg-neutral-800 rounded"
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer"
                         >
+                            <LucideLogOut size={16} />
                             Cerrar sesión
                         </button>
                     </ul>

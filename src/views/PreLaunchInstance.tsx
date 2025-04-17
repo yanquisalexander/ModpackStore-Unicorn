@@ -388,17 +388,22 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 </footer>
 
                 {prelaunchState.instance && (
-                    <div className="absolute right-0 bottom-16 z-40 group" ref={quickActionsRef}>
+                    <div className="absolute right-0 bottom-40 z-40 group" ref={quickActionsRef}>
                         <div className="flex items-center justify-end relative w-fit">
                             {/* Contenedor que se queda visible */}
                             <button
                                 onClick={() => setQuickActionsOpen(!quickActionsOpen)}
-                                className="size-12 cursor-pointer hover:bg-neutral-900 transition bg-neutral-800 rounded-l-md flex items-center justify-center">
-                                <LucideSettings className="size-5 text-white" />
+                                className="size-12 cursor-pointer group hover:bg-neutral-900 transition bg-neutral-800 rounded-l-md flex items-center justify-center">
+                                <LucideSettings
+                                    style={{
+                                        transform: quickActionsOpen ? "rotate(90deg)" : "rotate(0deg)",
+                                        transition: "transform 0.3s ease-in-out",
+                                    }}
+                                    className="size-5 text-white" />
                             </button>
 
                             {/* Menú desplegable con hover persistente */}
-                            <div className={`absolute right-full top-0 mr-2 ${quickActionsOpen
+                            <div className={`absolute right-full bottom-0 mr-2 ${quickActionsOpen
                                 ? "opacity-100 pointer-events-auto translate-x-0"
                                 : "opacity-0 pointer-events-none translate-x-2"
                                 } transition-all duration-300`}>
@@ -407,8 +412,20 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                                         onClick={openGameDir}
                                         className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
                                     >
-                                        <LucideFolderOpen className="size-4" />
+                                        <LucideFolderOpen className="size-4 text-white" />
                                         Abrir .minecraft
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setQuickActionsOpen(false);
+                                            toast.error("Función no disponible aún", {
+                                                description: "Esta función estará disponible en futuras versiones.",
+                                            });
+                                        }}
+                                        className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                                    >
+                                        <LucideLoaderCircle className="size-4 text-white" />
+                                        Descargar mods
                                     </button>
                                     {/* Agregá más acciones si querés */}
                                 </div>

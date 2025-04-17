@@ -17,3 +17,23 @@ export const getModpacks = async () => {
 
     return data
 }
+
+export const searchModpacks = async (query: string) => {
+    const url = new URL(`${API_ENDPOINT}/explore/search`)
+    url.searchParams.append("q", query)
+
+    const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+    })
+
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+
+    const { data } = await response.json()
+    return data
+}

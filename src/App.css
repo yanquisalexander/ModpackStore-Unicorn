@@ -36,7 +36,7 @@ body,
   @apply h-full w-full custom-scrollbar;
   /* Scrollar */
   --color-background: var(--color-ms-primary);
-  scrollbar-color: var(--color-border) var(--color-background);
+  scrollbar-color: #444 #181818FF;
 }
 
 @utility with-ligatures {
@@ -56,14 +56,10 @@ body,
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) var(--color-background);
 
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
   &::-webkit-scrollbar-thumb {
     background-color: var(--color-border);
     border-radius: var(--radius);
+
   }
 
   &::-webkit-scrollbar-track {

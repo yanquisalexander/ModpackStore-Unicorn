@@ -12,6 +12,8 @@ use tauri::Manager; // Necesario para get_window y emit
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
+static API_ENDPOINT: &str = "http://localhost:3000/v1";
+
 pub fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())

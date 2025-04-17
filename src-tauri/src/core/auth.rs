@@ -16,6 +16,8 @@ use hyper::server::Server;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, StatusCode};
 
+use crate::API_ENDPOINT;
+
 // User session structure
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserSession {
@@ -61,7 +63,6 @@ impl AuthState {
 
 // --- Constants ---
 // !!! REPLACE THESE WITH YOUR ACTUAL VALUES !!!
-const API_URL: &str = "http://localhost:3000/v1"; // Replace with your actual API URLP
 const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
 // --- /Constants ---
@@ -301,7 +302,7 @@ pub async fn start_discord_auth(
 
                 // --- Exchange code for tokens ---
                 let client = Client::new();
-                let token_endpoint = format!("{}/auth/discord/callback?code={}", API_URL, code);
+                let token_endpoint = format!("{}/auth/discord/callback?code={}", API_ENDPOINT, code);
                 println!("Requesting tokens from: {}", token_endpoint);
 
                 match client.get(&token_endpoint).send().await {
@@ -339,7 +340,7 @@ pub async fn start_discord_auth(
                                     "auth-step-changed",
                                     Some(AuthStep::RequestingSession),
                                 );
-                                let session_endpoint = format!("{}/auth/me", API_URL);
+                                let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
                                 println!("Requesting user session from: {}", session_endpoint);
 
                                 match client
@@ -499,7 +500,7 @@ pub async fn logout(
 
     // Attempt to revoke tokens on the backend (best effort)
     if let Some(tokens) = tokens_to_revoke {
-        let logout_endpoint = format!("{}/logout", API_URL);
+        let logout_endpoint = format!("{}/logout", API_ENDPOINT);
         println!("Calling backend logout: {}", logout_endpoint);
         match Client::new()
             .post(&logout_endpoint)

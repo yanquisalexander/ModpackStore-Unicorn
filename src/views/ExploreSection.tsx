@@ -52,7 +52,11 @@ export const ExploreSection = () => {
         <div className="mx-auto max-w-7xl px-4 py-10 overflow-y-auto">
             <header className="flex flex-col items-center justify-center gap-y-8 mb-16">
                 <div className="flex flex-col items-center justify-between w-full max-w-3xl">
-                    <h1 className="text-2xl font-semibold text-white">Bienvenido a Modpack Store</h1>
+                    <h1 className="text-2xl font-semibold text-white">Bienvenido a&nbsp;
+                        <span className=" from-[#49f8a1] to-[#71eed9] bg-clip-text text-transparent bg-gradient-to-b">
+                            Modpack Store
+                        </span>
+                    </h1>
                     <p className="text-gray-400 text-base text-center">
                         Estás a pocos pasos de descubrir mundos e historias increíbles. <br />
                         Explora, elige y sumérgete en la aventura que más te guste.

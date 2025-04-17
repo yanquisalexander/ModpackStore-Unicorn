@@ -67,7 +67,7 @@ export const Login = () => {
                                 </p>
                             )
                         }
-                        <h1 className="mb-4 text-2xl font-medium text-white font-jost">
+                        <h1 className="mb-4 font-semibold text-4xl text-[2.5rem] from-[#47fe8d] to-[#058dcc] bg-clip-text text-transparent bg-gradient-to-b">
                             Modpack Store
                         </h1>
                         <p className="mb-4 text-lg text-gray-300">Inicia sesión con tu cuenta de Discord para acceder a todas las funciones.</p>

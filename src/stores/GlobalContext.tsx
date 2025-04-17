@@ -5,7 +5,7 @@ import React, {
     useState,
     useEffect,
 } from "react";
-import { check } from '@tauri-apps/plugin-updater';
+import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 
@@ -22,7 +22,7 @@ type UpdateState =
     | "idle"
     | "checking"
     | "downloading"
-    | "installing"
+    | "ready-to-install"
     | "done"
     | "error";
 
@@ -51,17 +51,20 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         opaque: true
     });
 
+    const [update, setUpdate] = useState<Update | null>(null); // Aquí puedes definir el tipo de update si lo conoces
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateProgress, setUpdateProgress] = useState(0);
     const [updateVersion, setUpdateVersion] = useState<string | null>(null);
     const [updateState, setUpdateState] = useState<UpdateState>("idle");
 
     const applyUpdate = async () => {
-        setUpdateState("installing");
-
+        if (updateState !== "ready-to-install") {
+            console.error("No hay actualización lista para instalar.");
+            return;
+        }
         try {
-            // Aquí no descargamos la actualización, porque eso ya ocurrió anteriormente
-            await relaunch(); // Reinicia la aplicación para aplicar la actualización
+            await update?.install(); // Instalar la actualización
+
         } catch (err) {
             console.error("Error al aplicar la actualización:", err);
             setUpdateState("error");
@@ -74,16 +77,17 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             setUpdateState("checking");
 
             try {
-                const update = await check();
-                if (update) {
+                const hasUpdate = await check();
+                if (hasUpdate) {
+                    setUpdate(hasUpdate);
                     setIsUpdating(true);
-                    setUpdateVersion(update.version);
+                    setUpdateVersion(hasUpdate.version);
                     setUpdateState("downloading");
 
                     let downloaded = 0;
                     let contentLength = 0;
 
-                    await update.downloadAndInstall((event) => {
+                    await hasUpdate.download((event) => {
                         switch (event.event) {
                             case 'Started':
                                 contentLength = event.data.contentLength || 0;
@@ -94,7 +98,8 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                                 setUpdateProgress(Math.round(percent));
                                 break;
                             case 'Finished':
-                                setUpdateState("installing"); // "Lista para aplicar"
+                                setUpdateState("ready-to-install");
+                                setUpdateProgress(100);
                                 break;
                         }
                     });

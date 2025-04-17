@@ -101,7 +101,7 @@ export const AppTitleBar = () => {
 
             <div className="flex ml-auto  border-r px-1 mr-1 border-white/10">
                 {
-                    updateState === 'done' && (
+                    updateState === 'ready-to-install' && (
                         <button
                             onClick={applyUpdate}
                             title="Listo para reiniciar"

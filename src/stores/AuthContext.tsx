@@ -79,9 +79,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           catch (e) {
             console.error('Failed to parse auth error:', e);
           }
-          setError(parsedError);
+          setError({
+            error_code: parsedError?.error_code || 'UNKNOWN_ERROR',
+            error: parsedError?.error || 'Unknown authentication error occurred',
+          });
           setLoading(false);
           setAuthStep(null);
+
         });
 
         // Listen for auth step updates

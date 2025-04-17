@@ -52,6 +52,16 @@ body,
   }
 }
 
+@keyframes video-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
 @utility custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) var(--color-background);

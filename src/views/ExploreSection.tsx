@@ -53,7 +53,7 @@ export const ExploreSection = () => {
             <header className="flex flex-col items-center justify-center gap-y-8 mb-16">
                 <div className="flex flex-col items-center justify-between w-full max-w-3xl">
                     <h1 className="text-2xl font-semibold text-white">Bienvenido a&nbsp;
-                        <span className=" from-[#49f8a1] to-[#71eed9] bg-clip-text text-transparent bg-gradient-to-b">
+                        <span className=" from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b">
                             Modpack Store
                         </span>
                     </h1>

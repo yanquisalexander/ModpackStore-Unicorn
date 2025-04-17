@@ -51,43 +51,49 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 <span className="text-sm font-medium">{session.username}</span>
             </div>
 
-            {openMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2 animate-fade-in animate-duration-100">
-                    <ul className="text-sm text-white flex flex-col">
-                        <Link
-                            href="/profile"
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
-                        >
-                            <LucideSquareUserRound size={16} />
-                            Ver perfil
-                        </Link>
-                        <Link
-                            href="/settings"
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
-                        >
-                            <LucideSettings2 size={16} />
-                            Configuración
-                        </Link>
-                        {isPublisher && (
-                            <Link
-                                href="/publisher"
-                                className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
-                            >
-                                <LucidePackageOpen size={16} />
-                                Centro de creadores
-                            </Link>
-                        )}
 
-                        <button
-                            onClick={logout}
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer"
+            <div
+                style={{
+                    opacity: openMenu ? 1 : 0,
+                    visibility: openMenu ? "visible" : "hidden",
+                    transform: openMenu ? "translateY(0)" : "translateY(-5px)",
+                    transition: "opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease",
+                }}
+                className="absolute right-0 mt-2 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2">
+                <ul className="text-sm text-white flex flex-col">
+                    <Link
+                        href="/profile"
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                    >
+                        <LucideSquareUserRound size={16} />
+                        Ver perfil
+                    </Link>
+                    <Link
+                        href="/settings"
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                    >
+                        <LucideSettings2 size={16} />
+                        Configuración
+                    </Link>
+                    {isPublisher && (
+                        <Link
+                            href="/publisher"
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
                         >
-                            <LucideLogOut size={16} />
-                            Cerrar sesión
-                        </button>
-                    </ul>
-                </div>
-            )}
+                            <LucidePackageOpen size={16} />
+                            Centro de creadores
+                        </Link>
+                    )}
+
+                    <button
+                        onClick={logout}
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer"
+                    >
+                        <LucideLogOut size={16} />
+                        Cerrar sesión
+                    </button>
+                </ul>
+            </div>
         </div>
     );
 };

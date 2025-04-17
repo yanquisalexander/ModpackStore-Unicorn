@@ -13,6 +13,7 @@ import { LucideLoader } from "lucide-react";
 import { MyInstancesSection } from "./views/MyInstancesSection";
 import { useAuthentication } from "./stores/AuthContext";
 import { Login } from "./views/Login";
+import { NotFound } from "./views/NotFound";
 
 
 function App() {
@@ -64,7 +65,9 @@ function App() {
                 {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
               </Route>
               <Route path="/settings" component={ConfigurationSection} />
-              <Route>404: No such page!</Route>
+              <Route>
+                <NotFound />
+              </Route>
             </Switch>
           </div>
         </>

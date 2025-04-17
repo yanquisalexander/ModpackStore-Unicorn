@@ -64,7 +64,7 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                                 <span className="p-1 w-6 h-6 aspect-square border border-gray-400/10 bg-gray-800 rounded-full flex items-center justify-center">
                                     <LucidePackage className="text-gray-300 w-3 h-auto" />
                                 </span>
-                                Versión: <span>{modpack.mcVersion}</span>
+                                Modpack
                             </p>
                         </div>
                     </div>

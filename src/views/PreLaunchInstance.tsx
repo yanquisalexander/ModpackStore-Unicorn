@@ -2,7 +2,7 @@ import { useGlobalContext } from "@/stores/GlobalContext"
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings } from "lucide-react"
+import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings, LucideShieldCheck } from "lucide-react"
 import { CSSProperties, useEffect, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
@@ -74,6 +74,13 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         return RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)];
     }, []);
 
+    const notAvailable = useCallback(() => {
+        setQuickActionsOpen(false);
+        toast.error("Función no disponible aún", {
+            description: "Esta función estará disponible en futuras versiones.",
+        });
+    }, []);
+
     // Carga inicial de la instancia - ejecutada solo una vez
     useEffect(() => {
         const getMinecraftInstance = async () => {
@@ -121,6 +128,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             console.log({ instanceId });
             await invoke("open_game_dir", { instanceId });
             toast.success("Abriendo carpeta de la instancia...");
+            setQuickActionsOpen(false);
         } catch (error) {
             console.error("Error opening game directory:", error);
             toast.error("Error al abrir la carpeta de la instancia", {
@@ -407,7 +415,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                                 ? "opacity-100 pointer-events-auto translate-x-0"
                                 : "opacity-0 pointer-events-none translate-x-2"
                                 } transition-all duration-300`}>
-                                <div className="bg-neutral-900 border border-neutral-700 rounded-md shadow-md p-2 space-y-2 w-48">
+                                <div className="bg-neutral-900 border border-neutral-700 rounded-md shadow-md p-2 space-y-2 max-w-xs w-64">
                                     <button
                                         onClick={openGameDir}
                                         className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
@@ -416,16 +424,19 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                                         Abrir .minecraft
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            setQuickActionsOpen(false);
-                                            toast.error("Función no disponible aún", {
-                                                description: "Esta función estará disponible en futuras versiones.",
-                                            });
-                                        }}
+                                        onClick={notAvailable}
                                         className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
                                     >
                                         <LucideLoaderCircle className="size-4 text-white" />
                                         Descargar mods
+                                    </button>
+                                    <button
+                                        onClick={notAvailable}
+
+                                        className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                                    >
+                                        <LucideShieldCheck className="size-4 text-white" />
+                                        Verificar integridad
                                     </button>
                                     {/* Agregá más acciones si querés */}
                                 </div>

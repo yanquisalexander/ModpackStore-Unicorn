@@ -26,6 +26,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFEQkU3OENGNTg4NUQ4RkUKUldUKzJJVll6M2krSFRlRUxxNVJYQnRMaUVUak1CZlJ3M25FNWFicHhVaWVLK3dkUENBOGFrMnIK",
       "endpoints": [
+        "https://modpackstore-updater.alexitoo.dev/{{target}}/{{current_version}}",
         "https://www.alexitoo.dev/api/modpack-store/updates.json",
         "https://update.alexitoo.dev/modpackstore/{{target}}/{{arch}}/{{current_version}}",
         "https://saltouruguayserver.com/api/partner-software/modpackstore/{{target}}/{{arch}}/{{current_version}}"

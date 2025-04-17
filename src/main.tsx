@@ -4,19 +4,12 @@ import App from "./App";
 import { AppTitleBar } from "./components/AppTitleBar";
 import { Toaster } from "sonner";
 import { GlobalContextProvider } from "./stores/GlobalContext";
-import { isTauri } from "@tauri-apps/api/core";
 import { TasksProvider } from "./stores/TasksContext";
 import { InstancesProvider } from "./stores/InstancesContext";
 import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AuthProvider } from "./stores/AuthContext";
 
-if (!isTauri()) {
-  const msg = "This app requires Tauri to run. Please run it in a Tauri environment.";
-  console.error(msg);
-  alert(msg);
-  throw new Error(msg);
-}
 
 startDiscordRpc("943184136976334879").catch((err) => {
   console.error("Failed to start Discord RPC:", err);

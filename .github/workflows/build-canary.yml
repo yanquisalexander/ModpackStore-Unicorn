@@ -1,6 +1,5 @@
-# Run a tauri compilation on each commit to the main branch, and publish as a canary release
-
 name: Build Canary
+
 on:
   push:
     branches:
@@ -15,19 +14,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache de dependencias de Node.js
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Install pnpm
         run: npm install -g pnpm # Cambia si usás npm, pnpm o bun
-        
+
       - name: Install frontend dependencies
         run: pnpm install # Cambia si usás npm, pnpm o bun
+
+      # Cache de dependencias de Rust
+      - name: Cache Rust dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Publish canary build
         uses: tauri-apps/tauri-action@v0

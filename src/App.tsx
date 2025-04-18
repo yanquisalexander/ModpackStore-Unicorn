@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
-import { Link, Route, Switch, useLocation, useRouter } from "wouter";
-import { Button } from "@material-tailwind/react";
+import { Link, Route, Router, Switch, useLocation, useRouter } from "wouter";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
@@ -66,6 +65,15 @@ function App() {
                 {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
               </Route>
               <Route path="/settings" component={ConfigurationSection} />
+              {
+                session?.publisher?.id && (
+                  <Route path="/creators">
+                    <div>
+                      Contenido exclusivo para creadores
+                    </div>
+                  </Route>
+                )
+              }
               <Route>
                 <NotFound />
               </Route>

@@ -117,12 +117,13 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     </Link>
                     {isPublisher && (
                         <Link
-                            href="/publisher"
+                            href="/creators"
                             onClick={closeMenu}
                             className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
                         >
                             <LucidePackageOpen size={16} />
                             Centro de creadores
+
                         </Link>
                     )}
 

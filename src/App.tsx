@@ -14,6 +14,7 @@ import { useAuthentication } from "./stores/AuthContext";
 import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
 import { KonamiCode } from "./components/KonamiCode";
+import { AccountsSection } from "./views/AccountsSection";
 
 
 function App() {
@@ -64,6 +65,7 @@ function App() {
               <Route path="/prelaunch/:instanceId">
                 {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
               </Route>
+              <Route path="/mc-accounts" component={AccountsSection} />
               <Route path="/settings" component={ConfigurationSection} />
               {
                 session?.publisher?.id && (

@@ -1,3 +1,9 @@
+interface MCAccount {
+    username: string;
+    uuid: string;
+    access_token: string;
+    user_type: string;
+}
 
 interface MinecraftInstance {
     instanceId: string;
@@ -16,4 +22,5 @@ interface MinecraftInstance {
 
 export type TauriCommandReturns = {
     "get_instance_by_id": MinecraftInstance;
+    "get_all_accounts": MCAccount[];
 }

@@ -36,6 +36,18 @@ impl AccountsManager {
         manager
     }
 
+    pub fn add_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, String> {
+        let uuid = Self::get_offline_player_uuid(username)?;
+        let account = MinecraftAccount::new(uuid.clone(), username.to_string(), None, "Local".to_string());
+        if self.accounts.iter().any(|a| a.uuid() == uuid) {
+            return Err(format!("Account with UUID {} already exists", uuid));
+        }
+        self.accounts.push(account.clone());
+        self.save();
+        Ok(account)
+    }
+
+
     pub fn add_account(&mut self, account: MinecraftAccount) {
         self.accounts.retain(|a| a.uuid() != account.uuid());
         self.accounts.push(account);
@@ -154,6 +166,16 @@ pub fn add_account(account: MinecraftAccount) -> Result<(), String> {
     let accounts_manager = get_accounts_manager();
     let manager = accounts_manager.lock().unwrap();
     Ok(())
+}
+
+#[tauri::command]
+pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
+    let accounts_manager = get_accounts_manager();
+    let mut manager = accounts_manager.lock().unwrap();
+    match manager.add_offline_account(username) {
+        Ok(account) => Ok(account),
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]

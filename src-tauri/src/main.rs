@@ -53,6 +53,7 @@ pub fn main() {
             core::minecraft_instance::open_game_dir,
             core::instance_manager::update_instance,
             core::accounts_manager::get_all_accounts,
+            core::accounts_manager::add_offline_account,
             core::auth::start_discord_auth,
             core::auth::get_current_session,
             core::auth::logout,

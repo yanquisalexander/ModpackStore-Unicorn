@@ -11,6 +11,7 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
 import { EditInstanceInfo } from "@/components/EditInstanceInfo"
+import { playSound, SOUNDS } from "@/utils/sounds"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -181,6 +182,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             });
         }
     }, [instanceId, loadingStatus.isLoading, isPlaying, startMessageInterval]);
+
 
     // Discord RPC handling
     const updateDiscordRPC = useCallback(() => {

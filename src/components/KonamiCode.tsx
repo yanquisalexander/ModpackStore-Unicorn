@@ -93,7 +93,7 @@ export const KonamiCode = () => {
                 className="pointer-events-none z-[1001] opacity-0 fixed transition-opacity inset-0 flex items-center justify-center bg-black/50 text-white font-bold text-lg"
             >
                 <div className="flex flex-col items-center justify-center">
-                    <span className="flex items-center gap-2">
+                    <span className="fixed bottom-16 flex items-center gap-2">
                         <LucideCode size={24} />
                         <span>¡Código Konami activado!</span>
                     </span>
@@ -101,7 +101,7 @@ export const KonamiCode = () => {
                     <video
                         ref={videoRef}
                         src="/assets/videos/lava-chicken.mp4"
-                        className="size-48 object-cover animate-rotate-360 animate-iteration-count-infinite animate-duration-[3s]"
+                        className="size-72 object-cover animate-rotate-360 animate-iteration-count-infinite animate-duration-[3s]"
                         loop={false}
                         playsInline
                     />

@@ -1,7 +1,7 @@
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { LucideTrash2 } from "lucide-react";
 
-export const AccountCard = ({ account }: { account: TauriCommandReturns['get_all_accounts'][0] }) => {
+export const AccountCard = ({ account, onRemove }: { account: TauriCommandReturns['get_all_accounts'][0], onRemove: (uuid: string) => void }) => {
     // Construct the URL for the 3D head render using the UUID
     const headUrl = `https://crafatar.com/renders/head/${account.uuid}?overlay=true&scale=8`;
 
@@ -38,8 +38,9 @@ export const AccountCard = ({ account }: { account: TauriCommandReturns['get_all
                             alt={account.username}
                             className="w-full h-full object-contain drop-shadow-2xl"
                             onError={(e) => {
-                                // Fallback if the API fails
-                                e.currentTarget.src = "/api/placeholder/96/96";
+                                // Fallback to generic head image if the 3D head fails to load
+                                e.currentTarget.src = `https://crafatar.com/renders/head/00000000-0000-0000-0000-000000000000?overlay=true&scale=8`;
+                                e.currentTarget.onerror = null; // Prevent infinite loop if the fallback also fails
                             }}
                         />
                     </div>
@@ -59,7 +60,13 @@ export const AccountCard = ({ account }: { account: TauriCommandReturns['get_all
                 <div className="absolute bottom-0 left-0 right-0 flex justify-center p-4 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition duration-300">
                     <div className="flex gap-2">
 
-                        <button className="p-2 cursor-pointer rounded-lg bg-gray-800/60 border border-gray-700/40 text-white hover:bg-red-900/60 transition">
+                        <button
+                            onClick={() => onRemove(account.uuid)}
+                            title="Eliminar cuenta"
+                            aria-label="Eliminar cuenta"
+                            type="button"
+                            disabled={false}
+                            className="p-2 cursor-pointer rounded-lg bg-gray-800/60 border border-gray-700/40 text-white hover:bg-red-900/60 transition">
                             <LucideTrash2 className="h-4 w-4" />
                         </button>
                     </div>

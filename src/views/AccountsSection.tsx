@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { LucideUser, LucideTrash2, LucideLogOut } from "lucide-react"
 import { AccountCard } from "@/components/AccountCard"
 import { AddAccountDialog } from "@/components/AddAccountDialog"
+import { toast } from "sonner"
 
 export const AccountsSection = () => {
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([])
@@ -28,6 +29,18 @@ export const AccountsSection = () => {
         fetchAccounts()
     }, [])
 
+    const handleRemoveAccount = async (uuid: string) => {
+        try {
+            await invoke<TauriCommandReturns['remove_account']>('remove_account', { uuid })
+            setAccounts((prevAccounts) => prevAccounts.filter((account) => account.uuid !== uuid))
+            toast.success("Cuenta eliminada", {
+                description: "La cuenta ha sido eliminada correctamente",
+            })
+        }
+        catch (error) {
+            console.error("Error removing account:", error)
+        }
+    }
 
 
     return (
@@ -52,7 +65,7 @@ export const AccountsSection = () => {
                 ) : (
                     <>
                         {accounts.map((account) => (
-                            <AccountCard key={account.uuid} account={account} />
+                            <AccountCard key={account.uuid} account={account} onRemove={handleRemoveAccount} />
                         ))}
 
                         {/* Add Account Card */}

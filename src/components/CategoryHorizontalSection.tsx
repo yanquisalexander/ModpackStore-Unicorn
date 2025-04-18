@@ -87,7 +87,7 @@ export const CategoryHorizontalSection = ({
                                 key={modpack.id || index}
                                 className="snap-start scroll-ml-4 flex-shrink-0 md:w-60 lg:w-72 mr-4 first:ml-0"
                             >
-                                <ModpackCard modpack={modpack} href={'/prelaunch/THIS_SHOULD_BE_UNIQUE_UUID'} />
+                                <ModpackCard modpack={modpack} href={`/modpack/${modpack.id}`} />
                             </div>
                         ))
                     ) : null

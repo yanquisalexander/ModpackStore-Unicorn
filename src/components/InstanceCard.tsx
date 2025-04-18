@@ -1,22 +1,7 @@
 import { Link } from "wouter"
-import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
+import { LucidePlay, LucideHardDrive } from "lucide-react"
 
-export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
-
-    const publisherVerified = modpack.publisher.verified
-    const publisherPartner = modpack.publisher.partnered
-
-    const publisherName = modpack.publisher.publisherName
-
-    const publisherTagClasses = {
-        NORMAL: "",
-        VERIFIED: "bg-green-700 text-white",
-        PARTNERED: "bg-indigo-500 text-white",
-
-    }
-
-    const publisherClass = publisherPartner ? publisherTagClasses.PARTNERED : publisherVerified ? publisherTagClasses.VERIFIED : publisherTagClasses.NORMAL;
-
+export const InstanceCard = ({ instance, href = "/prelaunch/", className = "" }: { instance: any, href?: string, className?: string }) => {
     return (
         <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
       transition 
@@ -28,27 +13,21 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
       after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
       after:-z-10 after:opacity-0 after:transition after:duration-200 ${className}`}>
 
-            <Link href={href} className="flex aspect-video flex-col h-full p-4">
+            <Link href={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
                 {/* Background image */}
                 <img
-                    src={modpack.bannerUrl}
+                    src={instance.bannerUrl || "/images/modpack-fallback.webp"}
                     onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
                     className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
-                    alt={modpack.name}
+                    alt={instance.instanceName}
                 />
 
-
-
-                {/* Tags section */}
+                {/* Badge for installed status */}
                 <div className="opacity-100 flex transition flex-col gap-2 flex-1">
                     <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                        <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass || "bg-gray-800 text-white border-white/10"}`}>
-                            {publisherPartner || publisherVerified ? (
-                                <LucideVerified className="h-4 w-auto" />
-                            ) : (
-                                <LucideUser2 className="h-4 w-auto" />
-                            )}
-                            {publisherName}
+                        <span className="backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-emerald-700 text-white border-white/10">
+                            <LucideHardDrive className="h-4 w-auto" />
+                            Instalada
                         </span>
                     </div>
                 </div>
@@ -57,20 +36,25 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                 <div className="flex flex-wrap gap-y-6 items-end justify-between mt-8 transition group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
                     <div>
                         <h2 className="text-lg mt-auto text-white leading-snug font-medium text-balance max-w-[28ch] group-hover:text-sky-200">
-                            {modpack.name}
+                            {instance.instanceName}
                         </h2>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-300 flex-wrap">
-                            <p className="flex items-center gap-1">
-                                <span className="p-1 w-6 h-6 aspect-square border border-gray-400/10 bg-gray-800 rounded-full flex items-center justify-center">
-                                    <LucidePackage className="text-gray-300 w-3 h-auto" />
-                                </span>
-                                Modpack
+                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-300">
+                            <p className="text-xs text-gray-400">
+                                Minecraft {instance.minecraftVersion}
                             </p>
+                            {
+                                instance.forgeVersion && (
+                                    <p className="text-xs text-gray-400">
+                                        Forge {instance.forgeVersion}
+                                    </p>
+                                )
+                            }
                         </div>
+
                     </div>
                     <span className="text-white rounded-lg bg-gray-800/20 border border-gray-400/40 py-2 px-4 flex items-center gap-1.5 group-hover:scale-105 transition text-sm group-hover:bg-gray-800/80">
                         <LucidePlay className="h-4 w-auto" />
-                        Ver más
+                        Jugar
                     </span>
                 </div>
             </Link>

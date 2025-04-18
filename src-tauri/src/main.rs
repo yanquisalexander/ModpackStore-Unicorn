@@ -51,6 +51,7 @@ pub fn main() {
             utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
             core::minecraft_instance::open_game_dir,
+            core::instance_manager::update_instance,
             core::accounts_manager::get_all_accounts,
             core::auth::start_discord_auth,
             core::auth::get_current_session,

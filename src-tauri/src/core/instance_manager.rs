@@ -24,6 +24,29 @@ pub fn get_instance_by_name(instanceName: String) -> Result<Option<MinecraftInst
 }
 
 #[tauri::command]
+pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
+    let binding = instance.instanceDirectory.as_ref().unwrap();
+    let instance_path = Path::new(&binding);
+    let config_file = instance_path.join("instance.json");
+
+    if config_file.exists() {
+        let contents = fs::read_to_string(&config_file)
+            .map_err(|e| format!("Error reading JSON: {}", e))?;
+
+        let mut existing_instance: MinecraftInstance =
+            from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
+
+        existing_instance.instanceName = instance.instanceName;
+
+        // Guardar la instancia actualizada
+        existing_instance.save();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_instance_by_id(instanceId: String) -> Result<Option<MinecraftInstance>, String> {
     let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
     let instances = get_instances(instances_dir.to_str().unwrap())?;

@@ -10,6 +10,7 @@ import { useInstances } from "@/stores/InstancesContext"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
+import { EditInstanceInfo } from "@/components/EditInstanceInfo"
 
 // Constantes
 const DEFAULT_LOADING_STATE = {
@@ -78,6 +79,15 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             });
         }
     }, [instanceId]);
+
+    const reloadInfo = useCallback(() => {
+        setPrelaunchState(prev => ({
+            ...prev,
+            isLoading: true,
+            error: null,
+        }));
+    }
+        , []);
 
     const handlePlayButtonClick = useCallback(async () => {
         if (loadingStatus.isLoading || isPlaying) return;
@@ -414,6 +424,10 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                                         <LucideFolderOpen className="size-4 text-white" />
                                         Abrir .minecraft
                                     </button>
+                                    <EditInstanceInfo
+                                        instanceId={instanceId}
+                                        onUpdate={reloadInfo}
+                                    />
                                     <button
                                         onClick={notAvailable}
                                         className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"

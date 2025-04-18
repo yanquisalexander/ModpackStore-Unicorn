@@ -49,17 +49,9 @@ export class ConfigManager {
             // Get app data directory
             const appDataPath = await appDataDir();
 
-            // Create ModpackStore directory if it doesn't exist
-            const configDir = await join(appDataPath, "c");
-            const configDirExists = await exists(configDir);
-            console.log({ configDir, configDirExists });
-
-            if (!configDirExists) {
-                await mkdir(configDir, { recursive: true });
-            }
 
             // Set full path for config file
-            this.configFileFullPath = await join(configDir, this.configFileName);
+            this.configFileFullPath = await join(appDataPath, this.configFileName);
 
             // Set default values that depend on the environment
             DEFAULT_CONFIG[ConfigKey.INSTANCES_DIR] = await join(await this.getUserHome(), "ModpackStore", "Instances");

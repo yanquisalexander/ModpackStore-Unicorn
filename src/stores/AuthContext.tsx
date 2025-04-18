@@ -9,9 +9,11 @@ import { load } from '@tauri-apps/plugin-store';
 interface UserSession {
   id: string;
   name: string;
+  username: string;
   email: string;
   avatarUrl?: string;
   roles: string[];
+  publisher: any;
 }
 
 // Auth steps para mostrar el estado actual del proceso de autenticación

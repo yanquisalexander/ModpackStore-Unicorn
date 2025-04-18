@@ -94,9 +94,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setAuthStep(event.payload);
         });
 
-        // Check current session status from Tauri
-        const currentSession = await invoke<UserSession | null>('get_current_session');
-        setSession(currentSession);
+        // Initialize auth on rust side (If has session, it emits auth-status-changed event)
+        await invoke('init_session')
       } catch (err) {
         console.error('Auth initialization error:', err);
         setError(err instanceof Error ? { error_code: 'INIT_ERROR', error: err.message } : { error_code: 'INIT_ERROR', error: 'Failed to initialize authentication' });

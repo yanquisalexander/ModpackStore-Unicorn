@@ -22,6 +22,7 @@ export const Login = () => {
         // Handle error cases
         if (error) {
             if (error.error_code === "not_in_guild") {
+                toast.dismiss(TOAST_ID); // Force disable loading toast
                 toast.custom(() => (
                     <div className="flex items-center justify-center p-4 bg-gradient-to-r from-gray-700 to-gray-600 text-white rounded-md shadow-md transform">
                         <span className="mr-2">⚠️</span>
@@ -39,9 +40,11 @@ export const Login = () => {
                         </span>
                     </div>
                 ), {
-                    id: TOAST_ID,
-                    duration: 10000,
+                    id: "required-guild",
+                    duration: 10000
                 });
+
+                return
             } else {
                 toast.error("Error al iniciar sesión", { id: TOAST_ID });
             }

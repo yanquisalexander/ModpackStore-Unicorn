@@ -8,6 +8,9 @@ use core::auth::*;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
+use tauri::Wry;
+use tauri_plugin_store::StoreExt;
+use serde_json::json;
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
@@ -36,6 +39,8 @@ pub fn main() {
             *app_handle = Some(app.handle().clone());
             // Emit an event to the main window
             main_window.emit("app-ready", ()).unwrap();
+
+           
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -50,6 +55,7 @@ pub fn main() {
             core::auth::start_discord_auth,
             core::auth::get_current_session,
             core::auth::logout,
+            core::auth::init_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -32,7 +32,7 @@ export const AccountsSection = () => {
     const handleRemoveAccount = async (uuid: string) => {
         try {
             await invoke<TauriCommandReturns['remove_account']>('remove_account', { uuid })
-            setAccounts((prevAccounts) => prevAccounts.filter((account) => account.uuid !== uuid))
+            fetchAccounts()
             toast.success("Cuenta eliminada", {
                 description: "La cuenta ha sido eliminada correctamente",
             })

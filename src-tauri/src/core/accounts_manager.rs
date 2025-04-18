@@ -54,15 +54,13 @@ impl AccountsManager {
         self.save();
     }
 
-    pub fn remove_account(&mut self, access_token: &str) {
-        self.accounts.retain(|a| {
-            if let Some(token) = a.access_token() {
-                token != access_token
-            } else {
-                true
-            }
-        });
-        self.save();
+    pub fn remove_account(&mut self, uuid: &str) {
+        if let Some(pos) = self.accounts.iter().position(|a| a.uuid() == uuid) {
+            self.accounts.remove(pos);
+            self.save();
+        } else {
+            println!("Account with UUID {} not found", uuid);
+        }
     }
 
     pub fn get_all_accounts(&self) -> Vec<MinecraftAccount> {

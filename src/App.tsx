@@ -50,7 +50,7 @@ function App() {
   }
 
   return (
-    <main className="overflow-y-auto">
+    <main className="overflow-y-auto h-full">
       {isLoading ? (
         <div className="flex items-center justify-center min-h-dvh h-full w-full">
           <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />

@@ -1,8 +1,9 @@
 // AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { UnlistenFn } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
+import { load } from '@tauri-apps/plugin-store';
 
 // Define types
 interface UserSession {
@@ -21,26 +22,45 @@ type AuthStep =
   | 'processing-callback'
   | 'requesting-session';
 
+interface AuthError {
+  error_code: string;
+  error: string;
+}
+
+interface SessionTokens {
+  access_token: string;
+  refresh_token: string;
+}
+
 interface AuthContextType {
-  session: any | null;
+  session: UserSession | null;
   loading: boolean;
   error: AuthError | null;
   authStep: AuthStep;
   startDiscordAuth: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  sessionTokens: SessionTokens | null;
 }
 
-interface AuthError {
-  error_code: string;
-  error: string;
-}
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Crear un valor por defecto para el contexto
+const defaultContextValue: AuthContextType = {
+  session: null,
+  loading: true,
+  error: null,
+  authStep: null,
+  startDiscordAuth: async () => { throw new Error('AuthContext not initialized') },
+  logout: async () => { throw new Error('AuthContext not initialized') },
+  isAuthenticated: false,
+  sessionTokens: null
+};
+
 // Create context with default values
-export const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
 // Auth provider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -48,74 +68,104 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>(null);
+  const [sessionTokens, setSessionTokens] = useState<SessionTokens | null>(null);
+
+  // Computed value
+  const isAuthenticated = Boolean(session);
+
+  // Parse error helper
+  const parseError = (err: unknown): AuthError => {
+    if (err instanceof Error) {
+      return { error_code: 'UNKNOWN_ERROR', error: err.message };
+    }
+
+    if (typeof err === 'string') {
+      try {
+        return JSON.parse(err) as AuthError;
+      } catch {
+        return { error_code: 'PARSE_ERROR', error: err };
+      }
+    }
+
+    return { error_code: 'UNKNOWN_ERROR', error: 'Unknown authentication error occurred' };
+  };
+
+  // Reset auth state helper
+  const resetAuthState = useCallback(() => {
+    setAuthStep(null);
+    setError(null);
+  }, []);
 
   // Initialize auth state on load
   useEffect(() => {
-    let authStatusUnlisten: UnlistenFn;
-    let authErrorUnlisten: UnlistenFn;
-    let authStepUnlisten: UnlistenFn;
+    const unlistenFunctions: UnlistenFn[] = [];
+
+    const setupListeners = async (): Promise<void> => {
+      // Listen for auth status updates from Tauri backend
+      const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
+        try {
+          const store = await load('auth_store.json');
+          const tokens = await store.get<SessionTokens>('auth_tokens');
+
+          if (tokens) {
+            setSessionTokens(tokens);
+          }
+
+          setSession(event.payload);
+          resetAuthState();
+        } catch (err) {
+          console.error('Error handling auth status:', err);
+          setError(parseError(err));
+        } finally {
+          setLoading(false);
+        }
+      });
+      unlistenFunctions.push(authStatusUnlisten);
+
+      // Listen for auth errors from Tauri backend
+      const authErrorUnlisten = await listen<string>('auth-error', (event) => {
+        console.error('Auth error:', event.payload);
+        setError(parseError(event.payload));
+        setLoading(false);
+        setAuthStep(null);
+      });
+      unlistenFunctions.push(authErrorUnlisten);
+
+      // Listen for auth step updates
+      const authStepUnlisten = await listen<AuthStep>('auth-step-changed', (event) => {
+        setAuthStep(event.payload);
+      });
+      unlistenFunctions.push(authStepUnlisten);
+    };
 
     const initAuth = async (): Promise<void> => {
       try {
         setLoading(true);
 
-        // Listen for auth status updates from Tauri backend
-        authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', (event) => {
-          console.log('Auth status changed:', event.payload);
-          setSession(event.payload);
-          setLoading(false);
-          // Reset auth step cuando se completa la autenticación
-          setAuthStep(null);
-          setError(null);
-        });
+        // Set up event listeners
+        await setupListeners();
 
-        // Listen for auth errors from Tauri backend
-        authErrorUnlisten = await listen<string>('auth-error', (event) => {
-          console.error('Auth error:', event.payload);
-          let parsedError: AuthError | null = null;
-          try {
-            parsedError = JSON.parse(event.payload) as AuthError;
-          }
-          catch (e) {
-            console.error('Failed to parse auth error:', e);
-          }
-          setError({
-            error_code: parsedError?.error_code || 'UNKNOWN_ERROR',
-            error: parsedError?.error || 'Unknown authentication error occurred',
-          });
-          setLoading(false);
-          setAuthStep(null);
-
-        });
-
-        // Listen for auth step updates
-        authStepUnlisten = await listen<AuthStep>('auth-step-changed', (event) => {
-          console.log('Auth step changed:', event.payload);
-          setAuthStep(event.payload);
-        });
-
-        // Initialize auth on rust side (If has session, it emits auth-status-changed event)
-        await invoke('init_session')
+        // Initialize auth on rust side
+        await invoke('init_session');
       } catch (err) {
         console.error('Auth initialization error:', err);
-        setError(err instanceof Error ? { error_code: 'INIT_ERROR', error: err.message } : { error_code: 'INIT_ERROR', error: 'Failed to initialize authentication' });
+        setError(parseError(err));
       } finally {
         setLoading(false);
       }
     };
 
+    // Start the auth initialization
     initAuth();
 
     // Clean up listeners on unmount
     return () => {
-      if (authStatusUnlisten) authStatusUnlisten();
-      if (authErrorUnlisten) authErrorUnlisten();
-      if (authStepUnlisten) authStepUnlisten();
+      unlistenFunctions.forEach(unlisten => unlisten());
     };
-  }, []);
+  }, [resetAuthState]);
 
   // Start Discord OAuth flow
-  const startDiscordAuth = async (): Promise<void> => {
+  const startDiscordAuth = useCallback(async (): Promise<void> => {
     try {
       setError(null);
       setAuthStep('starting-auth');
@@ -123,26 +173,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Invoke the Tauri command to start Discord OAuth flow
       await invoke('start_discord_auth');
     } catch (err) {
-      setError(err instanceof Error ? { error_code: 'DISCORD_AUTH_ERROR', error: err.message } : { error_code: 'DISCORD_AUTH_ERROR', error: 'Failed to start Discord login' });
+      const parsedError = parseError(err);
+      setError({ ...parsedError, error_code: 'DISCORD_AUTH_ERROR' });
       setAuthStep(null);
       throw err;
     }
-  };
+  }, []);
 
   // Logout function
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       // Invoke the Tauri command to logout
       await invoke('logout');
+
       // Reset React state
       setSession(null);
-      setError(null);
-      setAuthStep(null);
+      setSessionTokens(null);
+      resetAuthState();
     } catch (err) {
-      setError(err instanceof Error ? { error_code: 'LOGOUT_ERROR', error: err.message } : { error_code: 'LOGOUT_ERROR', error: 'Failed to logout' });
+      const parsedError = parseError(err);
+      setError({ ...parsedError, error_code: 'LOGOUT_ERROR' });
       throw err;
     }
-  };
+  }, [resetAuthState]);
 
   // Context value
   const value: AuthContextType = {
@@ -152,7 +205,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authStep,
     startDiscordAuth,
     logout,
-    isAuthenticated: !!session,
+    isAuthenticated,
+    sessionTokens,
   };
 
   return (

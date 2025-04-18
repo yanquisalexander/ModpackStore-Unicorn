@@ -9,7 +9,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const containerRef = useRef<HTMLDivElement>(null);
 
 
-
     const toggleMenu = () => {
         setOpenMenu(prev => !prev);
     };

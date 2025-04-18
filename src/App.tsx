@@ -14,6 +14,7 @@ import { MyInstancesSection } from "./views/MyInstancesSection";
 import { useAuthentication } from "./stores/AuthContext";
 import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
+import { KonamiCode } from "./components/KonamiCode";
 
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
                 <NotFound />
               </Route>
             </Switch>
+            <KonamiCode />
           </div>
         </>
       )}

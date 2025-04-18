@@ -38,11 +38,24 @@ export const KonamiCode = () => {
 
     useEffect(() => {
         let position = 0;
+        let resetTimeout: ReturnType<typeof setTimeout> | null = null;
+
+        const reset = () => {
+            position = 0;
+            setComboCount(-1);
+            setShowCurrentKey(false);
+        };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (active) return; // Si está activo, ignorar
+            if (active) return;
 
             const key = event.key;
+
+            // Reset timeout para reiniciar si no continúa el código
+            if (resetTimeout) clearTimeout(resetTimeout);
+            resetTimeout = setTimeout(() => {
+                reset();
+            }, 2000);
 
             if (key === konamiCode[position]) {
                 position++;
@@ -52,26 +65,26 @@ export const KonamiCode = () => {
                 setComboCount(position - 1);
 
                 if (position === konamiCode.length) {
-                    setActive(true); // Bloquear nuevas entradas
+                    setActive(true);
                     setShowCurrentKey(false);
+                    if (resetTimeout) clearTimeout(resetTimeout);
 
                     konamiRef.current?.classList.remove("opacity-0", "pointer-events-none");
                     konamiRef.current?.removeAttribute("aria-hidden");
                     videoRef.current?.play();
 
-                    position = 0;
+                    reset();
                 }
             } else {
-                position = 0;
-                setShowCurrentKey(false);
-                setComboCount(-1);
+                if (resetTimeout) clearTimeout(resetTimeout);
+                reset();
             }
         };
 
         const handleVideoEnd = () => {
             konamiRef.current?.classList.add("opacity-0", "pointer-events-none");
             konamiRef.current?.setAttribute("aria-hidden", "true");
-            setActive(false); // Permitir otra vez
+            setActive(false); // Permitir nuevamente
         };
 
         const video = videoRef.current;
@@ -81,6 +94,7 @@ export const KonamiCode = () => {
         return () => {
             document.removeEventListener("keydown", handleKeyDown);
             video?.removeEventListener("ended", handleVideoEnd);
+            if (resetTimeout) clearTimeout(resetTimeout);
         };
     }, [active]);
 
@@ -110,14 +124,13 @@ export const KonamiCode = () => {
 
             <div
                 id="konami-current-key"
-                className={`pointer-events-none transition-opacity fixed bottom-4 z-80 right-4 ${showCurrentKey ? "opacity-100" : "opacity-0"
-                    }`}
+                className={`pointer-events-none transition-opacity fixed bottom-4 z-80 right-4 ${showCurrentKey ? "opacity-100" : "opacity-0"}`}
             >
                 <span className="size-8 justify-center items-center flex text-white bg-black border-2 aspect-square overflow-hidden border-white rounded-md">
                     {currentKeyIcon}
                 </span>
                 {comboCount >= 0 && (
-                    <span className="text-white font-bold text-lg">x{comboCount}</span>
+                    <span className="text-white font-bold text-lg">x{comboCount + 1}</span>
                 )}
             </div>
         </>

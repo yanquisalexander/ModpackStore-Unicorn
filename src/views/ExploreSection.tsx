@@ -22,7 +22,7 @@ export const ExploreSection = () => {
             title: "Modpack Store",
             icon: LucideShoppingBag,
             canGoBack: false,
-            customIconClassName: "bg-pink-500/10",
+            customIconClassName: "bg-pink-500/20",
             opaque: true,
         })
 

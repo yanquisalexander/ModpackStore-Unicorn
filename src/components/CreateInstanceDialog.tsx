@@ -209,7 +209,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 <button
-                    className="cursor-pointer z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-64 flex flex-col items-center justify-center
+                    className="cursor-pointer aspect-video z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-auto flex flex-col items-center justify-center
                     transition duration-300 hover:border-sky-400/50 hover:bg-gray-800/30"
                 >
                     <div className="flex flex-col items-center gap-3">

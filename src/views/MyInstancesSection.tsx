@@ -58,9 +58,9 @@ export const MyInstancesSection = () => {
                         href={`/prelaunch/${instance.id}`}
                     />
                 ))}
+                <CreateInstanceDialog onInstanceCreated={fetchInstances} />
             </div>
 
-            <CreateInstanceDialog onInstanceCreated={fetchInstances} />
 
         </div >
     )

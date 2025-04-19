@@ -41,8 +41,9 @@ function App() {
   useEffect(() => {
     initAnalytics();
 
-    trackEvent("app_loaded", {
-      name: "App Loaded"
+    trackEvent("app_launch", {
+      name: "App Launch",
+      timestamp: new Date().toISOString(),
     });
   }, []);
 

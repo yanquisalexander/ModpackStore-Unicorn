@@ -7,6 +7,8 @@ import { clearActivity, setActivity } from "tauri-plugin-drpc"
 import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { useDebounce } from 'use-debounce'
 import { ModpackCard } from "@/components/ModpackCard"
+import { trackEvent } from "@aptabase/web"
+import { trackSectionView } from "@/lib/analytics"
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -25,6 +27,8 @@ export const ExploreSection = () => {
             customIconClassName: "bg-pink-500/20",
             opaque: true,
         })
+
+        trackSectionView('explore')
 
         const activity = new Activity()
             .setState("Explorando Modpacks")
@@ -47,6 +51,16 @@ export const ExploreSection = () => {
                 .finally(() => setLoading(false))
         }
     }, [debouncedSearch])
+
+    useEffect(() => {
+        if (debouncedSearch.trim().length < 3) return
+        trackEvent("search_performed", {
+            name: "Search performed",
+            timestamp: new Date().toISOString(),
+            searchTerm: debouncedSearch,
+            totalResults: searchResults.length,
+        })
+    }, [debouncedSearch, searchResults.length])
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-10 overflow-y-auto">

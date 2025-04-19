@@ -62,6 +62,7 @@
     "opener:allow-open-path",
     "opener:allow-reveal-item-in-dir",
     "store:allow-load",
-    "store:default"
+    "store:default",
+    "aptabase:allow-track-event"
   ]
 }

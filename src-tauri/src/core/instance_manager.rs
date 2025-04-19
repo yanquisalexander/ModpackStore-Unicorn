@@ -132,8 +132,7 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
 pub async fn create_local_instance(
     instance_name: String,
     mc_version: String,
-    forge_version: Option<String>,
-    state: tauri::State<'_, AppState>, // Asumiendo que tienes un estado compartido
+    forge_version: Option<String>
 ) -> Result<String, String> {
     // Creamos una instancia de Minecraft
     let mut instance = MinecraftInstance::new();
@@ -141,33 +140,45 @@ pub async fn create_local_instance(
     instance.minecraftVersion = mc_version;
     instance.forgeVersion = forge_version;
     instance.instanceId = uuid::Uuid::new_v4().to_string();
-    instance.instanceDirectory = Some(format!(
-        "{}/{}",
-        get_config_manager().lock().unwrap().get_instances_dir().to_str().unwrap(),
-        instance.instanceName
-    ));
+
+    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir();
+    let instance_dir = instances_dir.join(&instance.instanceName);
+    instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
+
+    // If the instance directory doesn't exist, create it
+    if !instance_dir.exists() {
+        fs::create_dir_all(&instance_dir).map_err(|e| format!("Failed to create instance directory: {}", e))?;
+    }
+    // Set the instance directory
+    instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
+    
     
     // Guardamos la instancia inicialmente
     instance.save().map_err(|e| format!("Failed to save instance: {}", e))?;
 
     // Creamos el task manager
     let task_manager = TasksManager::new();
-    let task_id = format!("create-instance-{}", instance.instanceName);
-    
-    // Registramos la tarea
-    task_manager.add_task(
-        &task_id,
+    let task_id = task_manager.add_task(
+        &format!("Creando instancia {}", instance.instanceName),
         Some(serde_json::json!({
             "instanceName": instance.instanceName.clone(),
             "instanceId": instance.instanceId.clone()
         }))
     );
 
+    /*  pub fn update_task(
+        &self,
+        id: &str,
+        status: TaskStatus,
+        progress: f32,
+        message: &str,
+        data: Option<serde_json::Value>, */
+
     // Actualizamos el estado a "Creando metadatos"
     task_manager.update_task(
         &task_id,
         TaskStatus::Running,
-        0.0,
+        0.1,
         "Creando metadatos",
         Some(serde_json::json!({
             "instanceName": instance.instanceName.clone(),

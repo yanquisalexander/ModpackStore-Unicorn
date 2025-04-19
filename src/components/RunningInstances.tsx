@@ -53,7 +53,7 @@ export const RunningInstances = () => {
             </button>
 
             {openMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2 animate-fade-in animate-duration-100">
+                <div className="absolute right-0 mt-2 w-56 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2 animate-fade-in animate-duration-100">
                     <h3 className="text-sm font-semibold text-white mb-2">
                         Instancias en ejecución
                     </h3>

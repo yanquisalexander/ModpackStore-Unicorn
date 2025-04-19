@@ -6,15 +6,14 @@ import { Link } from "wouter";
 import { exit } from '@tauri-apps/plugin-process';
 import PatreonIcon from "@/icons/PatreonIcon";
 import { open } from "@tauri-apps/plugin-shell";
-import { useTasksContext } from "@/stores/TasksContext";
 import { CurrentUser } from "./CurrentUser";
 import { RunningInstances } from "./RunningInstances";
+import { RunningTasks } from "./RunningTasks";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState(getCurrentWindow());
     const [isMaximized, setIsMaximized] = useState(false);
     const { titleBarState, updateState, applyUpdate } = useGlobalContext()
-    const { hasRunningTasks, taskCount } = useTasksContext()
 
 
     useEffect(() => {
@@ -116,18 +115,7 @@ export const AppTitleBar = () => {
                     )
                 }
 
-                {
-                    hasRunningTasks && (
-                        <button
-                            title="Tareas en progreso"
-                            className="cursor-pointer relative flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center group hover:bg-neutral-800" aria-label="Settings">
-                            {
-                                taskCount >= 1 ? <span className="absolute top-1 -right-1 bg-sky-600 size-4 text-xs text-white rounded-full px-1">{taskCount}</span> : null
-                            }
-                            <LucideRefreshCcw className="size-4 animate-delay-700 animate-iteration-count-infinite animate-duration-[1500ms] animate-rotate-360 text-white" />
-                        </button>
-                    )
-                }
+                <RunningTasks />
 
                 <RunningInstances />
 

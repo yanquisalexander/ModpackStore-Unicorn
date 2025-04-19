@@ -146,6 +146,13 @@ impl TasksManager {
             .cloned()
             .collect()
     }
+
+    pub fn remove_task(&self, id: &str) {
+        self.tasks
+            .lock()
+            .expect("Failed to lock tasks mutex for remove")
+            .remove(id);
+    }
 }
 
 impl Default for TasksManager {

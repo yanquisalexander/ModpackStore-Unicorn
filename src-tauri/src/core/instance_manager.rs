@@ -252,6 +252,12 @@ pub async fn create_local_instance(
         }
         
         println!("Instance creation completed: {:?}", instance_clone);
+
+        // Remover la tarea eventualmente (Quizá después de 2 minutos)
+        std::thread::sleep(std::time::Duration::from_secs(120));
+        let mut task_manager = task_manager_clone.lock().unwrap();
+        task_manager.remove_task(&task_id_clone);
+        println!("Task removed: {:?}", task_id_clone);
     });
 
     // Devolvemos inmediatamente una respuesta con el ID de la instancia

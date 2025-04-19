@@ -1,8 +1,8 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideUser } from "lucide-react"
+import { listen } from "@tauri-apps/api/event"
+import { LucideUser, Loader2 } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
-
 
 import {
     Dialog,
@@ -24,6 +24,27 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { MicrosoftIcon } from "@/icons/MicrosoftIcon"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CheckCircle } from "lucide-react"
+
+// Tipos para eventos de autenticación
+interface AuthProgressEvent {
+    step: 'device_code' | 'waiting_auth' | 'microsoft_token' | 'xbox_auth' | 'xsts_token' | 'minecraft_auth' | 'profile' | 'complete';
+    message: string;
+    percentage: number;
+    user_code?: string;
+    verification_url?: string;
+}
+
+interface MicrosoftAccount {
+    username: string;
+    uuid: string;
+    access_token: string;
+    refresh_token: string;
+    token_expiration: number;
+    account_type: string;
+}
 
 export const AddAccountDialog = ({
     onAccountAdded
@@ -33,6 +54,63 @@ export const AddAccountDialog = ({
     const [open, setOpen] = useState(false)
     const [username, setUsername] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [microsoftLoading, setMicrosoftLoading] = useState(false)
+    const [authProgress, setAuthProgress] = useState<AuthProgressEvent | null>(null)
+    const [authCode, setAuthCode] = useState<string | null>(null)
+
+    console.log('authProgress', authProgress)
+
+    // Configurar escuchadores de eventos para la autenticación con Microsoft
+    useEffect(() => {
+        // Escuchar eventos de progreso de autenticación
+        const progressUnlisten = listen<AuthProgressEvent>("microsoft-auth-progress", (event) => {
+            setAuthProgress(event.payload);
+            if (event.payload.step === 'waiting_auth' && event.payload.user_code) {
+                setAuthCode(event.payload.user_code || null);
+            }
+        });
+
+        // Escuchar eventos de éxito de autenticación
+        const successUnlisten = listen<MicrosoftAccount>("microsoft-auth-success", async (event) => {
+            const account = event.payload;
+
+            try {
+                // Guardar la cuenta usando un comando de Tauri
+                await invoke("save_microsoft_account", { account });
+
+                toast.success("Cuenta Microsoft añadida", {
+                    description: `Se ha añadido la cuenta ${account.username} correctamente`,
+                });
+
+                setMicrosoftLoading(false);
+                setAuthProgress(null);
+                setOpen(false);
+                onAccountAdded();
+            } catch (error) {
+                console.error("Error al guardar la cuenta Microsoft:", error);
+                toast.error("No se pudo guardar la cuenta. Inténtalo de nuevo.");
+                setMicrosoftLoading(false);
+                setAuthProgress(null);
+            }
+        });
+
+        // Escuchar eventos de error de autenticación
+        const errorUnlisten = listen<string>("microsoft-auth-error", (event) => {
+            const errorMessage = event.payload;
+            toast.error("Error de autenticación", {
+                description: errorMessage
+            });
+            setMicrosoftLoading(false);
+            setAuthProgress(null);
+        });
+
+        // Limpieza de escuchadores al desmontar
+        return () => {
+            progressUnlisten.then(unlisten => unlisten());
+            successUnlisten.then(unlisten => unlisten());
+            errorUnlisten.then(unlisten => unlisten());
+        };
+    }, [onAccountAdded]);
 
     const handleAddOfflineAccount = async () => {
         if (!username.trim()) {
@@ -62,10 +140,73 @@ export const AddAccountDialog = ({
         }
     }
 
-    const handleMicrosoftLogin = () => {
-        toast("Función no disponible", {
-            description: "El inicio de sesión con Microsoft aún no está implementado."
-        })
+    const handleMicrosoftLogin = async () => {
+        setMicrosoftLoading(true);
+        setAuthProgress(null);
+
+        try {
+            // Invocar el comando de Rust para iniciar la autenticación
+            await invoke("start_microsoft_auth");
+            // El proceso continuará en los escuchadores de eventos
+        } catch (error) {
+            console.error("Error al iniciar la autenticación con Microsoft:", error);
+            toast.error("No se pudo iniciar la autenticación. Inténtalo de nuevo.");
+            setMicrosoftLoading(false);
+        }
+    }
+
+    const renderMicrosoftAuthProgress = () => {
+        if (!authProgress) return null;
+
+        // Mostrar siempre el código de autorización si está disponible
+        // independientemente del paso actual
+        const showAuthCode = authCode && authProgress.step !== 'complete';
+
+        return (
+            <div className="space-y-4 mt-4">
+                {/* Sección del código de autorización - siempre visible si existe */}
+                {showAuthCode && (
+                    <div className="bg-gray-800 rounded-md p-4">
+                        <h4 className="text-sm font-medium mb-2">Ingresa este código en Microsoft:</h4>
+                        <div className="bg-gray-700 rounded p-3 flex items-center justify-center">
+                            <span className="text-xl font-mono tracking-widest text-white">
+                                {authCode}
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-400 mt-3 mb-2">
+                            Ve a la siguiente dirección y sigue las instrucciones:
+                        </p>
+
+                        <a
+                            href={authProgress.verification_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full bg-blue-600 hover:bg-blue-700 text-center py-2 rounded text-white"
+                        >
+                            Abrir página de verificación
+                        </a>
+                    </div>
+                )}
+
+                {/* Barra de progreso - siempre visible */}
+                <div className="space-y-2">
+                    <div className="flex justify-between mb-1">
+                        <p className="text-sm text-gray-300">{authProgress.message}</p>
+                        <span className="text-sm text-gray-400">{authProgress.percentage}%</span>
+                    </div>
+                    <Progress value={authProgress.percentage} />
+
+                    {authProgress.step === 'complete' && (
+                        <Alert className="bg-green-900/20 border-green-700 mt-3">
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <AlertDescription className="text-green-300">
+                                Autenticación completada con éxito
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -104,7 +245,6 @@ export const AddAccountDialog = ({
                             <Input
                                 id="username"
                                 value={username}
-
                                 onChange={(e) => {
                                     // Prevent spacing and special characters
                                     const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")
@@ -122,7 +262,6 @@ export const AddAccountDialog = ({
                                 type="submit"
                                 onClick={handleAddOfflineAccount}
                                 disabled={isLoading}
-
                                 className="w-full cursor-pointer disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
                             >
                                 {isLoading ? "Añadiendo..." : "Añadir cuenta offline"}
@@ -131,27 +270,41 @@ export const AddAccountDialog = ({
                     </TabsContent>
 
                     <TabsContent value="microsoft" className="mt-4">
-                        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                            <div className="p-3 rounded-full bg-blue-900/40">
-                                <MicrosoftIcon className="h-8 w-8" />
-                            </div>
-                            <div className="text-center">
-                                <h3 className="text-lg font-medium text-neutral-50">Iniciar sesión con Microsoft</h3>
-                                <p className="text-sm text-gray-400 mt-2 mb-6">
-                                    Conecta tu cuenta de Microsoft para acceder a todas las funcionalidades.
-                                </p>
-                            </div>
+                        <div className="flex flex-col items-center justify-center py-4 space-y-4">
+                            {!microsoftLoading && !authProgress ? (
+                                <>
+                                    <div className="p-3 rounded-full bg-blue-900/40">
+                                        <MicrosoftIcon className="h-8 w-8" />
+                                    </div>
+                                    <div className="text-center">
+                                        <h3 className="text-lg font-medium text-neutral-50">Iniciar sesión con Microsoft</h3>
+                                        <p className="text-sm text-gray-400 mt-2 mb-6">
+                                            Conecta tu cuenta de Microsoft para acceder a todas las funcionalidades de Minecraft Premium.
+                                        </p>
+                                    </div>
 
-                            <Button
-                                onClick={handleMicrosoftLogin}
-                                className="bg-blue-600 hover:bg-blue-700"
-                            >
-                                Iniciar con Microsoft
-                            </Button>
+                                    <Button
+                                        onClick={handleMicrosoftLogin}
+                                        className="bg-blue-600 hover:bg-blue-700"
+                                    >
+                                        Iniciar con Microsoft
+                                    </Button>
+                                </>
+                            ) : (
+                                <div className="w-full">
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <MicrosoftIcon className="h-5 w-5" />
+                                        <h3 className="text-lg font-medium text-neutral-50">Autenticación con Microsoft</h3>
+                                    </div>
 
-                            <p className="text-xs text-gray-500 italic">
-                                (Funcionalidad no implementada aún)
-                            </p>
+                                    {microsoftLoading && !authProgress ? (
+                                        <div className="flex flex-col items-center py-8">
+                                            <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                                            <p className="text-gray-300">Iniciando proceso de autenticación...</p>
+                                        </div>
+                                    ) : renderMicrosoftAuthProgress()}
+                                </div>
+                            )}
                         </div>
                     </TabsContent>
                 </Tabs>

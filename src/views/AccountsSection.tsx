@@ -1,15 +1,17 @@
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { invoke } from "@tauri-apps/api/core"
 import { useEffect, useState } from "react"
-import { LucideUser, LucideTrash2, LucideLogOut } from "lucide-react"
+import { LucideUser, LucideTrash2, LucideLogOut, LucideUserSquare } from "lucide-react"
 import { AccountCard } from "@/components/AccountCard"
 import { AddAccountDialog } from "@/components/AddAccountDialog"
 import { toast } from "sonner"
+import { useGlobalContext } from "@/stores/GlobalContext"
 
 export const AccountsSection = () => {
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([])
     const [loading, setLoading] = useState(true)
 
+    const { setTitleBarState, titleBarState } = useGlobalContext()
     const fetchAccounts = () => {
         setLoading(true)
         invoke<TauriCommandReturns['get_all_accounts']>('get_all_accounts')
@@ -27,6 +29,19 @@ export const AccountsSection = () => {
 
     useEffect(() => {
         fetchAccounts()
+    }, [])
+
+    useEffect(() => {
+        setTitleBarState({
+            ...titleBarState,
+            title: "Cuentas",
+            icon: LucideUserSquare,
+            canGoBack: true,
+            customIconClassName: "bg-teal-500/20",
+            opaque: true,
+        })
+
+
     }, [])
 
     const handleRemoveAccount = async (uuid: string) => {

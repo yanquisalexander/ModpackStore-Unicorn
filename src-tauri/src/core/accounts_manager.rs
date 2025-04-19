@@ -48,11 +48,6 @@ impl AccountsManager {
     }
 
 
-    pub fn add_account(&mut self, account: MinecraftAccount) {
-        self.accounts.retain(|a| a.uuid() != account.uuid());
-        self.accounts.push(account);
-        self.save();
-    }
 
     pub fn remove_account(&mut self, uuid: &str) {
         if let Some(pos) = self.accounts.iter().position(|a| a.uuid() == uuid) {
@@ -158,13 +153,7 @@ pub fn get_accounts_manager() -> Arc<Mutex<AccountsManager>> {
     ACCOUNTS_MANAGER.clone()
 }
 
-// Tauri commands to interact with the AccountsManager
-#[tauri::command]
-pub fn add_account(account: MinecraftAccount) -> Result<(), String> {
-    let accounts_manager = get_accounts_manager();
-    let manager = accounts_manager.lock().unwrap();
-    Ok(())
-}
+
 
 #[tauri::command]
 pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
@@ -189,4 +178,25 @@ pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
     let accounts_manager = get_accounts_manager();
     let manager = accounts_manager.lock().unwrap();
     Ok(manager.get_all_accounts())
+}
+
+#[tauri::command]
+pub fn add_microsoft_account(
+    username: &str,
+    access_token: &str,
+    uuid: &str) -> Result<MinecraftAccount, String> {
+    let accounts_manager = get_accounts_manager();
+    let mut manager = accounts_manager.lock().unwrap();
+    let account = MinecraftAccount::new(
+        username.to_string(),
+        uuid.to_string(),
+        Some(access_token.to_string()),
+        "Microsoft".to_string(),
+    );
+    if manager.accounts.iter().any(|a| a.uuid() == uuid) {
+        return Err(format!("Account with UUID {} already exists", uuid));
+    }
+    manager.accounts.push(account.clone());
+    manager.save();
+    Ok(account)
 }

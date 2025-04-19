@@ -55,10 +55,12 @@ pub fn main() {
             core::accounts_manager::get_all_accounts,
             core::accounts_manager::add_offline_account,
             core::accounts_manager::remove_account,
+            core::accounts_manager::add_microsoft_account,
             core::auth::start_discord_auth,
             core::auth::get_current_session,
             core::auth::logout,
             core::auth::init_session,
+            core::microsoft_auth::start_microsoft_auth,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

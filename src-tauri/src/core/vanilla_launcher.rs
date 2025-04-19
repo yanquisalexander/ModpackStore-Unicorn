@@ -9,6 +9,9 @@ use crate::core::accounts_manager::AccountsManager;
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
 use uuid::Uuid;
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub struct VanillaLauncher {
     instance: MinecraftInstance,
@@ -200,6 +203,11 @@ impl GameLauncher for VanillaLauncher {
         command.current_dir(&game_dir);
         println!("Command: {:?}", command);
 
+        if cfg!(windows) {
+            // En Windows, se necesita usar la extensión para evitar que la ventana de consola aparezca
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        
         // Ejecutar el comando
         let child = command.spawn().ok()?;
         println!("Spawned child process: {:?}", child.id());

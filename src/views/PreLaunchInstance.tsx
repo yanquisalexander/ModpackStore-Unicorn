@@ -12,6 +12,7 @@ import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
 import { EditInstanceInfo } from "@/components/EditInstanceInfo"
 import { playSound, SOUNDS } from "@/utils/sounds"
+import { trackEvent } from "@aptabase/web"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -172,6 +173,12 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         if (loadingStatus.isLoading || isPlaying) return;
 
         try {
+            trackEvent("play_instance_clicked", {
+                name: "Play Minecraft Instance Clicked",
+                modpackId: "null",
+                timestamp: new Date().toISOString(),
+            });
+            setLoadingStatus(prev => ({ ...prev, isLoading: true }));
             await invoke("launch_mc_instance", { instanceId });
             startMessageInterval();
         } catch (error) {

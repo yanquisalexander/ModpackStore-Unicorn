@@ -27,6 +27,7 @@ import { MicrosoftIcon } from "@/icons/MicrosoftIcon"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle } from "lucide-react"
+import { trackEvent } from "@aptabase/web"
 
 // Tipos para eventos de autenticación
 interface AuthProgressEvent {
@@ -131,6 +132,11 @@ export const AddAccountDialog = ({
                 description: `Se ha añadido la cuenta ${username} correctamente`,
             })
 
+            trackEvent("offline_account_added", {
+                name: "Offline Account Added",
+                timestamp: new Date().toISOString(),
+            });
+
             setUsername("")
             setOpen(false)
             onAccountAdded()
@@ -143,6 +149,11 @@ export const AddAccountDialog = ({
     }
 
     const handleMicrosoftLogin = async () => {
+        trackEvent("microsoft_auth_start", {
+            name: "Microsoft Auth Start",
+            timestamp: new Date().toISOString(),
+        });
+        setAuthCode(null);
         setMicrosoftLoading(true);
         setAuthProgress(null);
 

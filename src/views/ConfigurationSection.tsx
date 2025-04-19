@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { trackSectionView } from "@/lib/analytics";
 
 export const ConfigurationSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext();
@@ -33,6 +34,8 @@ export const ConfigurationSection = () => {
             customIconClassName: "bg-blue-500/10",
             opaque: true,
         });
+
+        trackSectionView("configuration");
 
         async function loadConfig() {
             try {

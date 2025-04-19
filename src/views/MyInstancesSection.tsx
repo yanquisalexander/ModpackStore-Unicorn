@@ -1,4 +1,5 @@
 import { InstanceCard } from "@/components/InstanceCard";
+import { trackSectionView } from "@/lib/analytics";
 import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
@@ -33,6 +34,8 @@ export const MyInstancesSection = () => {
             customIconClassName: "bg-yellow-500/10",
             opaque: true,
         });
+
+        trackSectionView("my-instances")
     }, [])
 
     return (

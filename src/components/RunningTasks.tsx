@@ -77,7 +77,7 @@ export const RunningTasks = () => {
                     transform: openMenu ? "translateY(0)" : "translateY(-5px)",
                     transition: "opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease",
                 }}
-                className="absolute right-0 mt-2 w-64 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2"
+                className="absolute right-0 mt-2 w-96 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2"
             >
                 <div className="text-sm text-white flex flex-col">
                     <div className="py-1 px-2 font-medium border-b border-neutral-700 mb-2">
@@ -91,7 +91,7 @@ export const RunningTasks = () => {
                     ) : (
                         <div className="max-h-64 overflow-y-auto">
                             {tasks.map((task) => (
-                                <div key={task.id} className="py-2 px-2 hover:bg-neutral-800 rounded flex flex-col">
+                                <div key={task.id} className="py-2 px-2 hover:bg-neutral-800 rounded flex flex-col w-full">
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-2">
                                             {getStatusIcon(task.status)}
@@ -104,11 +104,13 @@ export const RunningTasks = () => {
                                             {task.message}
                                         </div>
                                     )}
-                                    <div className="ml-6 mt-1 w-full bg-neutral-800 h-1 rounded-full">
-                                        <div
-                                            className="bg-sky-600 h-1 rounded-full"
-                                            style={{ width: `${task.progress}%` }}
-                                        ></div>
+                                    <div className="pl-6">
+                                        <div className="mt-1 w-full bg-neutral-800 h-1 rounded-full">
+                                            <div
+                                                className="bg-sky-600 h-1 rounded-full"
+                                                style={{ width: `${task.progress}%` }}
+                                            ></div>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

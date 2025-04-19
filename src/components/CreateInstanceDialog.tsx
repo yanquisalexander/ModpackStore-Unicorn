@@ -158,8 +158,8 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
             // Call Tauri command to create instance
             await invoke<TauriCommandReturns['create_instance']>('create_local_instance', instanceData);
 
-            toast.success("Instancia creada", {
-                description: `Se ha creado la instancia ${instanceName} correctamente`,
+            toast.success("Creando instancia...", {
+                description: `Tu instancia "${instanceName}" está siendo creada. Verifica el progreso en el Task Manager.`,
             });
 
             trackEvent("instance_created", {

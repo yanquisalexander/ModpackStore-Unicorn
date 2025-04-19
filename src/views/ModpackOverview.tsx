@@ -179,7 +179,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 <video
                                     ref={videoRef}
                                     muted
-                                    loop
                                     playsInline
                                     autoPlay
                                     onEnded={handleVideoEnd}

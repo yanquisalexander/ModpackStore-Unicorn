@@ -102,6 +102,7 @@ const XBOX_AUTH_URL: &str = "https://user.auth.xboxlive.com/user/authenticate";
 const XSTS_AUTH_URL: &str = "https://xsts.auth.xboxlive.com/xsts/authorize";
 const MINECRAFT_AUTH_URL: &str = "https://api.minecraftservices.com/authentication/login_with_xbox";
 const MINECRAFT_PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
+const ACCOUNT_OWNS_MINECRAFT_URL: &str = "https://api.minecraftservices.com/entitlements/license";
 
 // Clase principal para autenticación
 pub struct MicrosoftAuthenticator {
@@ -402,20 +403,42 @@ impl MicrosoftAuthenticator {
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", access_token))?);
         
-        let response = client.get(MINECRAFT_PROFILE_URL)
+        // First check if the user owns Minecraft
+        let license_response = client.get(ACCOUNT_OWNS_MINECRAFT_URL)
+            .query(&[("requestId", uuid::Uuid::new_v4().to_string())])
+            .headers(headers.clone())
+            .send()
+            .await?;
+            
+        if !license_response.status().is_success() {
+            return Err(format!("Error al verificar licencia: {}", license_response.status()).into());
+        }
+        
+        let license_data: serde_json::Value = license_response.json().await?;
+        let has_license = license_data.get("items")
+            .and_then(|items| items.as_array())
+            .map(|items| !items.is_empty())
+            .unwrap_or(false);
+            
+        if !has_license {
+            return Err("Tu cuenta Microsoft no posee una licencia de Minecraft. Por favor, compra el juego para continuar.".into());
+        }
+        
+        // Now check for the profile
+        let profile_response = client.get(MINECRAFT_PROFILE_URL)
             .headers(headers)
             .send()
             .await?;
             
-        if response.status().as_u16() == 404 {
-            return Err("Esta cuenta de Microsoft no ha comprado Minecraft. Por favor, compra el juego para continuar.".into());
+        if profile_response.status().as_u16() == 404 {
+            return Err("No se encontró un perfil de Minecraft asociado a esta cuenta. Prueba a iniciar sesión en el lanzador oficial antes de continuar.".into());
         }
         
-        if !response.status().is_success() {
-            return Err(format!("Error al obtener perfil de Minecraft: {}", response.status()).into());
+        if !profile_response.status().is_success() {
+            return Err(format!("Error al obtener perfil de Minecraft: {}", profile_response.status()).into());
         }
         
-        let profile: MinecraftProfileResponse = response.json().await?;
+        let profile: MinecraftProfileResponse = profile_response.json().await?;
         Ok(profile)
     }
     

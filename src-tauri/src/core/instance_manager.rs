@@ -129,14 +129,15 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
 }
 
 #[tauri::command]
-pub fn create_local_instance(
+pub async fn create_local_instance(
     instance_name: String,
     mc_version: String,
-    forge_version: Option<String>
-) {
+    forge_version: Option<String>,
+    state: tauri::State<'_, AppState>, // Asumiendo que tienes un estado compartido
+) -> Result<String, String> {
     // Creamos una instancia de Minecraft
     let mut instance = MinecraftInstance::new();
-    instance.instanceName = instance_name;
+    instance.instanceName = instance_name.clone();
     instance.minecraftVersion = mc_version;
     instance.forgeVersion = forge_version;
     instance.instanceId = uuid::Uuid::new_v4().to_string();
@@ -146,32 +147,25 @@ pub fn create_local_instance(
         instance.instanceName
     ));
     
+    // Guardamos la instancia inicialmente
+    instance.save().map_err(|e| format!("Failed to save instance: {}", e))?;
 
-    instance.save().map_err(|e| format!("Failed to save instance: {}", e));
-
-    // Aquí hacemos la lógica para descargar lo necesario
-    // para crear la instancia local
-    // Por ejemplo, descargar assets, librerías, forge (si es necesario), etc.
-    // Esto puede incluir la creación de directorios, descarga de archivos, etc.
-
-    // Usamos el TasksManager para ejecutar la tarea de forma asíncrona
-    // y permitir que el usuario siga usando la aplicación mientras se descarga.
-
+    // Creamos el task manager
     let task_manager = TasksManager::new();
-
+    let task_id = format!("create-instance-{}", instance.instanceName);
+    
+    // Registramos la tarea
     task_manager.add_task(
-        &format!("create-instance-{}", instance.instanceName),
+        &task_id,
         Some(serde_json::json!({
             "instanceName": instance.instanceName.clone(),
             "instanceId": instance.instanceId.clone()
         }))
     );
 
-
-// Update task to "Creando metadatos"
-    // Aquí puedes actualizar el progreso de la tarea
+    // Actualizamos el estado a "Creando metadatos"
     task_manager.update_task(
-        &format!("create-instance-{}", instance.instanceName),
+        &task_id,
         TaskStatus::Running,
         0.0,
         "Creando metadatos",
@@ -181,45 +175,69 @@ pub fn create_local_instance(
         }))
     );
 
-    // Crear la carpeta de la instancia, y su respectivo instance.json
+    // Crear la carpeta de la instancia y su respectivo instance.json
     let instance_path = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
     if !instance_path.exists() {
-        fs::create_dir_all(&instance_path).map_err(|e| format!("Failed to create instance directory: {}", e));
+        fs::create_dir_all(&instance_path).map_err(|e| format!("Failed to create instance directory: {}", e))?;
     }
     let instance_json_path = instance_path.join("instance.json");
     fs::write(&instance_json_path, serde_json::to_string(&instance).unwrap())
-        .map_err(|e| format!("Failed to write instance.json: {}", e));
+        .map_err(|e| format!("Failed to write instance.json: {}", e))?;
 
-    // Aquí puedes actualizar el progreso de la tarea
-    task_manager.update_task(
-        &format!("create-instance-{}", instance.instanceName),
-        TaskStatus::Running,
-        0.5,
-        "Descargando archivos",
-        Some(serde_json::json!({
-            "instanceName": instance.instanceName.clone(),
-            "instanceId": instance.instanceId.clone()
-        }))
-    );
+    // Clone los datos necesarios para el hilo
+    let instance_clone = instance.clone();
+    let task_id_clone = task_id.clone();
+    
+    // Lanzar el proceso en segundo plano
+    std::thread::spawn(move || {
+        // Crear un nuevo task_manager dentro del hilo
+        let task_manager = TasksManager::new();
+        
+        // Actualizamos la tarea a "Descargando archivos"
+        task_manager.update_task(
+            &task_id_clone,
+            TaskStatus::Running,
+            0.5,
+            "Descargando archivos",
+            Some(serde_json::json!({
+                "instanceName": instance_clone.instanceName.clone(),
+                "instanceId": instance_clone.instanceId.clone()
+            }))
+        );
 
-   
-    // Por último, imprimimos la instancia creada
-    println!("Instance created: {:?}", instance);
+        // Simulamos el trabajo de descarga
+        // Aquí iría tu lógica real de descarga de assets, librerías, etc.
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        
+        task_manager.update_task(
+            &task_id_clone,
+            TaskStatus::Running,
+            0.75,
+            "Instalando componentes",
+            Some(serde_json::json!({
+                "instanceName": instance_clone.instanceName.clone(),
+                "instanceId": instance_clone.instanceId.clone()
+            }))
+        );
+        
+        // Más trabajo simulado
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        
+        // Finalizamos la tarea
+        task_manager.update_task(
+            &task_id_clone,
+            TaskStatus::Completed,
+            1.0,
+            "Instancia creada",
+            Some(serde_json::json!({
+                "instanceName": instance_clone.instanceName.clone(),
+                "instanceId": instance_clone.instanceId.clone()
+            }))
+        );
+        
+        println!("Instance creation completed: {:?}", instance_clone);
+    });
 
-    // Finalizamos con fines de demostración
-    task_manager.update_task(
-        &format!("create-instance-{}", instance.instanceName),
-        TaskStatus::Completed,
-        1.0,
-        "Instancia creada",
-        Some(serde_json::json!({
-            "instanceName": instance.instanceName.clone(),
-            "instanceId": instance.instanceId.clone()
-        }))
-    );
-
-
-
-
-
+    // Devolvemos inmediatamente una respuesta con el ID de la instancia
+    Ok(instance.instanceId)
 }

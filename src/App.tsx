@@ -18,6 +18,7 @@ import { AccountsSection } from "./views/AccountsSection";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
+import { preloadSounds } from "./utils/sounds";
 
 
 function App() {
@@ -41,6 +42,8 @@ function App() {
 
   useEffect(() => {
     initAnalytics();
+
+    preloadSounds()
 
     trackEvent("app_launch", {
       name: "App Launch",

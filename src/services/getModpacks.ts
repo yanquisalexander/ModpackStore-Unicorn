@@ -37,3 +37,20 @@ export const searchModpacks = async (query: string) => {
     const { data } = await response.json()
     return data
 }
+
+export const getModpackById = async (modpackId: string) => {
+    const response = await fetch(`${API_ENDPOINT}/explore/modpack/${modpackId}`, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+    })
+
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+
+    const { data } = await response.json()
+    return data
+}

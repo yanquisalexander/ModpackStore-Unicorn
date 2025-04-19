@@ -17,6 +17,7 @@ import { KonamiCode } from "./components/KonamiCode";
 import { AccountsSection } from "./views/AccountsSection";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
+import { ModpackOverview } from "./views/ModpackOverview";
 
 
 function App() {
@@ -75,6 +76,9 @@ function App() {
               <Route path="/my-instances" component={MyInstancesSection} />
               <Route path="/prelaunch/:instanceId">
                 {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
+              </Route>
+              <Route path="/modpack/:modpackId">
+                {(params) => <ModpackOverview modpackId={params.modpackId} />}
               </Route>
               <Route path="/mc-accounts" component={AccountsSection} />
               <Route path="/settings" component={ConfigurationSection} />

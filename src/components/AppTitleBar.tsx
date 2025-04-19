@@ -83,7 +83,12 @@ export const AppTitleBar = () => {
 
                         {
                             titleBarState.icon && typeof titleBarState.icon === "string" ? (
-                                <img src={titleBarState.icon} className={`size-6  ${titleBarState.customIconClassName}`} alt="icon" />
+                                <img
+                                    onError={(e) => {
+                                        e.currentTarget.onerror = null; // Prevents looping
+                                        e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback icon
+                                    }}
+                                    src={titleBarState.icon} className={`size-6  ${titleBarState.customIconClassName}`} alt="icon" />
                             ) : (
                                 titleBarState.icon ? (
                                     <titleBarState.icon className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />

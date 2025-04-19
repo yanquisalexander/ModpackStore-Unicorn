@@ -56,6 +56,7 @@ pub fn main() {
             core::accounts_manager::add_offline_account,
             core::accounts_manager::remove_account,
             core::accounts_manager::add_microsoft_account,
+            core::minecraft_instance::get_instances_by_modpack_id,
             core::auth::start_discord_auth,
             core::auth::get_current_session,
             core::auth::logout,

@@ -8,6 +8,11 @@ use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::GLOBAL_APP_HANDLE;
+use std::sync::Mutex;
+use tauri::Emitter;
+use crate::core::tasks_manager::TasksManager;
+
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
     let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
@@ -121,4 +126,53 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
     }
 
     Ok(instances)
+}
+
+#[tauri::command]
+pub fn create_local_instance(
+    instance_name: String,
+    mc_version: String,
+    forge_version: Option<String>
+) {
+    // Creamos una instancia de Minecraft
+    let mut instance = MinecraftInstance::new();
+    instance.instanceName = instance_name;
+    instance.minecraftVersion = mc_version;
+    instance.forgeVersion = forge_version;
+    instance.instanceId = uuid::Uuid::new_v4().to_string();
+    instance.instanceDirectory = Some(format!(
+        "{}/{}",
+        get_config_manager().lock().unwrap().get_instances_dir().to_str().unwrap(),
+        instance.instanceName
+    ));
+    
+
+    instance.save().map_err(|e| format!("Failed to save instance: {}", e));
+
+    // Aquí hacemos la lógica para descargar lo necesario
+    // para crear la instancia local
+    // Por ejemplo, descargar assets, librerías, forge (si es necesario), etc.
+    // Esto puede incluir la creación de directorios, descarga de archivos, etc.
+
+    // Usamos el TasksManager para ejecutar la tarea de forma asíncrona
+    // y permitir que el usuario siga usando la aplicación mientras se descarga.
+
+    let task_manager = TasksManager::new();
+
+    task_manager.add_task(
+        &format!("create-instance-{}", instance.instanceName),
+        Some(serde_json::json!({
+            "instanceName": instance.instanceName.clone(),
+            "instanceId": instance.instanceId.clone()
+        }))
+    );
+
+   
+    // Por último, imprimimos la instancia creada
+    println!("Instance created: {:?}", instance);
+
+
+
+
+
 }

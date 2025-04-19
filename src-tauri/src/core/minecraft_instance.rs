@@ -38,6 +38,23 @@ impl MinecraftInstance {
         self.forgeVersion.is_some()
     }
 
+   pub fn new() -> Self {
+    Self {
+        instanceId: String::new(),
+        usesDefaultIcon: false,
+        iconName: None,
+        iconUrl: None,
+        instanceName: String::new(),
+        accountUuid: None,
+        minecraftPath: String::new(),
+        modpackId: None,
+        modpackInfo: None,
+        minecraftVersion: String::new(),
+        instanceDirectory: None,
+        forgeVersion: None,
+    }
+   }
+
     pub fn from_instance_id(instance_id: &str) -> Option<Self> {
         // Get the ConfigManager instance from the singleton
         let config_manager_mutex = crate::utils::config_manager::get_config_manager();
@@ -164,6 +181,35 @@ pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {
         instance.instanceName
     );
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance> {
+    /* 
+        Gets all instances that match the given modpack ID
+    */
+    let config_manager = crate::utils::config_manager::get_config_manager();
+    let instances_dir = config_manager.lock().unwrap().get_instances_dir();
+
+    let mut instances = Vec::new();
+    if let Ok(entries) = fs::read_dir(instances_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let config_file = path.join("instance.json");
+                if config_file.exists() {
+                    if let Ok(content) = fs::read_to_string(&config_file) {
+                        if let Ok(instance) = serde_json::from_str::<MinecraftInstance>(&content) {
+                            if instance.modpackId == Some(modpack_id.clone()) {
+                                instances.push(instance);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    instances
 }
 
 #[tauri::command]

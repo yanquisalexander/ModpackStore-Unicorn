@@ -4,8 +4,11 @@ import { LucideLoader, LucideVerified, LucideVolume2, LucideVolumeX } from "luci
 import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { motion, useScroll, useTransform } from "motion/react"
+import { TauriCommandReturns } from "@/types/TauriCommandReturns"
+import { invoke } from "@tauri-apps/api/core"
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
+
     const [pageState, setPageState] = useState({
         loading: true,
         error: false,
@@ -18,6 +21,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const [videoLoaded, setVideoLoaded] = useState(false)
     const videoRef = useRef<HTMLVideoElement>(null)
     const bannerContainerRef = useRef<HTMLDivElement>(null)
+    const [localInstancesOfModpack, setLocalInstancesOfModpack] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([])
 
     const { titleBarState, setTitleBarState } = useGlobalContext()
     const { scrollY } = useScroll()
@@ -34,8 +38,25 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
             opaque: true,
             title: pageState.modpackData?.name || "Modpack Overview",
             icon: pageState.modpackData?.iconUrl || "/images/modpack-fallback.webp",
+            customIconClassName: "rounded-sm",
         })
     }, [pageState.modpackData])
+
+
+
+    useEffect(() => {
+        const fetchLocalInstances = async () => {
+            try {
+                const instances = await invoke<TauriCommandReturns["get_instances_by_modpack_id"]>("get_instances_by_modpack_id", { modpackId });
+                setLocalInstancesOfModpack(instances);
+                console.log("Local instances of modpack:", instances);
+            } catch (err) {
+                console.error("Failed to fetch local instances:", err);
+            }
+        };
+
+        fetchLocalInstances();
+    }, [modpackId]);
 
     // Efecto para cargar el video con retraso
     useEffect(() => {

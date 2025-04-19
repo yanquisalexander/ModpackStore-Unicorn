@@ -1,3 +1,4 @@
+import { CreateInstanceDialog } from "@/components/CreateInstanceDialog";
 import { InstanceCard } from "@/components/InstanceCard";
 import { trackSectionView } from "@/lib/analytics";
 import { useGlobalContext } from "@/stores/GlobalContext";
@@ -14,13 +15,13 @@ export const MyInstancesSection = () => {
     const { instances: instancesOnContext } = useInstances()
 
     const [instances, setInstances] = useState<any[]>([])
+    const fetchInstances = async () => {
+        const instances = await invoke('get_all_instances') as any
+        console.log("Instances fetched from Tauri:", instances)
+        setInstances(instances)
+    }
 
     useEffect(() => {
-        const fetchInstances = async () => {
-            const instances = await invoke('get_all_instances') as any
-            console.log("Instances fetched from Tauri:", instances)
-            setInstances(instances)
-        }
 
         fetchInstances()
     }, [])
@@ -58,6 +59,9 @@ export const MyInstancesSection = () => {
                     />
                 ))}
             </div>
+
+            <CreateInstanceDialog onInstanceCreated={fetchInstances} />
+
         </div >
     )
 }

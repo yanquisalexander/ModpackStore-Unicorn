@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { trackEvent } from "@aptabase/web";
 
 type InstanceState = {
     id: string;
@@ -79,6 +80,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             const launchedUnlisten = await listen("instance-launched", (e: any) => {
                 const { id, message } = e.payload;
                 console.log("Instance launched event:", { id, message });
+                trackEvent("instance_launched", {
+                    instanceId: id,
+                    message: message || "Minecraft se está ejecutando"
+                });
 
                 updateInstance(id, {
                     status: "running",
@@ -95,6 +100,11 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             const exitedUnlisten = await listen("instance-exited", (e: any) => {
                 const { id, message } = e.payload;
                 console.log("Instance exited event:", { id, message });
+
+                trackEvent("instance_exited", {
+                    instanceId: id,
+                    message: message || "Minecraft se ha cerrado"
+                });
 
                 updateInstance(id, {
                     status: "exited",
@@ -115,6 +125,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             const errorUnlisten = await listen("instance-error", (e: any) => {
                 const { id, message } = e.payload;
                 console.log("Instance error event:", { id, message });
+                trackEvent("instance_error", {
+                    instanceId: id,
+                    message: message || "Error al iniciar la instancia"
+                });
 
                 updateInstance(id, {
                     status: "error",

@@ -11,6 +11,7 @@ use tauri::Manager; // Necesario para get_window y emit
 use tauri::Wry;
 use tauri_plugin_store::StoreExt;
 use serde_json::json;
+use tauri_plugin_aptabase::EventTracker;
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));

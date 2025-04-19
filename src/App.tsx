@@ -15,6 +15,8 @@ import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
 import { KonamiCode } from "./components/KonamiCode";
 import { AccountsSection } from "./views/AccountsSection";
+import { initAnalytics } from "./lib/analytics";
+import { trackEvent } from "@aptabase/web";
 
 
 function App() {
@@ -35,6 +37,14 @@ function App() {
       }
     }
   }, [isConnected, isLoading]);
+
+  useEffect(() => {
+    initAnalytics();
+
+    trackEvent("app_loaded", {
+      name: "App Loaded"
+    });
+  }, []);
 
   // Mostrar loader mientras se verifica la autenticación
   if (loading) {

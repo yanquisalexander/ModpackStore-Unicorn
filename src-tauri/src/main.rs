@@ -29,7 +29,6 @@ pub fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drpc::init())
-        .plugin(tauri_plugin_aptabase::Builder::new("A-US-3025010252").build())
         .manage(Arc::new(AuthState::new()))
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
@@ -41,7 +40,7 @@ pub fn main() {
             *app_handle = Some(app.handle().clone());
             // Emit an event to the main window
             main_window.emit("app-ready", ()).unwrap();
-            app.track_event("app-started", None);
+          
            
             Ok(())
         })

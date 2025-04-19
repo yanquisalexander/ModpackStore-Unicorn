@@ -12,6 +12,7 @@ use crate::GLOBAL_APP_HANDLE;
 use std::sync::Mutex;
 use tauri::Emitter;
 use crate::core::tasks_manager::{TasksManager, TaskStatus};
+use std::sync::Arc;
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
@@ -152,39 +153,36 @@ pub async fn create_local_instance(
     // Set the instance directory
     instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
     
-    
     // Guardamos la instancia inicialmente
     instance.save().map_err(|e| format!("Failed to save instance: {}", e))?;
 
-    // Creamos el task manager
-    let task_manager = TasksManager::new();
-    let task_id = task_manager.add_task(
-        &format!("Creando instancia {}", instance.instanceName),
-        Some(serde_json::json!({
-            "instanceName": instance.instanceName.clone(),
-            "instanceId": instance.instanceId.clone()
-        }))
-    );
-
-    /*  pub fn update_task(
-        &self,
-        id: &str,
-        status: TaskStatus,
-        progress: f32,
-        message: &str,
-        data: Option<serde_json::Value>, */
+    // Creamos el task manager y lo envolvemos en Arc<Mutex<>> para compartirlo entre hilos
+    let task_manager = Arc::new(Mutex::new(TasksManager::new()));
+    let task_id = {
+        let task_manager = task_manager.lock().unwrap();
+        task_manager.add_task(
+            &format!("Creando instancia {}", instance.instanceName),
+            Some(serde_json::json!({
+                "instanceName": instance.instanceName.clone(),
+                "instanceId": instance.instanceId.clone()
+            }))
+        )
+    };
 
     // Actualizamos el estado a "Creando metadatos"
-    task_manager.update_task(
-        &task_id,
-        TaskStatus::Running,
-        0.1,
-        "Creando metadatos",
-        Some(serde_json::json!({
-            "instanceName": instance.instanceName.clone(),
-            "instanceId": instance.instanceId.clone()
-        }))
-    );
+    {
+        let task_manager = task_manager.lock().unwrap();
+        task_manager.update_task(
+            &task_id,
+            TaskStatus::Running,
+            10.0,
+            "Creando metadatos",
+            Some(serde_json::json!({
+                "instanceName": instance.instanceName.clone(),
+                "instanceId": instance.instanceId.clone()
+            }))
+        );
+    }
 
     // Crear la carpeta de la instancia y su respectivo instance.json
     let instance_path = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
@@ -198,53 +196,60 @@ pub async fn create_local_instance(
     // Clone los datos necesarios para el hilo
     let instance_clone = instance.clone();
     let task_id_clone = task_id.clone();
+    let task_manager_clone = Arc::clone(&task_manager);
     
     // Lanzar el proceso en segundo plano
     std::thread::spawn(move || {
-        // Crear un nuevo task_manager dentro del hilo
-        let task_manager = TasksManager::new();
-        
-        // Actualizamos la tarea a "Descargando archivos"
-        task_manager.update_task(
-            &task_id_clone,
-            TaskStatus::Running,
-            0.5,
-            "Descargando archivos",
-            Some(serde_json::json!({
-                "instanceName": instance_clone.instanceName.clone(),
-                "instanceId": instance_clone.instanceId.clone()
-            }))
-        );
+        // Actualizamos la tarea a "Descargando archivos" usando el mismo task_manager
+        {
+            let task_manager = task_manager_clone.lock().unwrap();
+            task_manager.update_task(
+                &task_id_clone,
+                TaskStatus::Running,
+                50.0,
+                "Descargando archivos",
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                }))
+            );
+        }
 
         // Simulamos el trabajo de descarga
         // Aquí iría tu lógica real de descarga de assets, librerías, etc.
         std::thread::sleep(std::time::Duration::from_secs(5));
         
-        task_manager.update_task(
-            &task_id_clone,
-            TaskStatus::Running,
-            0.75,
-            "Instalando componentes",
-            Some(serde_json::json!({
-                "instanceName": instance_clone.instanceName.clone(),
-                "instanceId": instance_clone.instanceId.clone()
-            }))
-        );
+        {
+            let task_manager = task_manager_clone.lock().unwrap();
+            task_manager.update_task(
+                &task_id_clone,
+                TaskStatus::Running,
+                75.0,
+                "Instalando componentes",
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                }))
+            );
+        }
         
         // Más trabajo simulado
         std::thread::sleep(std::time::Duration::from_secs(5));
         
         // Finalizamos la tarea
-        task_manager.update_task(
-            &task_id_clone,
-            TaskStatus::Completed,
-            1.0,
-            "Instancia creada",
-            Some(serde_json::json!({
-                "instanceName": instance_clone.instanceName.clone(),
-                "instanceId": instance_clone.instanceId.clone()
-            }))
-        );
+        {
+            let task_manager = task_manager_clone.lock().unwrap();
+            task_manager.update_task(
+                &task_id_clone,
+                TaskStatus::Completed,
+                100.0,
+                "Instancia creada",
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                }))
+            );
+        }
         
         println!("Instance creation completed: {:?}", instance_clone);
     });

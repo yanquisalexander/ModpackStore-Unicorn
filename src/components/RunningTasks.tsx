@@ -36,7 +36,7 @@ export const RunningTasks = () => {
     // Return null if there are no running tasks
     if (!hasRunningTasks && taskCount === 0) return null;
 
-    const baseClasses = "flex items-center justify-center size-9 aspect-square transition-all rounded-md backdrop-blur-xl cursor-pointer";
+    const baseClasses = "flex items-center justify-center size-9 aspect-square hover:bg-ms-primary cursor-pointer";
 
     // Helper function to get status icon
     const getStatusIcon = (status: string) => {

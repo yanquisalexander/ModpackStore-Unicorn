@@ -1,5 +1,5 @@
 export const SOUNDS = {
-    "PRELAUNCH_NOTIFICATION": "sounds/prelaunch_notification.mp3",
+    "ERROR_NOTIFICATION": "/sounds/error-notification.mp3",
 } as const;
 
 type SoundKey = keyof typeof SOUNDS;

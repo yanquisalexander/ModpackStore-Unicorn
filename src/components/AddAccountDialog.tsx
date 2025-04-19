@@ -28,6 +28,7 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle } from "lucide-react"
 import { trackEvent } from "@aptabase/web"
+import { playSound } from "@/utils/sounds"
 
 // Tipos para eventos de autenticación
 interface AuthProgressEvent {
@@ -90,6 +91,7 @@ export const AddAccountDialog = ({
                 setOpen(false);
                 onAccountAdded();
             } catch (error) {
+                playSound("ERROR_NOTIFICATION")
                 console.error("Error al guardar la cuenta Microsoft:", error);
                 toast.error("No se pudo guardar la cuenta. Inténtalo de nuevo.");
                 setMicrosoftLoading(false);
@@ -100,8 +102,10 @@ export const AddAccountDialog = ({
         // Escuchar eventos de error de autenticación
         const errorUnlisten = listen<string>("microsoft-auth-error", (event) => {
             const errorMessage = event.payload;
+            playSound("ERROR_NOTIFICATION")
             toast.error("Error de autenticación", {
-                description: errorMessage
+                description: errorMessage,
+                duration: 10000,
             });
             setMicrosoftLoading(false);
             setAuthProgress(null);
@@ -163,7 +167,10 @@ export const AddAccountDialog = ({
             // El proceso continuará en los escuchadores de eventos
         } catch (error) {
             console.error("Error al iniciar la autenticación con Microsoft:", error);
-            toast.error("No se pudo iniciar la autenticación. Inténtalo de nuevo.");
+            toast.error("No se pudo iniciar la autenticación. Inténtalo de nuevo.", {
+                duration: 10000,
+            });
+            playSound("ERROR_NOTIFICATION")
             setMicrosoftLoading(false);
         }
     }
@@ -182,9 +189,11 @@ export const AddAccountDialog = ({
                     <div className="bg-gray-800 rounded-md p-4">
                         <h4 className="text-sm font-medium mb-2">Ingresa este código en Microsoft:</h4>
                         <div className="bg-gray-700 rounded p-3 flex items-center justify-center">
-                            <span className="text-xl font-mono tracking-widest text-white">
-                                {authCode}
-                            </span>
+                            <Input
+                                readOnly
+                                value={authCode}
+                                className="text-xl font-mono tracking-widest text-white">
+                            </Input>
                         </div>
                         <p className="text-sm text-gray-400 mt-3 mb-2">
                             Ve a la siguiente dirección y sigue las instrucciones:

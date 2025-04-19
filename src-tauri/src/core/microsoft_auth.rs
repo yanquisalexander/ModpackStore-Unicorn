@@ -415,13 +415,22 @@ impl MicrosoftAuthenticator {
         }
         
         let license_data: serde_json::Value = license_response.json().await?;
-        let has_license = license_data.get("items")
+        
+        // Check if user has valid Java Edition license (not trial)
+        let has_valid_license = license_data.get("items")
             .and_then(|items| items.as_array())
-            .map(|items| !items.is_empty())
+            .map(|items| {
+                items.iter().any(|item| {
+                    let name = item.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                    let source = item.get("source").and_then(|s| s.as_str()).unwrap_or("");
+                    
+                    (name == "product_minecraft" || name == "game_minecraft") && source != "TRIAL"
+                })
+            })
             .unwrap_or(false);
             
-        if !has_license {
-            return Err("Tu cuenta Microsoft no posee una licencia de Minecraft. Por favor, compra el juego para continuar.".into());
+        if !has_valid_license {
+            return Err("Esta cuenta de Microsoft no tiene una licencia válida de Minecraft Java Edition. Por favor, adquiere el juego antes de continuar.".into());
         }
         
         // Now check for the profile
@@ -431,7 +440,7 @@ impl MicrosoftAuthenticator {
             .await?;
             
         if profile_response.status().as_u16() == 404 {
-            return Err("No se encontró un perfil de Minecraft asociado a esta cuenta. Prueba a iniciar sesión en el lanzador oficial antes de continuar.".into());
+            return Err("Tu cuenta tiene Minecraft Java Edition adquirido pero aún no has creado un perfil. Por favor, abre el Launcher oficial de Minecraft al menos una vez para crear tu perfil.".into());
         }
         
         if !profile_response.status().is_success() {

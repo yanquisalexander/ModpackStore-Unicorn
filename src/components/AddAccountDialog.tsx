@@ -57,6 +57,7 @@ export const AddAccountDialog = ({
     const [microsoftLoading, setMicrosoftLoading] = useState(false)
     const [authProgress, setAuthProgress] = useState<AuthProgressEvent | null>(null)
     const [authCode, setAuthCode] = useState<string | null>(null)
+    const [verificationUrl, setVerificationUrl] = useState<string | null>(null)
 
     console.log('authProgress', authProgress)
 
@@ -67,6 +68,7 @@ export const AddAccountDialog = ({
             setAuthProgress(event.payload);
             if (event.payload.step === 'waiting_auth' && event.payload.user_code) {
                 setAuthCode(event.payload.user_code || null);
+                setVerificationUrl(event.payload.verification_url || null);
             }
         });
 
@@ -178,7 +180,7 @@ export const AddAccountDialog = ({
                         </p>
 
                         <a
-                            href={authProgress.verification_url}
+                            href={verificationUrl!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block w-full bg-blue-600 hover:bg-blue-700 text-center py-2 rounded text-white"

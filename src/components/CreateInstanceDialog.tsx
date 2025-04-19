@@ -149,14 +149,14 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
         try {
             // Prepare instance data based on type
             const instanceData = {
-                name: instanceName.trim(),
-                minecraftVersion: selectedMinecraftVersion,
+                instanceName: instanceName.trim(),
+                mcVersion: selectedMinecraftVersion,
                 type: selectedType,
                 forgeVersion: selectedType === "forge" ? selectedForgeVersion : undefined
             };
 
             // Call Tauri command to create instance
-            await invoke<TauriCommandReturns['create_instance']>('create_instance', instanceData);
+            await invoke<TauriCommandReturns['create_instance']>('create_local_instance', instanceData);
 
             toast.success("Instancia creada", {
                 description: `Se ha creado la instancia ${instanceName} correctamente`,
@@ -206,7 +206,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
         (selectedType === "forge" && !selectedForgeVersion);
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange} modal>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 <button
                     className="cursor-pointer z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-64 flex flex-col items-center justify-center

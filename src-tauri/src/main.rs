@@ -52,6 +52,7 @@ pub fn main() {
             core::instance_manager::launch_mc_instance,
             core::minecraft_instance::open_game_dir,
             core::instance_manager::update_instance,
+            core::instance_manager::create_local_instance,
             core::accounts_manager::get_all_accounts,
             core::accounts_manager::add_offline_account,
             core::accounts_manager::remove_account,

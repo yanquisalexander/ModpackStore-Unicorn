@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::GLOBAL_APP_HANDLE;
 use std::sync::Mutex;
 use tauri::Emitter;
-use crate::core::tasks_manager::TasksManager;
+use crate::core::tasks_manager::{TasksManager, TaskStatus};
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
@@ -167,9 +167,56 @@ pub fn create_local_instance(
         }))
     );
 
+
+// Update task to "Creando metadatos"
+    // Aquí puedes actualizar el progreso de la tarea
+    task_manager.update_task(
+        &format!("create-instance-{}", instance.instanceName),
+        TaskStatus::Running,
+        0.0,
+        "Creando metadatos",
+        Some(serde_json::json!({
+            "instanceName": instance.instanceName.clone(),
+            "instanceId": instance.instanceId.clone()
+        }))
+    );
+
+    // Crear la carpeta de la instancia, y su respectivo instance.json
+    let instance_path = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
+    if !instance_path.exists() {
+        fs::create_dir_all(&instance_path).map_err(|e| format!("Failed to create instance directory: {}", e));
+    }
+    let instance_json_path = instance_path.join("instance.json");
+    fs::write(&instance_json_path, serde_json::to_string(&instance).unwrap())
+        .map_err(|e| format!("Failed to write instance.json: {}", e));
+
+    // Aquí puedes actualizar el progreso de la tarea
+    task_manager.update_task(
+        &format!("create-instance-{}", instance.instanceName),
+        TaskStatus::Running,
+        0.5,
+        "Descargando archivos",
+        Some(serde_json::json!({
+            "instanceName": instance.instanceName.clone(),
+            "instanceId": instance.instanceId.clone()
+        }))
+    );
+
    
     // Por último, imprimimos la instancia creada
     println!("Instance created: {:?}", instance);
+
+    // Finalizamos con fines de demostración
+    task_manager.update_task(
+        &format!("create-instance-{}", instance.instanceName),
+        TaskStatus::Completed,
+        1.0,
+        "Instancia creada",
+        Some(serde_json::json!({
+            "instanceName": instance.instanceName.clone(),
+            "instanceId": instance.instanceId.clone()
+        }))
+    );
 
 
 

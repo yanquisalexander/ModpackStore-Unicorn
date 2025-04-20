@@ -66,6 +66,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
         with:
           owner: ModpackStore
           repo: ModpackStore-Releases

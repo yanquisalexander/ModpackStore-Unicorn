@@ -55,7 +55,7 @@ jobs:
           git config user.email github-actions@github.com
           git tag -f canary
 
-            - name: Push tag to external repo
+      - name: Push tag to external repo
         run: |
           git remote add external https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/ModpackStore/ModpackStore-Releases.git
           git push --force external canary

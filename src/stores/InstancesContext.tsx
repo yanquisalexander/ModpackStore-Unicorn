@@ -121,7 +121,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 window.setFocus();
 
                 if (exitCode !== 0) {
-                    toast.error(`La instancia ${instanceName} ha salido con el código de error ${exitCode}`, {
+                    toast.error(`La instancia "${instanceName}" se ha cerrado con el código de error ${exitCode}`, {
+                        duration: 10000,
                         description: "Esto puede ser causado por un error en la configuración de la instancia o un problema con tu instalación de Java."
                     });
                     playSound("ERROR_NOTIFICATION")

@@ -194,6 +194,16 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             return;
         }
 
+        const accountExists = await invoke("ensure_account_exists", { uuid: instance.accountUuid });
+        if (!accountExists) {
+            playSound('ERROR_NOTIFICATION');
+            toast.error("Cuenta no encontrada", {
+                description: "La cuenta asociada a esta instancia no existe. Por favor, verifica la configuración de la instancia.",
+                dismissible: true,
+            });
+            return;
+        }
+
         try {
             // Registrar evento y actualizar estado antes de lanzar
             trackEvent("play_instance_clicked", {

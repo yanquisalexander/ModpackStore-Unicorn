@@ -200,3 +200,14 @@ pub fn add_microsoft_account(
     manager.save();
     Ok(account)
 }
+
+#[tauri::command]
+pub fn ensure_account_exists(uuid: &str) -> Result<bool, String> {
+    let accounts_manager = get_accounts_manager();
+    let manager = accounts_manager.lock().unwrap();
+    if manager.accounts.iter().any(|a| a.uuid() == uuid) {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}

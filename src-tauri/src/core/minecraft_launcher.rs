@@ -12,6 +12,7 @@ use std::thread; // Crucial for asynchronous operations
 use crate::core::minecraft_account::MinecraftAccount; // If needed for validation
 use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
 use crate::core::vanilla_launcher::VanillaLauncher; // Vanilla launch logic
+use crate::core::forge_launcher::ForgeLoader; // Forge launch logic
 use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic
 use crate::core::instance_bootstrap::InstanceBootstrap; // Asset revalidation logic
 
@@ -261,9 +262,32 @@ impl InstanceLauncher {
                 "[Launch Thread: {}] Preparing Forge launch...",
                 self.instance.instanceId
             );
-            let err_msg = "Lanzamiento de Forge aún no implementado.";
-            self.emit_error(err_msg, None);
-            Err(IoError::new(IoErrorKind::Unsupported, err_msg))
+           
+            let launcher = ForgeLoader::new(self.instance.clone());
+            // Execute the launch command via the GameLauncher trait/implementation
+            match GameLauncher::launch(&launcher) {
+                // Assumes this returns Option<Child>
+                Some(child_process) => {
+                    // Success! Game process obtained.
+                    println!(
+                        "[Launch Thread: {}] Minecraft process started successfully (PID: {}).",
+                        self.instance.instanceId,
+                        child_process.id()
+                    );
+                    self.emit_status("instance-launched", "Minecraft se está ejecutando.", None);
+                    // Start monitoring the process in its own background thread.
+                    Self::monitor_process(self.instance.clone(), child_process);
+                    Ok(()) // Indicate successful initiation of the launch.
+                }
+                None => {
+                    // Failure: GameLauncher::launch returned None.
+                    let err_msg =
+                        "Fallo al iniciar el proceso de Minecraft (GameLauncher retornó None).";
+                    eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
+                    self.emit_error(err_msg, None);
+                    Err(IoError::new(IoErrorKind::Other, err_msg))
+                }
+            }
         } else {
             // --- Vanilla Launch ---
             println!(

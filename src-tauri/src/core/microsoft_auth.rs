@@ -415,6 +415,7 @@ impl MicrosoftAuthenticator {
         }
         
         let license_data: serde_json::Value = license_response.json().await?;
+        println!("License data: {:?}", license_data);
         
         // Check if user has valid Java Edition license (not trial)
         let has_valid_license = license_data.get("items")
@@ -438,7 +439,7 @@ impl MicrosoftAuthenticator {
             .headers(headers)
             .send()
             .await?;
-            
+    
         if profile_response.status().as_u16() == 404 {
             return Err("Tu cuenta tiene Minecraft Java Edition adquirido pero aún no has creado un perfil. Por favor, abre el Launcher oficial de Minecraft al menos una vez para crear tu perfil.".into());
         }
@@ -448,6 +449,8 @@ impl MicrosoftAuthenticator {
         }
         
         let profile: MinecraftProfileResponse = profile_response.json().await?;
+        println!("Minecraft profile: {:?}", profile);
+        
         Ok(profile)
     }
     

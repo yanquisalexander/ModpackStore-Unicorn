@@ -38,7 +38,7 @@ export const InstanceCard = ({ instance, href = "/prelaunch/", className = "" }:
                         <h2 className="text-lg mt-auto text-white leading-snug font-medium text-balance max-w-[28ch] group-hover:text-sky-200">
                             {instance.instanceName}
                         </h2>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-300">
+                        <div className="flex flex-col justify-center gap-0.5 mt-1 text-sm text-gray-300">
                             <p className="text-xs text-gray-400">
                                 Minecraft {instance.minecraftVersion}
                             </p>

@@ -45,6 +45,7 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
             from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
 
         existing_instance.instanceName = instance.instanceName;
+        existing_instance.accountUuid = instance.accountUuid;
 
         // Guardar la instancia actualizada
         existing_instance.save();

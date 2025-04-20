@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { LucidePencil, LucideSave } from "lucide-react";
+import { LucidePencil, LucideSave, LucideUser } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -16,6 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface EditInstanceInfoProps {
     instanceId: string;
@@ -25,42 +32,54 @@ interface EditInstanceInfoProps {
 export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps) => {
     const [open, setOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [instance, setInstance] = useState<TauriCommandReturns['get_instance_by_id'] | null>(null); // Cambia el tipo según tu modelo de instancia
+    const [instance, setInstance] = useState<TauriCommandReturns['get_instance_by_id'] | null>(null);
+    const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);
     const [formData, setFormData] = useState({
         instanceName: "",
         icon: "",
+        accountUuid: "",
     });
 
-    // Cargar la instancia cuando se abre el diálogo
+    // Cargar la instancia y las cuentas cuando se abre el diálogo
     useEffect(() => {
-        const loadInstance = async () => {
+        const loadData = async () => {
             if (!open) return;
 
             try {
                 setIsLoading(true);
-                const instance = await invoke<TauriCommandReturns['get_instance_by_id']>(
+
+                // Cargar la instancia
+                const instanceData = await invoke<TauriCommandReturns['get_instance_by_id']>(
                     "get_instance_by_id",
                     { instanceId }
                 );
 
-                if (instance) {
-                    setInstance(instance);
+                if (instanceData) {
+                    setInstance(instanceData);
                     setFormData({
-                        instanceName: instance.instanceName || "",
-                        icon: instance.icon || "",
+                        instanceName: instanceData.instanceName || "",
+                        icon: instanceData.icon || "",
+                        accountUuid: instanceData.accountUuid || "",
                     });
                 }
+
+                // Cargar las cuentas disponibles
+                const accountsData = await invoke<TauriCommandReturns['get_all_accounts']>(
+                    "get_all_accounts"
+                );
+
+                setAccounts(accountsData);
             } catch (error) {
-                console.error("Error al cargar la instancia:", error);
+                console.error("Error al cargar datos:", error);
                 toast.error("Error al cargar datos", {
-                    description: "No se pudo cargar la información de la instancia.",
+                    description: "No se pudo cargar la información necesaria.",
                 });
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadInstance();
+        loadData();
     }, [open, instanceId]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -68,6 +87,13 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
         setFormData(prev => ({
             ...prev,
             [name]: value
+        }));
+    };
+
+    const handleAccountChange = (value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            accountUuid: value
         }));
     };
 
@@ -80,6 +106,8 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                 instance: {
                     ...instance,
                     instanceName: formData.instanceName,
+                    icon: formData.icon,
+                    accountUuid: formData.accountUuid,
                 }
             });
 
@@ -143,7 +171,40 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                             />
                         </div>
 
-
+                        <div className="space-y-2">
+                            <Label htmlFor="accountUuid">Cuenta de Minecraft</Label>
+                            <Select
+                                value={formData.accountUuid}
+                                onValueChange={handleAccountChange}
+                            >
+                                <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                    <SelectValue placeholder="Seleccionar cuenta" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                    {accounts.length === 0 ? (
+                                        <SelectItem value="no-accounts" disabled>
+                                            No hay cuentas disponibles
+                                        </SelectItem>
+                                    ) : (
+                                        accounts.map((account) => (
+                                            <SelectItem
+                                                key={account.uuid}
+                                                value={account.uuid}
+                                                className="flex items-center gap-2"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <LucideUser className="size-4 text-emerald-400" />
+                                                    {account.username || account.email}
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-neutral-400">
+                                Selecciona la cuenta que se usará para iniciar esta instancia.
+                            </p>
+                        </div>
 
                         <div className="space-y-2">
                             <Label htmlFor="icon">URL del ícono</Label>

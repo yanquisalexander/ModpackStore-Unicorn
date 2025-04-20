@@ -13,6 +13,7 @@ use std::sync::Mutex;
 use tauri::Emitter;
 use crate::core::tasks_manager::{TasksManager, TaskStatus};
 use std::sync::Arc;
+use crate::core::instance_bootstrap::InstanceBootstrap;
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
@@ -159,8 +160,8 @@ pub async fn create_local_instance(
     // Creamos el task manager y lo envolvemos en Arc<Mutex<>> para compartirlo entre hilos
     let task_manager = Arc::new(Mutex::new(TasksManager::new()));
     let task_id = {
-        let task_manager = task_manager.lock().unwrap();
-        task_manager.add_task(
+        let mut tm = task_manager.lock().unwrap();
+        tm.add_task(
             &format!("Creando instancia {}", instance.instanceName),
             Some(serde_json::json!({
                 "instanceName": instance.instanceName.clone(),
@@ -171,8 +172,8 @@ pub async fn create_local_instance(
 
     // Actualizamos el estado a "Creando metadatos"
     {
-        let task_manager = task_manager.lock().unwrap();
-        task_manager.update_task(
+        let mut tm = task_manager.lock().unwrap();
+        tm.update_task(
             &task_id,
             TaskStatus::Running,
             10.0,
@@ -200,64 +201,38 @@ pub async fn create_local_instance(
     
     // Lanzar el proceso en segundo plano
     std::thread::spawn(move || {
-        // Actualizamos la tarea a "Descargando archivos" usando el mismo task_manager
-        {
-            let task_manager = task_manager_clone.lock().unwrap();
-            task_manager.update_task(
-                &task_id_clone,
-                TaskStatus::Running,
-                50.0,
-                "Descargando archivos",
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                }))
-            );
+        // Iniciar el bootstrap de la instancia Vanilla
+        let mut bootstrap = InstanceBootstrap::new();
+        
+        match bootstrap.bootstrap_vanilla_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone))) {
+            Ok(_) => {
+                println!("Instance creation completed: {:?}", instance_clone);
+            },
+            Err(e) => {
+                eprintln!("Error during bootstrap: {}", e);
+                // Actualizar el estado de la tarea a fallido
+                if let Ok(mut tm) = task_manager_clone.lock() {
+                    tm.update_task(
+                        &task_id_clone,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error en bootstrap: {}", e),
+                        Some(serde_json::json!({
+                            "instanceName": instance_clone.instanceName.clone(),
+                            "instanceId": instance_clone.instanceId.clone(),
+                            "error": e
+                        }))
+                    );
+                }
+            }
         }
-
-        // Simulamos el trabajo de descarga
-        // Aquí iría tu lógica real de descarga de assets, librerías, etc.
-        std::thread::sleep(std::time::Duration::from_secs(5));
-        
-        {
-            let task_manager = task_manager_clone.lock().unwrap();
-            task_manager.update_task(
-                &task_id_clone,
-                TaskStatus::Running,
-                75.0,
-                "Instalando componentes",
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                }))
-            );
-        }
-        
-        // Más trabajo simulado
-        std::thread::sleep(std::time::Duration::from_secs(5));
-        
-        // Finalizamos la tarea
-        {
-            let task_manager = task_manager_clone.lock().unwrap();
-            task_manager.update_task(
-                &task_id_clone,
-                TaskStatus::Completed,
-                100.0,
-                "Instancia creada",
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                }))
-            );
-        }
-        
-        println!("Instance creation completed: {:?}", instance_clone);
 
         // Remover la tarea eventualmente (Quizá después de 2 minutos)
         std::thread::sleep(std::time::Duration::from_secs(120));
-        let mut task_manager = task_manager_clone.lock().unwrap();
-        task_manager.remove_task(&task_id_clone);
-        println!("Task removed: {:?}", task_id_clone);
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.remove_task(&task_id_clone);
+            println!("Task removed: {:?}", task_id_clone);
+        }
     });
 
     // Devolvemos inmediatamente una respuesta con el ID de la instancia

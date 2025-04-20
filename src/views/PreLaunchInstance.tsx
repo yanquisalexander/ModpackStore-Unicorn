@@ -2,7 +2,7 @@ import { useGlobalContext } from "@/stores/GlobalContext"
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings, LucideShieldCheck } from "lucide-react"
+import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings, LucideShieldCheck, LucideUnplug } from "lucide-react"
 import { CSSProperties, useEffect, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
@@ -170,25 +170,52 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     }, [currentInstanceRunning?.status, getRandomMessage]);
 
     const handlePlayButtonClick = useCallback(async () => {
+        // Evitar iniciar si ya está cargando o jugando
         if (loadingStatus.isLoading || isPlaying) return;
 
+        const instance = prelaunchState.instance;
+
+        // Validar que la instancia exista
+        if (!instance) {
+            playSound('ERROR_NOTIFICATION');
+            toast.error("Error al iniciar la instancia", {
+                description: "No se pudo iniciar la instancia. Intenta nuevamente más tarde.",
+                dismissible: true,
+            });
+            return;
+        }
+
+        // Validar que haya una cuenta seleccionada
+        if (!instance.accountUuid) {
+            playSound('ERROR_NOTIFICATION');
+            toast.error("Sin cuenta seleccionada", {
+                description: "Debes seleccionar una cuenta de Minecraft para jugar (puedes hacerlo desde la configuración de instancia).",
+                dismissible: true,
+                icon: <LucideUnplug className="size-4 text-white" />,
+            });
+            return;
+        }
+
         try {
+            // Registrar evento y actualizar estado antes de lanzar
             trackEvent("play_instance_clicked", {
                 name: "Play Minecraft Instance Clicked",
                 modpackId: "null",
                 timestamp: new Date().toISOString(),
             });
+
             setLoadingStatus(prev => ({ ...prev, isLoading: true }));
             await invoke("launch_mc_instance", { instanceId });
             startMessageInterval();
         } catch (error) {
             console.error("Error launching instance:", error);
+            playSound('ERROR_NOTIFICATION'); // Añadido sonido de error
             toast.error("Error al iniciar la instancia", {
                 description: "No se pudo iniciar la instancia. Intenta nuevamente más tarde.",
                 dismissible: true,
             });
         }
-    }, [instanceId, loadingStatus.isLoading, isPlaying, startMessageInterval]);
+    }, [instanceId, loadingStatus.isLoading, isPlaying, prelaunchState.instance, startMessageInterval]);
 
 
     // Discord RPC handling

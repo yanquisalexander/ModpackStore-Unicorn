@@ -173,11 +173,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const hasVideo = modpackData.trailerUrl && modpackData.trailerUrl.length > 0;
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full h-full">
             {/* Banner con parallax usando Framer Motion */}
             <div
                 ref={bannerContainerRef}
-                className="absolute inset-0 z-11 h-[60vh] overflow-hidden"
+                className="absolute inset-0 z-11 overflow-hidden w-full h-[60vh] aspect-video"
             >
                 <motion.div
                     className="absolute inset-0 w-full h-full"
@@ -189,7 +189,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 >
                     {/* Banner de imagen siempre presente */}
                     <div
-                        className={`w-full h-full bg-cover bg-center transition-opacity duration-1000 ${showVideo && videoLoaded ? 'opacity-0' : 'opacity-100'}`}
+                        className={`w-full h-full animate-fade-in bg-cover bg-center transition-opacity duration-1000 ${showVideo && videoLoaded ? 'opacity-0' : 'opacity-100'}`}
                         style={{ backgroundImage: `url(${modpackData.bannerUrl})` }}
                     />
 
@@ -212,7 +212,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                             {/* Botón visible siempre que haya video y esté activo */}
                             <button
                                 onClick={toggleMute}
-                                className="absolute top-4 right-8 p-2 bg-black/50 backdrop-blur-sm rounded-full z-999"
+                                className="cursor-pointer absolute top-4 right-8 p-2 bg-black/50 backdrop-blur-sm rounded-full z-999"
                             >
                                 {isMuted ? (
                                     <LucideVolumeX className="size-6 text-white" />

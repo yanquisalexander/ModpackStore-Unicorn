@@ -36,7 +36,6 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);
     const [formData, setFormData] = useState({
         instanceName: "",
-        icon: "",
         accountUuid: "",
     });
 
@@ -58,7 +57,6 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                     setInstance(instanceData);
                     setFormData({
                         instanceName: instanceData.instanceName || "",
-                        icon: instanceData.icon || "",
                         accountUuid: instanceData.accountUuid || "",
                     });
                 }
@@ -106,7 +104,6 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                 instance: {
                     ...instance,
                     instanceName: formData.instanceName,
-                    icon: formData.icon,
                     accountUuid: formData.accountUuid,
                 }
             });
@@ -194,7 +191,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                                             >
                                                 <div className="flex items-center gap-2">
                                                     <LucideUser className="size-4 text-emerald-400" />
-                                                    {account.username || account.email}
+                                                    {account.username}
                                                 </div>
                                             </SelectItem>
                                         ))
@@ -206,20 +203,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps
                             </p>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="icon">URL del ícono</Label>
-                            <Input
-                                id="icon"
-                                name="icon"
-                                value={formData.icon}
-                                onChange={handleInputChange}
-                                className="bg-neutral-800 border-neutral-700 text-white"
-                                placeholder="https://example.com/icon.png"
-                            />
-                            <p className="text-xs text-neutral-400">
-                                Ingresa una URL de imagen para usar como ícono de la instancia.
-                            </p>
-                        </div>
+
 
                         <DialogFooter>
                             <Button

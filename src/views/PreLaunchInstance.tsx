@@ -93,7 +93,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         setTitleBarState(prev => ({
             ...prev,
             title: instance.instanceName,
-            icon: "https://saltouruguayserver.com/favicon.svg",
             canGoBack: true,
             customIconClassName: "",
             opaque: false,
@@ -478,7 +477,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         {
                             appearance?.logo?.url ? null : (
                                 <img
-                                    src="https://saltouruguayserver.com/favicon.svg"
+                                    src={appearance?.logo?.url || "/images/mc_logo.svg"}
                                     className="h-8 w-8"
                                     alt="Logo"
                                 />

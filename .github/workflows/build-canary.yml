@@ -68,9 +68,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
           GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
         with:
-          owner: ModpackStore
-          repo: ModpackStore-Releases
-          tag: ${{ steps.tag.outputs.tag }}
+          repository: ModpackStore/ModpackStore-Releases
+          tag_name: ${{ steps.tag.outputs.tag }}
           name: Canary Build ${{ steps.tag.outputs.tag }}
           body: "Automated canary build for testing"
           files: |

@@ -49,34 +49,50 @@ jobs:
         run: |
           echo "tag=canary" >> $GITHUB_OUTPUT
 
-      - name: Create or update tag
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag -f canary
-
-      - name: Push tag to external repo
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          # ⚠️ Limpia posibles credential helpers que interfieran
-          git config --global --unset credential.helper || true
-          git config --unset-all http.https://github.com/.extraheader
-
-          git remote add external https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/ModpackStore/ModpackStore-Releases.git
-
-          git push --force external canary
-
-
-
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Create Release and Upload to External Repo
+      - name: Setup and Push to Release Repository
+        run: |
+          # Crear directorio temporal
+          mkdir -p temp-release-repo
+          cd temp-release-repo
+          
+          # Inicializar repo
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Intentar clonar la rama canary existente (si existe)
+          git remote add origin https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/ModpackStore/ModpackStore-Releases.git
+          git fetch origin canary || echo "Branch doesn't exist yet, creating new"
+          
+          # Si la rama existe, intentar recuperarla
+          git checkout canary || git checkout -b canary
+          
+          # Limpiar todo excepto .git
+          Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+          
+          # Copiar los nuevos archivos de release
+          Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse
+          
+          # Crear un README si no existe
+          Set-Content -Path README.md -Value @"
+          # ModpackStore Releases
+          Este repositorio contiene solo las releases de ModpackStore.
+          "@
+          
+          # Commit y push
+          git add -A
+          git commit -m "Update canary release"
+          git tag -f canary
+          git push --force origin canary
+          git push --force origin canary:refs/tags/canary
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}

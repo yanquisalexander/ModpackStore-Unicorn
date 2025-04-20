@@ -100,7 +100,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             // Evento para cuando la instancia ha salido
             const exitedUnlisten = await listen("instance-exited", (e: any) => {
-                const { id, message, instanceName, exitCode } = e.payload;
+                const { id, message, data, name: instanceName } = e.payload;
+                const { exitCode } = data || { exitCode: "desconocido" };
                 console.log(e.payload);
                 console.log("Instance exited event:", { id, message });
 

@@ -475,27 +475,49 @@ impl ForgeLoader {
          }
 
         // Add modern Forge specific JVM args (adapt version check as needed)
-        let is_modern_forge = minecraft_version.starts_with("1.17") || minecraft_version.starts_with("1.18") || minecraft_version.starts_with("1.19") || minecraft_version.starts_with("1.20") || minecraft_version.starts_with("1.21"); // Example check
+        let is_modern_forge = Self::is_modern_minecraft_version(minecraft_version);
+
         if is_modern_forge {
             println!("Adding Modern Forge JVM arguments...");
-            // Add arguments similar to the Java example - these are often crucial
+            
+            // Basic forge system properties
             if jvm_args_set.insert("-dignorelist".to_string()){
-                final_jvm_args.push("-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,*1.*".to_string() + minecraft_version); // Adjust list as needed
+                final_jvm_args.push(format!("-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,*1.*{}", minecraft_version));
             }
-             if jvm_args_set.insert("-dmergemodules".to_string()){
-                 final_jvm_args.push("-DmergeModules=jna,jna-platform,java-objc-bridge,jopt-simple,kotlin-stdlib,failureaccess,guava".to_string()); // Add more from Java example if needed
-             }
-             if jvm_args_set.insert("-dlibrarydirectory".to_string()){
-                 final_jvm_args.push(format!("-DlibraryDirectory={}", variables.get("${library_directory}").unwrap()));
-             }
-
-            // Module path arguments (-p, --add-modules, --add-opens) - These are complex
-            // Finding bootstrap modules requires scanning libraries dir for specific JARs
-            // Example: command.arg("-p"); command.arg(find_bootstrap_modules(&libraries_dir)?);
-            // command.arg("--add-modules"); command.arg("ALL-MODULE-PATH");
-            // command.arg("--add-opens=java.base/java.util.jar=cpw.mods.securejarhandler"); // etc.
-            println!("Warning: Modern Forge module path arguments (-p, --add-modules, --add-opens) are complex and not fully implemented here.");
-
+            if jvm_args_set.insert("-dmergemodules".to_string()){
+                final_jvm_args.push("-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar".to_string());
+            }
+            if jvm_args_set.insert("-dlibrarydirectory".to_string()){
+                final_jvm_args.push(format!("-DlibraryDirectory={}", variables.get("${library_directory}").unwrap()));
+            }
+        
+            // Find bootstrap modules dynamically
+            let module_path = Self::find_bootstrap_modules(&libraries_dir)?;
+            if !module_path.is_empty() {
+                // Add module path
+                final_jvm_args.push("-p".to_string());
+                final_jvm_args.push(module_path);
+                
+                // Add modules
+                final_jvm_args.push("--add-modules".to_string());
+                final_jvm_args.push("ALL-MODULE-PATH".to_string());
+                
+                // Add opens - IMPORTANT: Each --add-opens needs its own argument
+                final_jvm_args.push("--add-opens".to_string());
+                final_jvm_args.push("java.base/java.util.jar=cpw.mods.securejarhandler".to_string());
+                
+                final_jvm_args.push("--add-opens".to_string());
+                final_jvm_args.push("java.base/java.lang.invoke=cpw.mods.securejarhandler".to_string());
+                
+                // Add exports
+                final_jvm_args.push("--add-exports".to_string());
+                final_jvm_args.push("java.base/sun.security.util=cpw.mods.securejarhandler".to_string());
+                
+                final_jvm_args.push("--add-exports".to_string());
+                final_jvm_args.push("jdk.naming.dns/com.sun.jndi.dns=java.naming".to_string());
+            } else {
+                println!("Warning: Could not find bootstrap modules, module path arguments will be omitted");
+            }
         }
 
         // Add Classpath and Main Class
@@ -609,6 +631,90 @@ impl ForgeLoader {
                 Err(LaunchError(format!("Failed to spawn process: {}", e)))
             }
         }
+    }
+
+   /// Finds bootstrap module JARs in the libraries directory for the module path.
+/// This is required for modern Forge (1.17+) which uses the Java module system.
+fn find_bootstrap_modules(libraries_dir: &Path) -> Result<String, LaunchError> {
+    // These are common patterns for bootstrap modules required by Forge
+    let bootstrap_patterns = [
+        "cpw/mods/bootstraplauncher",
+        "cpw/mods/securejarhandler",
+        "org/ow2/asm/asm",
+        "org/ow2/asm/asm-commons",
+        "org/ow2/asm/asm-util",
+        "org/ow2/asm/asm-analysis",
+        "org/ow2/asm/asm-tree",
+        "net/minecraftforge/JarJarFileSystems"
+    ];
+    
+    let mut module_jars = Vec::new();
+    
+    // Define a recursive function instead of a closure
+    fn walk_directory(dir: &Path, patterns: &[&str], jars: &mut Vec<String>) -> io::Result<()> {
+        if dir.is_dir() {
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                
+                if path.is_dir() {
+                    walk_directory(&path, patterns, jars)?;
+                } else if let Some(ext) = path.extension() {
+                    if ext == "jar" {
+                        // Check if this JAR matches any of our bootstrap patterns
+                        let path_str = path.to_string_lossy();
+                        for pattern in patterns {
+                            if path_str.contains(&pattern.replace('/', &std::path::MAIN_SEPARATOR.to_string())) {
+                                jars.push(path.to_string_lossy().to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    // Start the recursive search from the libraries directory
+    if let Err(e) = walk_directory(libraries_dir, &bootstrap_patterns, &mut module_jars) {
+        return Err(LaunchError(format!("Failed to scan libraries directory: {}", e)));
+    }
+    
+    // If no bootstrap JARs were found, log a warning but don't necessarily fail
+    if module_jars.is_empty() {
+        println!("Warning: No bootstrap module JARs found in libraries directory");
+    } else {
+        println!("Found {} bootstrap module JARs", module_jars.len());
+    }
+    
+    // Join the paths with the appropriate separator for the platform
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    Ok(module_jars.join(separator))
+}
+
+    fn is_modern_minecraft_version(version: &str) -> bool {
+        // Extract the major and minor version numbers
+        let version_parts: Vec<&str> = version.split('.').collect();
+        
+        if version_parts.is_empty() {
+            return false; // Invalid version format
+        }
+        
+        // Handle "1.x" format versions
+        if version_parts[0] == "1" && version_parts.len() > 1 {
+            // Try to parse the minor version number
+            if let Ok(minor) = version_parts[1].parse::<u32>() {
+                // Modern Forge (requiring Java modules) started with Minecraft 1.17
+                return minor >= 17;
+            }
+        } 
+        // Handle potential future "2.x" or higher versions (assume they're modern)
+        else if let Ok(major) = version_parts[0].parse::<u32>() {
+            return major >= 2;
+        }
+        
+        false // Default to false for unrecognized formats
     }
 }
 

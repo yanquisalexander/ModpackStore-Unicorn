@@ -33,18 +33,16 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-rust-
-
-      - name: Install Rust
+      # Added Rust installation and caching based on the second example
+      - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          # Adjust the workspaces path if your tauri project is not directly in src-tauri
+          workspaces: |
+            ./src-tauri -> ./target
 
       - name: Set static canary tag
         id: tag
@@ -64,25 +62,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Create Canary Release in public repo
-        uses: elgohr/Github-Release-Action@v5
+      - name: Create Release and Upload to External Repo
+        uses: softprops/action-gh-release@v1
         env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
         with:
-          github_token: ${{ secrets.PUBLIC_REPO_TOKEN }}
-          tag_name: ${{ steps.tag.outputs.tag }}
           owner: ModpackStore
           repo: ModpackStore-Releases
-          name: Canary
-          body: "This is a canary build. Download the artifacts for testing."
+          tag: ${{ steps.tag.outputs.tag }}
+          name: Canary Build ${{ steps.tag.outputs.tag }}
+          body: "Automated canary build for testing"
+          files: |
+            src-tauri/target/release/bundle/*
           draft: false
           prerelease: false
-
-      - name: Upload artifacts to public release
-        run: |
-          echo "Uploading artifacts to ModpackStore-Releases..."
-          for file in src-tauri/target/release/bundle/*; do
-            gh release upload ${{ steps.tag.outputs.tag }} "$file" --repo ModpackStore/ModpackStore-Releases --clobber
-          done
-        env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}

@@ -1,4 +1,4 @@
-name: Build Release
+name: Build Canary Release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-release:
+  build-canary:
     permissions:
       contents: write
     runs-on: windows-latest
@@ -46,9 +46,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Generate release tag
+      - name: Set static canary tag
         id: tag
-        run: echo "tag=v$(date +'%Y.%m.%d.%H%M%S')" >> $GITHUB_OUTPUT
+        run: |
+          echo "tag=canary" >> $GITHUB_OUTPUT
 
       - name: Create Git tag
         run: |
@@ -57,16 +58,30 @@ jobs:
           git tag ${{ steps.tag.outputs.tag }}
           git push origin ${{ steps.tag.outputs.tag }}
 
-      - name: Publish Release
+      - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
-          args: ""
+          args: build
+
+      - name: Create Canary Release in public repo
+        id: create_release
+        uses: peter-evans/create-release@v3
+        with:
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          repository: ModpackStore/ModpackStore-Releases
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: "Canary"
+          body: "This is a canary build. Download the artifacts for testing."
+          prerelease: true
+
+      - name: Upload artifacts to public release
+        run: |
+          echo "Uploading artifacts to ModpackStore-Releases..."
+          for file in src-tauri/target/release/bundle/*; do
+            gh release upload ${{ steps.tag.outputs.tag }} "$file" --repo ModpackStore/ModpackStore-Releases --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}

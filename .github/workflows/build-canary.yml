@@ -67,7 +67,7 @@ jobs:
           args: build
 
       - name: Create Canary Release in public repo
-        uses: elgohr/Github-Release-Action@v1
+        uses: elgohr/Github-Release-Action@latest
         with:
           github_token: ${{ secrets.PUBLIC_REPO_TOKEN }}
           tag_name: ${{ steps.tag.outputs.tag }}

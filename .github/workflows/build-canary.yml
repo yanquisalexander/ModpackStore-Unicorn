@@ -57,8 +57,16 @@ jobs:
 
       - name: Push tag to external repo
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ⚠️ Limpia posibles credential helpers que interfieran
+          git config --global --unset credential.helper || true
+
           git remote add external https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/ModpackStore/ModpackStore-Releases.git
+
           git push --force external canary
+
 
 
       - name: Build Tauri App

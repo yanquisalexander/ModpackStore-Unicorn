@@ -982,8 +982,25 @@ impl InstanceBootstrap {
             }
         }
 
-        self.download_forge_libraries(&forge_install_result, &libraries_dir, instance)
-            .map_err(|e| format!("Error al descargar librerías de Forge: {}", e))?;
+        
+        // Descargar librerías de Forge
+       // Leer el archivo de versión para obtener los detalles de las librerías
+    let forge_version_json_path = forge_version_dir.join(format!("{}.json", forge_version_name));
+    
+    if forge_version_json_path.exists() {
+        let version_json = fs::read_to_string(&forge_version_json_path)
+            .map_err(|e| format!("Error al leer archivo de versión Forge: {}", e))?;
+        
+        let version_details: Value = serde_json::from_str(&version_json)
+            .map_err(|e| format!("Error al parsear archivo de versión Forge: {}", e))?;
+        
+        // Descargar librerías específicas de Forge
+        self.download_forge_libraries(&version_details, &libraries_dir, instance)?;
+    } else {
+        return Err(format!("No se encontró el archivo de versión Forge: {}", forge_version_json_path.display()));
+    }
+
+        
         // Update task status - 95%
         if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
             if let Ok(mut tm) = task_manager.lock() {

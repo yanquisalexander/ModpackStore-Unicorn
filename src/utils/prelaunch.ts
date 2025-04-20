@@ -1,19 +1,16 @@
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 
-export const getDefaultAppeareance = ({ title, description, logoUrl }: { title: string; description: string; logoUrl: string }): PreLaunchAppearance => {
+export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?: string; description?: string; logoUrl?: string }): PreLaunchAppearance => {
 
     return {
         title,
         description,
-        audio: {
-            url: "https://cdn.saltouruguayserver.com/sounds/launcher_bg_loop.mp3",
 
-        },
         logo: {
             url: logoUrl,
-            height: "132px",
+            height: "56px",
             position: {
-                top: "6rem",
+                top: "8rem",
                 left: "50%",
                 transform: "translateX(-50%)"
             },
@@ -23,7 +20,6 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title: 
 
         playButton: {
             text: "Jugar ahora",
-            fontFamily: "monocraft",
             backgroundColor: "#00a63e",
             hoverColor: "#262626",
             textColor: "#ffffff",
@@ -34,8 +30,7 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title: 
         },
 
         background: {
-            imageUrl: "https://images.steamusercontent.com/ugc/2310974141604980016/B4EF3A7A2D1772DE26B1A6F51CE33A04FD8BB917/",
-            videoUrl: null,
+            videoUrl: "/assets/videos/prelaunch-default-1.mp4",
         },
 
 

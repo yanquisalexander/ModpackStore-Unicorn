@@ -17,7 +17,7 @@ export interface Audio {
 
 export interface Background {
     imageUrl?: string;
-    videoUrl?: null;
+    videoUrl?: string | string[];
 }
 
 export interface Logo {

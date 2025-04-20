@@ -107,12 +107,10 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         } catch (err) {
             console.error("Error fetching appearance:", err);
             setAppearance(getDefaultAppeareance({
-                title: "SaltoCraft 3",
-                description: "Un modpack de SaltoUruguayServer",
-                logoUrl: "https://saltouruguayserver.com/favicon.svg",
+                logoUrl: "/images/mc_logo.svg",
             }));
         }
-    }, [instanceId]);
+    }, [instanceId, prelaunchState.instance]);
 
     // Action handlers
     const notAvailable = useCallback(() => {
@@ -372,14 +370,27 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     );
 
     const renderBackground = () => (
-        <img
-            style={{
-                maskImage: "linear-gradient(to bottom, white 60% , rgba(0, 0, 0, 0) 100%)",
-            }}
-            className="absolute opacity-80 inset-0 z-1 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
-            src={appearance?.background?.imageUrl ?? ""}
-            alt="Background"
-        />
+        appearance?.background?.imageUrl ? (
+            <img
+                className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
+                src={appearance.background.imageUrl}
+                alt="Background"
+            />
+        ) : appearance?.background?.videoUrl ? (
+            <video
+                className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
+                autoPlay
+                loop
+                muted
+            >
+                {Array.isArray(appearance.background.videoUrl)
+                    ? appearance.background.videoUrl.map((url, index) => (
+                        <source key={index} src={url} type="video/mp4" />
+                    ))
+                    : <source src={appearance.background.videoUrl} type="video/mp4" />
+                }
+            </video>
+        ) : null
     );
 
     const renderLogo = () => {
@@ -452,11 +463,25 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                             : appearance?.playButton?.text ?? "Jugar ahora"}
                     </button>
 
+                    {/* Footer content */}
                     <div className="flex items-center justify-center space-x-2">
-                        <img src="https://saltouruguayserver.com/favicon.svg" className="h-8 w-8" alt="Logo" />
-                        <span className="text-sm">
-                            Un modpack de SaltoUruguayServer
-                        </span>
+                        {
+                            appearance?.logo?.url ? null : (
+                                <img
+                                    src="https://saltouruguayserver.com/favicon.svg"
+                                    className="h-8 w-8"
+                                    alt="Logo"
+                                />
+                            )
+                        }
+                        {
+                            appearance?.footerText ? (
+                                <span className="text-sm text-center">
+                                    {appearance.footerText}
+                                </span>
+                            ) : null
+                        }
+
                     </div>
                 </div>
             </footer>

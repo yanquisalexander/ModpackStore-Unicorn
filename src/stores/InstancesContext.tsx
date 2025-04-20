@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { trackEvent } from "@aptabase/web";
+import { toast } from "sonner";
+import { playSound } from "@/utils/sounds";
 
 type InstanceState = {
     id: string;
@@ -98,7 +100,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             // Evento para cuando la instancia ha salido
             const exitedUnlisten = await listen("instance-exited", (e: any) => {
-                const { id, message } = e.payload;
+                const { id, message, instanceName, exitCode } = e.payload;
+                console.log(e.payload);
                 console.log("Instance exited event:", { id, message });
 
                 trackEvent("instance_exited", {
@@ -115,6 +118,17 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 const window = getCurrentWindow();
                 window.unminimize();
                 window.setFocus();
+
+                if (exitCode !== 0) {
+                    toast.error(`La instancia ${instanceName} ha salido con el código de error ${exitCode}`, {
+                        description: "Esto puede ser causado por un error en la configuración de la instancia o un problema con tu instalación de Java."
+                    });
+                    playSound("ERROR_NOTIFICATION")
+                    trackEvent("instance_crash", {
+                        instanceId: id,
+                        message: message || "Minecraft se ha cerrado inesperadamente"
+                    });
+                }
 
                 // Opcional: quitar la instancia después de un tiempo
                 setTimeout(() => removeInstance(id), 5000);

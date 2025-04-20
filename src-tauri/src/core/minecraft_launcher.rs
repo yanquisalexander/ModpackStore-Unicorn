@@ -60,7 +60,9 @@ impl InstanceLauncher {
     ///
     /// * `event_name` - The name of the event (e.g., "instance-launch-start").
     /// * `message` - A descriptive message for the frontend.
-    fn emit_status(&self, event_name: &str, message: &str) {
+    /// * `data` - Optional additional data to send with the event.
+    ///   This can be a JSON object or any other serializable type.
+    fn emit_status(&self, event_name: &str, message: &str, data: Option<Value>) {
         println!(
             "[Instance: {}] Emitting Event: {} - Message: {}",
             self.instance.instanceId, event_name, message
@@ -70,7 +72,8 @@ impl InstanceLauncher {
                 let payload = serde_json::json!({
                     "id": self.instance.instanceId,
                     "name": self.instance.instanceName, // Ensure instanceName is populated
-                    "message": message
+                    "message": message,
+                    "data": data.unwrap_or(serde_json::json!({})) // Use empty JSON if no data provided
                 });
                 // Use emit to notify the specific window listening for this event
                 if let Err(e) = app_handle.emit(event_name, payload) {
@@ -99,8 +102,12 @@ impl InstanceLauncher {
     /// # Arguments
     ///
     /// * `error_message` - The error description to send to the frontend.
-    fn emit_error(&self, error_message: &str) {
-        self.emit_status("instance-error", error_message);
+    fn emit_error(&self, error_message: &str, data: Option<Value>) {
+        println!(
+            "[Instance: {}] Emitting Error Event: {}",
+            self.instance.instanceId, error_message
+        );
+        self.emit_status("instance-error", error_message, data);
     }
 
     // --- Process Monitoring ---
@@ -131,7 +138,11 @@ impl InstanceLauncher {
                         instance_name, exit_status
                     );
                     println!("[Monitor: {}] {}", instance_id, message);
-                    emitter_launcher.emit_status("instance-exited", &message);
+                    emitter_launcher.emit_status("instance-exited", &message, Some(serde_json::json!({
+                        "instanceName": instance_name,
+                        
+                        "exitCode": exit_status.code()
+                    })));
                 }
                 Err(e) => {
                     // Failed to wait for the process (less common)
@@ -141,9 +152,12 @@ impl InstanceLauncher {
                     );
                     eprintln!("[Monitor: {}] {}", instance_id, error_message);
                     // Emit both error and exited events as the process state is uncertain but terminated.
-                    emitter_launcher.emit_error(&error_message);
+                    emitter_launcher.emit_error(&error_message, None);
                     emitter_launcher
-                        .emit_status("instance-exited", "Minecraft process ended unexpectedly.");
+                        .emit_status("instance-exited", "Minecraft process ended unexpectedly.", Some(serde_json::json!({
+                            "instanceName": instance_name,
+                            "error": error_message
+                        })));
                 }
             }
             println!("[Monitor: {}] Finished monitoring.", instance_id);
@@ -177,13 +191,14 @@ impl InstanceLauncher {
         self.emit_status(
             "instance-downloading-assets",
             "Verificando/Descargando assets...",
+            None,
         );
 
         // Check if Minecraft version is known
         if self.instance.minecraftVersion.is_empty() {
             let err_msg = "Cannot revalidate assets: Minecraft version is not specified.";
             eprintln!("[Instance: {}] {}", self.instance.instanceId, err_msg);
-            self.emit_error(err_msg);
+            self.emit_error(err_msg, None);
             return Err(IoError::new(IoErrorKind::InvalidData, err_msg));
         }
 
@@ -209,7 +224,7 @@ impl InstanceLauncher {
     /// Errors encountered stop the process and emit an "instance-error" event.
     fn perform_launch_steps(&mut self) {
         // Note: Initial "instance-launch-start" event is emitted by this function.
-        self.emit_status("instance-launch-start", "Preparando lanzamiento...");
+        self.emit_status("instance-launch-start", "Preparando lanzamiento...", None);
         println!(
             "[Launch Thread: {}] Starting launch steps.",
             self.instance.instanceId
@@ -219,7 +234,7 @@ impl InstanceLauncher {
         if let Err(e) = self.validate_account() {
             let err_msg = format!("Error en validación de cuenta: {}", e);
             eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
-            self.emit_error(&err_msg);
+            self.emit_error(&err_msg, None);
             return; // Stop the thread execution
         }
         println!(
@@ -247,7 +262,7 @@ impl InstanceLauncher {
                 self.instance.instanceId
             );
             let err_msg = "Lanzamiento de Forge aún no implementado.";
-            self.emit_error(err_msg);
+            self.emit_error(err_msg, None);
             Err(IoError::new(IoErrorKind::Unsupported, err_msg))
         } else {
             // --- Vanilla Launch ---
@@ -267,7 +282,7 @@ impl InstanceLauncher {
                         self.instance.instanceId,
                         child_process.id()
                     );
-                    self.emit_status("instance-launched", "Minecraft se está ejecutando.");
+                    self.emit_status("instance-launched", "Minecraft se está ejecutando.", None);
                     // Start monitoring the process in its own background thread.
                     Self::monitor_process(self.instance.clone(), child_process);
                     Ok(()) // Indicate successful initiation of the launch.
@@ -277,7 +292,7 @@ impl InstanceLauncher {
                     let err_msg =
                         "Fallo al iniciar el proceso de Minecraft (GameLauncher retornó None).";
                     eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
-                    self.emit_error(err_msg);
+                    self.emit_error(err_msg, None);
                     Err(IoError::new(IoErrorKind::Other, err_msg))
                 }
             }

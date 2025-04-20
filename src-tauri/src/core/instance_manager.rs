@@ -140,7 +140,7 @@ pub async fn create_local_instance(
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name.clone();
     instance.minecraftVersion = mc_version;
-    instance.forgeVersion = forge_version;
+    instance.forgeVersion = forge_version.clone();
     instance.instanceId = uuid::Uuid::new_v4().to_string();
 
     let instances_dir = get_config_manager().lock().unwrap().get_instances_dir();
@@ -201,11 +201,34 @@ pub async fn create_local_instance(
     
     // Lanzar el proceso en segundo plano
     std::thread::spawn(move || {
-        // Iniciar el bootstrap de la instancia Vanilla
+        // Iniciar el bootstrap de la instancia
         let mut bootstrap = InstanceBootstrap::new();
         
-        match bootstrap.bootstrap_vanilla_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone))) {
+        // Determinar si es una instancia vanilla o forge
+        let result = if instance_clone.forgeVersion.is_some() {
+            // Si tiene forge version, usar el método para instancias forge
+            bootstrap.bootstrap_forge_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone)))
+        } else {
+            // Si no tiene forge version, usar el método para instancias vanilla
+            bootstrap.bootstrap_vanilla_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone)))
+        };
+        
+        match result {
             Ok(_) => {
+                // Emit task completion event
+                if let Ok(mut tm) = task_manager_clone.lock() {
+                    tm.update_task(
+                        &task_id_clone,
+                        TaskStatus::Completed,
+                        100.0,
+                        &format!("Instancia {} creada", instance_clone.instanceName).to_string(),
+                        Some(serde_json::json!({
+                            "instanceName": instance_clone.instanceName.clone(),
+                            "instanceId": instance_clone.instanceId.clone()
+                        }))
+                    );
+                }
+
                 println!("Instance creation completed: {:?}", instance_clone);
             },
             Err(e) => {

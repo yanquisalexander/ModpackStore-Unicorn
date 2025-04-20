@@ -511,23 +511,13 @@ impl InstanceBootstrap {
                 .map_err(|e| format!("Error creating launcher_profiles.json: {}", e))?;
         }
         
-        // Update task status - 100% (Complete)
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Completed,
-                    100.0,
-                    &format!("Bootstrap de instancia Vanilla {} completado", instance.minecraftVersion),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    }))
-                );
-            }
-        }
+        // No emitimos el 100% aquí porque también usamos este método para
+        // crear instancias de Forge, y no queremos que se emita el evento
+        // de finalización, así que lo hará la función que llame al proceso
+        // de bootstrap.
         
-        Self::emit_status(instance, "instance-bootstrap-complete", 
+        
+        Self::emit_status(instance, "vanilla-instance-bootstrapped",
             &format!("Bootstrap de instancia Vanilla {} completado", instance.minecraftVersion));
         
         Ok(())
@@ -647,6 +637,330 @@ impl InstanceBootstrap {
         Ok(())
     }
     
+    pub fn bootstrap_forge_instance(
+        &mut self,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+        task_manager: Option<Arc<Mutex<TasksManager>>>
+    ) -> Result<(), String> {
+        // Verificar que tengamos información de Forge
+        if instance.forgeVersion.is_none() || instance.forgeVersion.as_ref().unwrap().is_empty() {
+            return Err("No se especificó versión de Forge".to_string());
+        }
+
+        // Emit start event
+        Self::emit_status(instance, "instance-bootstrap-start", "Iniciando bootstrap de instancia Forge");
+        
+        // Update task status if task_id exists
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    5.0,
+                    "Iniciando bootstrap de instancia Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+
+        // Primero, realizar bootstrap de la instancia Vanilla
+        Self::emit_status(instance, "instance-forge-vanilla-setup", "Configurando base Vanilla");
+        
+        // Update task status - 10%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    10.0,
+                    "Configurando base Vanilla",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+        
+        // Bootstrap Vanilla primero
+        self.bootstrap_vanilla_instance(instance, None, None)
+            .map_err(|e| format!("Error en bootstrap Vanilla: {}", e))?;
+        
+        // Update task status - 60%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    60.0,
+                    "Configurando Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+        
+        // Obtener rutas de directorios
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let minecraft_dir = instance_dir.join("minecraft");
+        let versions_dir = minecraft_dir.join("versions");
+        let libraries_dir = minecraft_dir.join("libraries");
+        
+        // Obtener detalles de Forge
+        let forge_version = instance.forgeVersion.as_ref().unwrap();
+        
+        Self::emit_status(
+            instance, 
+            "instance-downloading-forge", 
+            &format!("Descargando Forge {} para Minecraft {}", forge_version, instance.minecraftVersion)
+        );
+        
+        // Crear directorio específico para la versión de Forge
+        let forge_version_name = format!("{}-forge-{}", instance.minecraftVersion, forge_version);
+        let forge_version_dir = versions_dir.join(&forge_version_name);
+        
+        if !forge_version_dir.exists() {
+            fs::create_dir_all(&forge_version_dir)
+                .map_err(|e| format!("Error al crear directorio de versión Forge: {}", e))?;
+        }
+        
+        // Obtener URL de instalador Forge
+        let forge_installer_url = self.get_forge_installer_url(&instance.minecraftVersion, forge_version)?;
+        
+        // Path para el instalador
+        let forge_installer_path = minecraft_dir.join("forge-installer.jar");
+        
+        // Descargar instalador Forge
+        Self::emit_status(instance, "instance-downloading-forge-installer", "Descargando instalador de Forge");
+        self.download_file(&forge_installer_url, &forge_installer_path)
+            .map_err(|e| format!("Error al descargar instalador Forge: {}", e))?;
+        
+        // Update task status - 70%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    70.0,
+                    "Ejecutando instalador de Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+        
+        // Ejecutar instalador en modo silencioso
+        Self::emit_status(instance, "instance-installing-forge", "Ejecutando instalador de Forge");
+        
+        // Preparar argumentos para instalar Forge
+        let forge_install_result = self.run_forge_installer(
+            &forge_installer_path,
+            &minecraft_dir,
+            &instance.minecraftVersion,
+            forge_version,
+            instance
+        )?;
+        
+        // Update task status - 85%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    85.0,
+                    "Configurando perfil de Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+        
+        // Crear/actualizar perfil de Forge en launcher_profiles.json
+        let launcher_profiles_path = minecraft_dir.join("launcher_profiles.json");
+        self.update_launcher_profiles(&launcher_profiles_path, &forge_version_name, &instance.instanceName)?;
+        
+        // Limpiar instalador Forge para ahorrar espacio
+        if forge_installer_path.exists() {
+            if let Err(e) = fs::remove_file(forge_installer_path) {
+                println!("Advertencia: No se pudo borrar el instalador de Forge: {}", e);
+            }
+        }
+        
+        // Update task status - 100%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Completed,
+                    100.0,
+                    &format!("Instalación completada: Forge {} para Minecraft {}", forge_version, instance.minecraftVersion),
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+        
+        Self::emit_status(
+            instance, 
+            "forge-instance-bootstrapped", 
+            &format!("Bootstrap de instancia Forge {} para Minecraft {} completado", forge_version, instance.minecraftVersion)
+        );
+        
+        Ok(())
+    }
+    
+    fn get_forge_installer_url(&self, minecraft_version: &str, forge_version: &str) -> Result<String, String> {
+        // Formato de URL de Forge moderno para versiones actuales
+        let url_format = format!(
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/{}-{}/forge-{}-{}-installer.jar",
+            minecraft_version, forge_version, minecraft_version, forge_version
+        );
+        
+        // Verificar si la URL responde correctamente
+        match self.client.head(&url_format).send() {
+            Ok(response) => {
+                if response.status().is_success() {
+                    return Ok(url_format);
+                }
+                
+                // Probar formato alternativo para versiones antiguas
+                let legacy_url = format!(
+                    "https://maven.minecraftforge.net/net/minecraftforge/forge/{}.{}/forge-{}.{}-installer.jar",
+                    minecraft_version, forge_version, minecraft_version, forge_version
+                );
+                
+                if self.client.head(&legacy_url).send().map_or(false, |r| r.status().is_success()) {
+                    return Ok(legacy_url);
+                }
+                
+                Err(format!("No se encontró URL de instalador válida para Forge {} - {}", minecraft_version, forge_version))
+            },
+            Err(e) => Err(format!("Error al verificar URL de Forge: {}", e))
+        }
+    }
+    
+    fn run_forge_installer(
+        &self,
+        installer_path: &Path,
+        minecraft_dir: &Path,
+        minecraft_version: &str,
+        forge_version: &str,
+        instance: &MinecraftInstance
+    ) -> Result<(), String> {
+        // Determinar la ruta de Java
+        let java_path = self.find_java_path()?;
+        
+        // Crear archivo temporal para parámetros de instalación
+        let install_profile = minecraft_dir.join("forge-install-profile.json");
+        let install_profile_content = json!({
+            "profile": format!("forge-{}-{}", minecraft_version, forge_version),
+            "version": format!("{}-forge-{}", minecraft_version, forge_version),
+            "installDir": minecraft_dir.to_string_lossy(),
+            "minecraft": minecraft_version,
+            "forge": forge_version
+        });
+        
+        fs::write(&install_profile, install_profile_content.to_string())
+            .map_err(|e| format!("Error al crear archivo de perfil de instalación: {}", e))?;
+        
+        // Preparar comando para ejecutar el instalador
+        let mut install_cmd = Command::new(java_path);
+        install_cmd
+            .arg("-jar")
+            .arg(installer_path)
+            .arg("--installClient")
+            .current_dir(minecraft_dir);
+        
+        // Ejecutar instalador
+        println!("Ejecutando instalador Forge con comando: {:?}", install_cmd);
+        
+        let output = install_cmd
+            .output()
+            .map_err(|e| format!("Error al ejecutar instalador de Forge: {}", e))?;
+        
+        // Verificar resultado
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Error en instalación de Forge: {}", error_msg));
+        }
+        
+        // Limpiar archivo temporal de instalación
+        if install_profile.exists() {
+            let _ = fs::remove_file(install_profile);
+        }
+        
+        println!("Instalación de Forge completada con éxito");
+        Ok(())
+    }
+
+    fn find_java_path(&self) -> Result<String, String> {
+        let config_manager = crate::utils::config_manager::get_config_manager();
+        let java_path = config_manager
+            .lock() // First lock the mutex to get the inner value
+            .expect("Failed to lock config manager mutex") // Handle potential lock failure
+            .get_java_dir() // Now call the method on the inner value
+            .join("bin")
+            .join(if cfg!(windows) { "java.exe" } else { "java" });
+
+        if java_path.exists() {
+            Ok(java_path.to_string_lossy().to_string())
+        } else {
+            Err(format!("Java executable not found at path: {}", java_path.display()))
+        }
+    }
+
+
+    fn update_launcher_profiles(&self, profiles_path: &Path, version_id: &str, instance_name: &str) -> Result<(), String> {
+        // Leer archivo de perfiles actual
+        let profiles_content = match fs::read_to_string(profiles_path) {
+            Ok(content) => content,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                // Si no existe, crear uno básico
+                "{ \"profiles\": {}, \"settings\": {}, \"version\": 3 }".to_string()
+            },
+            Err(e) => return Err(format!("Error al leer archivo de perfiles: {}", e)),
+        };
+        
+        // Parsear JSON
+        let mut profiles_json: Value = serde_json::from_str(&profiles_content)
+            .map_err(|e| format!("Error al parsear archivo de perfiles: {}", e))?;
+        
+        // Crear o actualizar perfil de Forge
+        let profile_id = format!("forge-{}", version_id);
+        let profiles = profiles_json["profiles"].as_object_mut()
+            .ok_or_else(|| "Formato inválido en archivo de perfiles".to_string())?;
+        
+        // Generar fecha actual en formato ISO
+        let now = chrono::Utc::now();
+        let date_str = now.format("%Y-%m-%dT%H:%M:%S.%3fZ").to_string();
+        
+        // Crear nuevo perfil
+        profiles.insert(profile_id.clone(), json!({
+            "created": date_str,
+            "lastUsed": date_str,
+            "lastVersionId": version_id,
+            "name": format!("{} (Forge)", instance_name),
+            "type": "custom"
+        }));
+        
+        // Guardar archivo actualizado
+        fs::write(profiles_path, serde_json::to_string_pretty(&profiles_json).unwrap())
+            .map_err(|e| format!("Error al guardar archivo de perfiles: {}", e))?;
+        
+        Ok(())
+    }
 }
 
 

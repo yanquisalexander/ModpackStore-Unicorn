@@ -391,7 +391,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                             "--hover-color": appearance?.playButton?.hoverColor,
                             "--text-color": appearance?.playButton?.textColor,
                             "--border-color": appearance?.playButton?.borderColor,
-                            "--font-family": appearance?.playButton?.fontFamily,
                             top: appearance?.playButton?.position?.top,
                             left: appearance?.playButton?.position?.left,
                             right: appearance?.playButton?.position?.right,
@@ -406,10 +405,13 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         cursor-pointer
                         active:scale-95 transition
                         px-4 py-2
-                        border-3
-                        items-center flex gap-x-2 font-semibold
+                        font-minecraft-ten
+                        not-disabled:mc-play-btn
+                        disabled:border-3
+                        tracking-wide
+                        text-shadow-[0_3px_0_rgba(0,0,0,0.25)]
+                        items-center flex gap-x-2
                         disabled:bg-neutral-800 disabled:cursor-not-allowed
-                        font-[var(--font-family)]
                         bg-[var(--bg-color)]
                         hover:bg-[var(--hover-color)]
                         active:bg-[var(--hover-color)]

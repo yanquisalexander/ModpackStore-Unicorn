@@ -19,10 +19,26 @@
   font-weight: 600;
 }
 
+@font-face {
+  font-family: "Minecraft Five";
+  src: url("./assets/fonts/MinecraftFive-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Minecraft Ten";
+  src: url("./assets/fonts/MinecraftTen.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
 @theme {
   --color-ms-primary: #181818FF;
   --font-jost: "Jost Variable", sans-serif;
   --font-monocraft: "Monocraft", sans-serif;
+  --font-minecraft-ten: "Minecraft Ten", sans-serif;
+  --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
 }
 
@@ -41,6 +57,14 @@ body,
 
 @utility with-ligatures {
   font-variant-ligatures: contextual;
+}
+
+@utility mc-play-btn {
+  --border: #000;
+  --top-border: #27ce40;
+  --bottom-border: #064d2a;
+  box-shadow: 0 -3px 0 0 var(--top-border), 0 3px 0 0 var(--bottom-border), -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--border), 2px -5px 0 0 var(--border), -5px -2px 0 0 var(--border), 5px -2px 0 0 var(--border), -2px 5px 0 0 var(--border), 2px 5px 0 0 var(--border), -5px 2px 0 0 var(--border), 5px 2px 0 0 var(--border);
+
 }
 
 @utility scrollbar-hide {

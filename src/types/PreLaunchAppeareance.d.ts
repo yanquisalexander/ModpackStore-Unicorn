@@ -63,7 +63,6 @@ export interface Style {
 
 export interface PlayButton {
     text?: string;
-    fontFamily?: string;
     backgroundColor?: string;
     hoverColor?: string;
     position?: PlayButtonPosition;

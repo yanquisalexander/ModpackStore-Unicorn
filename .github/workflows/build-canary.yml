@@ -75,8 +75,8 @@ jobs:
           repo: ModpackStore-Releases
           name: Canary
           body: "This is a canary build. Download the artifacts for testing."
-          draft: true
-          prerelease: true
+          draft: false
+          prerelease: false
 
       - name: Upload artifacts to public release
         run: |

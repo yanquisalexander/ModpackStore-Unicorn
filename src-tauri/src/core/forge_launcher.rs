@@ -188,7 +188,8 @@ impl ForgeLoader {
         if base_minecraft_jar.exists() {
              let path_str = base_minecraft_jar.to_string_lossy().to_string();
              if classpath_entries.insert(path_str.clone()) {
-                 classpath_list.push(path_str);
+                // Don't add base_minecraft_jar to classpath because it is not needed for Forge (Causes conflicts)
+                // classpath_list.push(path_str);
              }
         } else {
              println!("Warning: Base Minecraft JAR not found at {}", base_minecraft_jar.display());
@@ -387,6 +388,8 @@ impl ForgeLoader {
             .get("mainClass")
             .and_then(|v| v.as_str())
             .ok_or_else(|| LaunchError("Main class not found in manifest".to_string()))?;
+
+        println!("Main class: {}", main_class);
 
         // Asset index: Check "assetIndex.id" first (newer format), then "assets" (older)
         let assets_index = merged_manifest

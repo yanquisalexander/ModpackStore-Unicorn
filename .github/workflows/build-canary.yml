@@ -62,6 +62,7 @@ jobs:
 
           # ⚠️ Limpia posibles credential helpers que interfieran
           git config --global --unset credential.helper || true
+          git config --unset-all http.https://github.com/.extraheader
 
           git remote add external https://x-access-token:${{ secrets.PUBLIC_REPO_TOKEN }}@github.com/ModpackStore/ModpackStore-Releases.git
 

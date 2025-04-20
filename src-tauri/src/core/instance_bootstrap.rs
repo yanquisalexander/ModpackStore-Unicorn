@@ -523,6 +523,180 @@ impl InstanceBootstrap {
         Ok(())
     }
 
+    fn download_forge_libraries(
+        &self,
+        version_details: &Value,
+        libraries_dir: &Path,
+        instance: &MinecraftInstance,
+    ) -> Result<(), String> {
+        // Verificar que tengamos la sección de librerías
+        let libraries = version_details["libraries"].as_array()
+            .ok_or_else(|| "Lista de librerías no encontrada en detalles de versión Forge".to_string())?;
+        
+        let total_libraries = libraries.len();
+        let mut downloaded_libraries = 0;
+        
+        Self::emit_status(
+            instance,
+            "instance-downloading-forge-libraries",
+            &format!("Descargando librerías de Forge: 0/{} (0.0%)", total_libraries)
+        );
+        
+        for library in libraries {
+            // Verificar reglas de exclusión/inclusión para esta librería
+            if let Some(rules) = library.get("rules") {
+                let mut allowed = false;
+                
+                for rule in rules.as_array().unwrap_or(&Vec::new()) {
+                    let action = rule["action"].as_str().unwrap_or("disallow");
+                    
+                    // Manejar reglas específicas de SO
+                    if let Some(os) = rule.get("os") {
+                        let os_name = os["name"].as_str().unwrap_or("");
+                        let current_os = if cfg!(target_os = "windows") {
+                            "windows"
+                        } else if cfg!(target_os = "macos") {
+                            "osx"
+                        } else {
+                            "linux"
+                        };
+                        
+                        if os_name == current_os {
+                            allowed = action == "allow";
+                        }
+                    } else {
+                        // Sin SO especificado, aplicar a todos
+                        allowed = action == "allow";
+                    }
+                }
+                
+                if !allowed {
+                    continue; // Saltar esta librería
+                }
+            }
+            
+            // Manejo de librerías con formato Maven (común en Forge)
+            let name = library["name"].as_str().unwrap_or("");
+            
+            // Si la librería tiene información de descarga directa
+            if let Some(downloads) = library.get("downloads") {
+                // Descargar artefacto principal
+                if let Some(artifact) = downloads.get("artifact") {
+                    let path = artifact["path"].as_str()
+                        .ok_or_else(|| "Ruta de artefacto no encontrada".to_string())?;
+                    let url = artifact["url"].as_str()
+                        .ok_or_else(|| "URL de artefacto no encontrada".to_string())?;
+                    
+                    let target_path = libraries_dir.join(path);
+                    
+                    // Crear directorios padre si es necesario
+                    if let Some(parent) = target_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Error al crear directorio: {}", e))?;
+                    }
+                    
+                    // Descargar si el archivo no existe
+                    if !target_path.exists() {
+                        self.download_file(url, &target_path)
+                            .map_err(|e| format!("Error al descargar librería: {}", e))?;
+                    }
+                }
+                
+                // Descargar librerías nativas (classifiers)
+                if let Some(classifiers) = downloads.get("classifiers") {
+                    let current_os = if cfg!(target_os = "windows") {
+                        "natives-windows"
+                    } else if cfg!(target_os = "macos") {
+                        "natives-osx"
+                    } else {
+                        "natives-linux"
+                    };
+                    
+                    if let Some(native) = classifiers.get(current_os) {
+                        let url = native["url"].as_str()
+                            .ok_or_else(|| "URL de librería nativa no encontrada".to_string())?;
+                        let path = native["path"].as_str()
+                            .ok_or_else(|| "Ruta de librería nativa no encontrada".to_string())?;
+                        
+                        let target_path = libraries_dir.join(path);
+                        
+                        // Crear directorios padre si es necesario
+                        if let Some(parent) = target_path.parent() {
+                            fs::create_dir_all(parent)
+                                .map_err(|e| format!("Error al crear directorio: {}", e))?;
+                        }
+                        
+                        // Descargar si el archivo no existe
+                        if !target_path.exists() {
+                            self.download_file(url, &target_path)
+                                .map_err(|e| format!("Error al descargar librería nativa: {}", e))?;
+                        }
+                    }
+                }
+            }
+            // Para librerías sin información de descarga directa, usar formato Maven
+            else if !name.is_empty() {
+                // Parsear el nombre en formato Maven: groupId:artifactId:version[:classifier]
+                let parts: Vec<&str> = name.split(':').collect();
+                if parts.len() >= 3 {
+                    let group_id = parts[0];
+                    let artifact_id = parts[1];
+                    let version = parts[2];
+                    let classifier = if parts.len() > 3 { Some(parts[3]) } else { None };
+                    
+                    // Convertir la especificación de grupo en path
+                    let group_path = group_id.replace('.', "/");
+                    
+                    // Construir la ruta al archivo JAR
+                    let jar_name = if let Some(classifier) = classifier {
+                        format!("{}-{}-{}.jar", artifact_id, version, classifier)
+                    } else {
+                        format!("{}-{}.jar", artifact_id, version)
+                    };
+                    
+                    let relative_path = format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
+                    let target_path = libraries_dir.join(&relative_path);
+                    
+                    // Crear directorios padre si es necesario
+                    if let Some(parent) = target_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Error al crear directorio: {}", e))?;
+                    }
+                    
+                    // Construir la URL para la descarga
+                    // Probar primero con el repositorio de Forge
+                    let repo_url = library["url"].as_str().unwrap_or("https://maven.minecraftforge.net/");
+                    let download_url = format!("{}{}", repo_url, relative_path);
+                    
+                    // Descargar si el archivo no existe
+                    if !target_path.exists() {
+                        if let Err(e) = self.download_file(&download_url, &target_path) {
+                            // Si falla con el repositorio de Forge, intentar con el de Maven Central
+                            let maven_url = format!("https://repo1.maven.org/maven2/{}", relative_path);
+                            self.download_file(&maven_url, &target_path)
+                                .map_err(|e| format!("Error al descargar librería desde múltiples repositorios: {}", e))?;
+                        }
+                    }
+                }
+            }
+            
+            downloaded_libraries += 1;
+            
+            // Actualizar progreso cada 5 librerías o en la última
+            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
+                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
+                Self::emit_status(
+                    instance,
+                    "instance-downloading-forge-libraries",
+                    &format!("Descargando librerías de Forge: {}/{} ({:.1}%)", downloaded_libraries, total_libraries, progress)
+                );
+            }
+        }
+        
+        Ok(())
+    }
+    
+
     fn download_libraries(&self, version_details: &Value, libraries_dir: &Path, instance: &MinecraftInstance) -> Result<(), String> {
         let libraries = version_details["libraries"].as_array()
             .ok_or_else(|| "Libraries list not found in version details".to_string())?;
@@ -789,6 +963,43 @@ impl InstanceBootstrap {
         let launcher_profiles_path = minecraft_dir.join("launcher_profiles.json");
         self.update_launcher_profiles(&launcher_profiles_path, &forge_version_name, &instance.instanceName)?;
         
+
+        // Descargar librerías de Forge
+        Self::emit_status(instance, "instance-downloading-forge-libraries", "Descargando librerías de Forge");
+
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    90.0,
+                    "Descargando librerías de Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+
+        self.download_forge_libraries(&forge_install_result, &libraries_dir, instance)
+            .map_err(|e| format!("Error al descargar librerías de Forge: {}", e))?;
+        // Update task status - 95%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    95.0,
+                    "Configurando Forge",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    }))
+                );
+            }
+        }
+
         // Limpiar instalador Forge para ahorrar espacio
         if forge_installer_path.exists() {
             if let Err(e) = fs::remove_file(forge_installer_path) {

@@ -83,11 +83,12 @@ jobs:
           # Limpiar todo excepto .git
           Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
           
-          # Copiar los nuevos archivos de release
-          Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse
+          # Copiar los archivos de release, incluyendo el json
+
+          Copy-Item -Path ../src-tauri/target/release/bundle/**/* -Destination . -Recurse -Force
+          Copy-Item -Path ../src-tauri/target/release/bundle/*.json -Destination . -Recurse -Force
           
-          # Asegurarse de que el updater.json también se copia
-          Copy-Item -Path ../*.json -Destination . -ErrorAction SilentlyContinue
+         
           
           # Crear un README si no existe
           Set-Content -Path README.md -Value @"
@@ -106,18 +107,4 @@ jobs:
           git tag -f canary
           git push --force origin refs/tags/canary:refs/tags/canary
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-          GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
-        with:
-          repository: ModpackStore/ModpackStore-Releases
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Canary Build ${{ steps.tag.outputs.tag }}
-          body: "Automated canary build for testing"
-          files: |
-            src-tauri/target/release/bundle/**/*
-            *.json
-          draft: false
-          prerelease: false
+    

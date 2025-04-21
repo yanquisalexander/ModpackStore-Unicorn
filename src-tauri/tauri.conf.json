@@ -20,7 +20,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "dev-alexitoo-modpackstore",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
@@ -28,7 +28,6 @@
       "endpoints": [
         "https://github.com/ModpackStore/ModpackStore-Releases/releases/download/canary/latest.json",
         "https://www.alexitoo.dev/api/modpack-store/updates.json",
-        "https://update.alexitoo.dev/modpackstore/{{target}}/{{arch}}/{{current_version}}",
         "https://saltouruguayserver.com/api/partner-software/modpackstore/{{target}}/{{arch}}/{{current_version}}"
       ]
     }

@@ -47,13 +47,20 @@ jobs:
       - name: Set static canary tag
         id: tag
         run: |
-          echo "tag=canary" >> $GITHUB_OUTPUT
+          echo "tag=canary" >> $env:GITHUB_OUTPUT
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.tag.outputs.tag }}
+          releaseName: "Canary Build ${{ steps.tag.outputs.tag }}"
+          releaseBody: "Automated canary build for testing"
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
 
       - name: Setup and Push to Release Repository
         run: |
@@ -79,6 +86,9 @@ jobs:
           # Copiar los nuevos archivos de release
           Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse
           
+          # Asegurarse de que el updater.json también se copia
+          Copy-Item -Path ../*.json -Destination . -ErrorAction SilentlyContinue
+          
           # Crear un README si no existe
           Set-Content -Path README.md -Value @"
           # ModpackStore Releases
@@ -95,6 +105,7 @@ jobs:
           # Luego crear y hacer push del tag
           git tag -f canary
           git push --force origin refs/tags/canary:refs/tags/canary
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
@@ -106,6 +117,7 @@ jobs:
           name: Canary Build ${{ steps.tag.outputs.tag }}
           body: "Automated canary build for testing"
           files: |
-            src-tauri/target/release/bundle/*
+            src-tauri/target/release/bundle/**/*
+            *.json
           draft: false
           prerelease: false

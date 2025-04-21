@@ -26,7 +26,6 @@
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
-      "dangerousInsecureTransportProtocol": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzOTk1M0Q3MTEzNkIyNUYKUldSZnNqWVIxMU9aRS9RRCtjYmtTZkdEbDZVT3BWc1dZUzZZTjNXRWNxMmRmNThnSWFjZk12Y1EK",
       "endpoints": [
         "https://github.com/ModpackStore/ModpackStore-Releases/releases/download/canary/latest.json",

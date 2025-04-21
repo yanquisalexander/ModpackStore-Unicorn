@@ -24,7 +24,8 @@
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFEQkU3OENGNTg4NUQ4RkUKUldUKzJJVll6M2krSFRlRUxxNVJYQnRMaUVUak1CZlJ3M25FNWFicHhVaWVLK3dkUENBOGFrMnIK",
+      "dangerousInsecureTransportProtocol": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzOTk1M0Q3MTEzNkIyNUYKUldSZnNqWVIxMU9aRS9RRCtjYmtTZkdEbDZVT3BWc1dZUzZZTjNXRWNxMmRmNThnSWFjZk12Y1EK",
       "endpoints": [
         "https://github.com/ModpackStore/ModpackStore-Releases/releases/download/canary/latest.json",
         "https://www.alexitoo.dev/api/modpack-store/updates.json",

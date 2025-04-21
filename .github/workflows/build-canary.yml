@@ -45,6 +45,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
         run: |
           gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
+        continue-on-error: true # Ignore if no release exists, proceed with the new one
 
       - name: Release Canary Build
         uses: softprops/action-gh-release@v2

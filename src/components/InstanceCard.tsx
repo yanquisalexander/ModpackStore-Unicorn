@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/context-menu"
 import { toast } from "sonner"
 import { playSound } from "@/utils/sounds"
+import { EditInstanceInfo } from "./EditInstanceInfo"
 
 export const InstanceCard = ({ instance, className = "" }: { instance: any, className?: string }) => {
     const [isOpen, setIsOpen] = useState(false)
@@ -87,10 +88,7 @@ export const InstanceCard = ({ instance, className = "" }: { instance: any, clas
                     </Link>
                 </article>
             </ContextMenuTrigger>
-
             <ContextMenuContent className="w-64 text-gray-100">
-
-
 
                 <ContextMenuItem
                     onClick={() => handleContextAction("settings")}

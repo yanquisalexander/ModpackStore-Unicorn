@@ -88,13 +88,16 @@ jobs:
           # Copiar los archivos de release, incluyendo el latest.json
 
           Copy-Item -Path ../src-tauri/target/release/bundle/**/* -Destination . -Recurse -Force
-          Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
+         
+          # Iterate until found latest.json
+          $latestJsonPath = Get-ChildItem -Path . -Recurse -Filter latest.json | Select-Object -First 1
+          if ($latestJsonPath) {
+              Copy-Item -Path $latestJsonPath.FullName -Destination . -Force
+          } else {
+              Write-Host "latest.json not found"
+          }
 
           
-          
-         
-          Copy-Item -Path ../src-tauri/target/release/bundle/**/* -Destination . -Recurse -Force
-          Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
           
           # Crear un README si no existe
           Set-Content -Path README.md -Value @"

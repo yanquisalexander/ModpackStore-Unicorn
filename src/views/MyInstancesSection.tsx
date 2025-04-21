@@ -9,7 +9,7 @@ import { LucidePackageOpen } from "lucide-react";
 import { useEffect, useState } from "react"
 
 
-export const MyInstancesSection = () => {
+export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
 
     const { instances: instancesOnContext } = useInstances()
@@ -27,6 +27,7 @@ export const MyInstancesSection = () => {
     }, [])
 
     useEffect(() => {
+        if (offlineMode) return // Prevents setting title bar state if in offline mode
         setTitleBarState({
             ...titleBarState,
             title: "Mis instancias",
@@ -55,10 +56,13 @@ export const MyInstancesSection = () => {
                     <InstanceCard
                         key={instance.instanceId}
                         instance={instance}
-                        href={`/prelaunch/${instance.id}`}
                     />
                 ))}
-                <CreateInstanceDialog onInstanceCreated={fetchInstances} />
+                {
+                    !offlineMode && (
+                        <CreateInstanceDialog onInstanceCreated={fetchInstances} />
+                    )
+                }
             </div>
 
 

@@ -20,10 +20,10 @@ import { ModpackOverview } from "./views/ModpackOverview";
 import { preloadSounds } from "./utils/sounds";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
+import { OfflineMode } from "./views/OfflineMode";
 
 const ConfigDialogLoader = () => {
-  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog(); // ✅ Aquí
-  // Ya no se llama el hook dentro del handle
+  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -39,13 +39,19 @@ const ConfigDialogLoader = () => {
   return <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />;
 };
 
+// Componente de carga para unificar la presentación
+const LoadingScreen = () => (
+  <div className="absolute inset-0 flex items-center justify-center min-h-dvh h-full w-full">
+    <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
+  </div>
+);
 
 function App() {
-  const { loading, isAuthenticated, session } = useAuthentication();
-  const { isConnected, isLoading } = useCheckConnection();
+  const { loading: authLoading, isAuthenticated, session } = useAuthentication();
+  const { isConnected, isLoading: connectionLoading } = useCheckConnection();
 
   useEffect(() => {
-    if (isLoading) {
+    if (connectionLoading) {
       toast.loading("Verificando conexión a internet...", { id: "connection-check" });
     } else {
       if (!isConnected) {
@@ -57,12 +63,11 @@ function App() {
         });
       }
     }
-  }, [isConnected, isLoading]);
+  }, [isConnected, connectionLoading]);
 
   useEffect(() => {
     initAnalytics();
-
-    preloadSounds()
+    preloadSounds();
 
     trackEvent("app_launch", {
       name: "App Launch",
@@ -70,58 +75,66 @@ function App() {
     });
   }, []);
 
-  // Mostrar loader mientras se verifica la autenticación
-  if (loading) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
-      </div>
-    );
+  // Mostrar loader en cualquier estado de carga para evitar flashes
+  if (authLoading || connectionLoading) {
+    return <LoadingScreen />;
   }
 
+  // Si no hay autenticación, mostrar el login
   if (!isAuthenticated) {
     return <Login />;
   }
 
+  // Si no hay conexión, mostrar el modo sin conexión
+  if (!isConnected) {
+    /* 
+      Minimal router (Offline mode at /) and prelaunch instance
+    */
+
+    return (
+      <Switch>
+        <Route path="/" component={OfflineMode} />
+        <Route path="/prelaunch/:instanceId">
+          {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
+        </Route>
+      </Switch>
+    );
+  }
+
+  // Si hay conexión, mostrar la aplicación normal
   return (
     <main className="overflow-y-auto h-full">
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-dvh h-full w-full">
-          <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
-        </div>
-      ) : (
-        <>
-          <ConfigDialogLoader />
-          <HomeMainHeader />
-          <div className="h-[calc(100vh-6rem)]">
-            <Switch>
-              <Route path="/" component={ExploreSection} />
-              <Route path="/my-instances" component={MyInstancesSection} />
-              <Route path="/prelaunch/:instanceId">
-                {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
-              </Route>
-              <Route path="/modpack/:modpackId">
-                {(params) => <ModpackOverview modpackId={params.modpackId} />}
-              </Route>
-              <Route path="/mc-accounts" component={AccountsSection} />
+      <ConfigDialogLoader />
+      <HomeMainHeader />
+      <div className="h-[calc(100vh-6rem)]">
+        <Switch>
+          <Route path="/" component={ExploreSection} />
+          <Route path="/my-instances">
+            {() => <MyInstancesSection offlineMode={false} />}
+          </Route>
+          <Route path="/prelaunch/:instanceId">
+            {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
+          </Route>
+          <Route path="/modpack/:modpackId">
+            {(params) => <ModpackOverview modpackId={params.modpackId} />}
+          </Route>
+          <Route path="/mc-accounts" component={AccountsSection} />
 
-              {
-                session?.publisher?.id && (
-                  <Route path="/creators">
-                    <div>
-                      Contenido exclusivo para creadores
-                    </div>
-                  </Route>
-                )
-              }
-              <Route>
-                <NotFound />
+          {
+            session?.publisher?.id && (
+              <Route path="/creators">
+                <div>
+                  Contenido exclusivo para creadores
+                </div>
               </Route>
-            </Switch>
-            <KonamiCode />
-          </div>
-        </>
-      )}
+            )
+          }
+          <Route>
+            <NotFound />
+          </Route>
+        </Switch>
+        <KonamiCode />
+      </div>
     </main>
   );
 }

@@ -16,7 +16,7 @@ use serde_json::json;
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
-static API_ENDPOINT: &str = "http://localhost:3000/v1";
+static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
 
 pub fn main() {
     tauri::Builder::default()

@@ -65,64 +65,44 @@ jobs:
           includeUpdaterJson: true
 
 
-      - name: Setup and Push to Release Repository
+      - name: Checkout ModpackStore-Releases
+        uses: actions/checkout@v4
+        with:
+          repository: ModpackStore/ModpackStore-Releases
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          path: temp-release-repo
+          ref: canary
+
+      - name: Sync canary build into release repo
+        shell: pwsh
         run: |
-          # Crear directorio temporal
-          mkdir -p temp-release-repo
           cd temp-release-repo
-          
-          # Inicializar repo
-          git init
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Configurar el remote
-          git remote add origin https://github.com/ModpackStore/ModpackStore-Releases.git
-          
-          # Eliminar la tag remota primero para evitar errores de "archivo ya existe"
-          git push origin :refs/tags/canary || echo "Remote tag doesn't exist yet, continuing"
-          
-          # Fetch la rama canary
-          git fetch origin canary || echo "Branch canary doesn't exist yet"
-          
-          # Checkout a la rama canary si existe, sino crear una nueva
-          git checkout canary 2>$null || git checkout -b canary
-          
-          # Limpiar todo excepto .git
-          Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
-          
-          # Copiar los archivos de release, incluyendo el latest.json
+
+          # remove everything but .git
+          Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+
+          # copy your new artifacts (including latest.json)
           Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse -Force
-          
-          # Buscar latest.json
-          $latestJsonPath = Get-ChildItem -Path . -Recurse -Filter latest.json | Select-Object -First 1
-          if ($latestJsonPath) {
-              Copy-Item -Path $latestJsonPath.FullName -Destination . -Force
-          } else {
-              Write-Host "latest.json not found"
+          if (Test-Path ../src-tauri/target/release/bundle/latest.json) {
+            Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
           }
-          
-          # Crear un README si no existe
+
+          # ensure README.md
           if (-not (Test-Path README.md)) {
-            Set-Content -Path README.md -Value @"
+            @"
           # ModpackStore Releases
           Este repositorio contiene solo las releases de ModpackStore.
-          "@
-          }
-          
-          # Commit y push
-          git add -A
-          git commit -m "Update canary release" || echo "No changes to commit"
-          
-          # Push con credenciales
-          git push --force origin canary
-          
-          # Crear y hacer push del tag (ahora que la tag remota ha sido eliminada)
-          git tag -f canary
-          git push origin refs/tags/canary
-        shell: pwsh
-    
-    
+          "@ | Set-Content README.md
+                }
+
+                git add -A
+                git commit -m "Update canary release" || Write-Host "No changes to commit"
+
+                # push back to canary branch and tag
+                git push --force origin canary
+                git tag -f canary
+                git push --force origin refs/tags/canary
+                
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:

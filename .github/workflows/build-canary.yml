@@ -71,7 +71,7 @@ jobs:
           git fetch origin canary || echo "Branch doesn't exist yet, creating new"
           
           # Si la rama existe, intentar recuperarla
-          git checkout canary || git checkout -b canary
+          git checkout -b canary || git checkout canary
           
           # Limpiar todo excepto .git
           Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
@@ -88,10 +88,13 @@ jobs:
           # Commit y push
           git add -A
           git commit -m "Update canary release"
+          
+          # Primero hacer push de la rama
+          git push --force origin canary:refs/heads/canary
+          
+          # Luego crear y hacer push del tag
           git tag -f canary
-          git push --force origin canary
-          git push --force origin canary:refs/tags/canary
-
+          git push --force origin refs/tags/canary:refs/tags/canary
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:

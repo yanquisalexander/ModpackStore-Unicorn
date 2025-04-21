@@ -98,6 +98,20 @@ jobs:
                 git tag -f canary
                 git push --force origin refs/tags/canary
 
+      - name: Remove remote canary tag and release assets
+        shell: pwsh
+        run: |
+          cd temp-release-repo
+
+          # remove the tag from the remote
+          git push --delete origin canary
+
+          # remove all assets from the release
+          $release = gh release view canary --json id -q ".id"
+          gh api graphql -f query='mutation($releaseId: ID!) { deleteReleaseAsset(input: { releaseId: $releaseId }) { clientMutationId } }' -f releaseId=$release
+          # Ideally use gh cli to remove the tag and assets
+
+
       - name: Release Canary Build
         uses: softprops/action-gh-release@v2
         with:
@@ -112,7 +126,7 @@ jobs:
           # match everything under your tauri bundle + any JSON
           files: |
             src-tauri/target/release/bundle/**/*
-            *.json
+            src-tauri/target/release/bundle/*.json
 
           # (optional) don’t error if a glob matches nothing
           fail_on_unmatched_files: false

@@ -103,7 +103,8 @@ pub fn get_config_manager() -> &'static Mutex<ConfigManager> {
     INSTANCE.get_or_init(|| Mutex::new(ConfigManager::new()))
 }
 
-#[tauri::command]
+/* #[tauri::command]
 pub fn get_config() -> serde_json::Value {
     get_config_manager().lock().unwrap().content.clone()
 }
+ */

@@ -5,7 +5,6 @@ import { Link, Route, Router, Switch, useLocation, useRouter } from "wouter";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
-import { ConfigurationSection } from "./views/ConfigurationSection";
 import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useCheckConnection } from "./utils/checkConnection";
 import { LucideLoader } from "lucide-react";
@@ -19,6 +18,26 @@ import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
 import { preloadSounds } from "./utils/sounds";
+import { useConfigDialog } from "./stores/ConfigDialogContext";
+import { ConfigurationDialog } from "./components/ConfigurationDialog";
+
+const ConfigDialogLoader = () => {
+  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog(); // ✅ Aquí
+  // Ya no se llama el hook dentro del handle
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === ',') {
+        openConfigDialog();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openConfigDialog]);
+
+  return <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />;
+};
 
 
 function App() {
@@ -72,6 +91,7 @@ function App() {
         </div>
       ) : (
         <>
+          <ConfigDialogLoader />
           <HomeMainHeader />
           <div className="h-[calc(100vh-6rem)]">
             <Switch>
@@ -84,7 +104,7 @@ function App() {
                 {(params) => <ModpackOverview modpackId={params.modpackId} />}
               </Route>
               <Route path="/mc-accounts" component={AccountsSection} />
-              <Route path="/settings" component={ConfigurationSection} />
+
               {
                 session?.publisher?.id && (
                   <Route path="/creators">

@@ -3,6 +3,7 @@
 mod core;
 mod interfaces;
 mod utils;
+mod config;
 
 use core::auth::*;
 use std::sync::Arc;
@@ -44,11 +45,14 @@ pub fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            config::get_config,
+            config::get_schema,
+            config::set_config,
             core::network_utilities::check_connection,
             core::instance_manager::get_all_instances,
             core::instance_manager::get_instance_by_id,
             core::instance_manager::delete_instance,
-            utils::config_manager::get_config,
+            //utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
             core::minecraft_instance::open_game_dir,
             core::instance_manager::update_instance,

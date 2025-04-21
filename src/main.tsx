@@ -9,6 +9,7 @@ import { InstancesProvider } from "./stores/InstancesContext";
 import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AuthProvider } from "./stores/AuthContext";
+import { ConfigDialogProvider } from "./stores/ConfigDialogContext";
 
 
 startDiscordRpc("943184136976334879").catch((err) => {
@@ -22,10 +23,12 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <AuthProvider>
       <TasksProvider>
         <InstancesProvider>
-          <AppTitleBar />
-          <App />
-          <Toaster theme="dark" />
-          <UpdateStatus />
+          <ConfigDialogProvider>
+            <AppTitleBar />
+            <App />
+            <Toaster theme="dark" />
+            <UpdateStatus />
+          </ConfigDialogProvider>
         </InstancesProvider>
       </TasksProvider>
     </AuthProvider>

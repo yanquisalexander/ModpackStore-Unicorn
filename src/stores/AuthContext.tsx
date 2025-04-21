@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [sessionTokens, setSessionTokens] = useState<SessionTokens | null>(null);
 
   // Computed value
-  const isAuthenticated = Boolean(session);
+  const isAuthenticated = !!session && !!sessionTokens;
 
   // Parse error helper
   const parseError = (err: unknown): AuthError => {

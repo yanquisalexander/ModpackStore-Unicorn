@@ -3,7 +3,7 @@
 use crate::core::minecraft_instance;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::models::ModpackInfo;
-use crate::utils::config_manager::get_config_manager;
+use crate::config::get_config_manager;
 use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
@@ -17,24 +17,59 @@ use crate::core::instance_bootstrap::InstanceBootstrap;
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
-    get_instances(instances_dir.to_str().unwrap()) // Pasa la ruta como string
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    
+    let config = config_manager
+        .as_ref()
+        .map_err(|e| e.clone())?;
+        
+    let instances_dir = config.get_instances_dir();
+    get_instances(instances_dir.to_str().unwrap_or_default())
 }
 
 #[tauri::command]
-pub fn get_instance_by_name(instanceName: String) -> Result<Option<MinecraftInstance>, String> {
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
-    let instances = get_instances(instances_dir.to_str().unwrap())?;
+pub fn get_instance_by_name(instance_name: String) -> Result<Option<MinecraftInstance>, String> {
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    
+    let config = config_manager
+        .as_ref()
+        .map_err(|e| e.clone())?;
+        
+    let instances_dir = config.get_instances_dir();
+    
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
     Ok(instances
         .into_iter()
-        .find(|i| i.instanceName == instanceName))
+        .find(|i| i.instanceName == instance_name))
 }
 
 #[tauri::command]
 pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
-    let binding = instance.instanceDirectory.as_ref().unwrap();
-    let instance_path = Path::new(&binding);
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    
+    let config = config_manager
+        .as_ref()
+        .map_err(|e| e.clone())?;
+        
+    let instances_dir = config.get_instances_dir();
+    
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+    let original_instance = instances
+        .into_iter()
+        .find(|i| i.instanceId == instance.instanceId)
+        .ok_or_else(|| format!("Instance with ID {} not found", instance.instanceId))?;
+    
+    let instance_path = match &original_instance.instanceDirectory {
+        Some(dir) => Path::new(dir),
+        None => return Err("Instance directory is missing".to_string()),
+    };
+    
     let config_file = instance_path.join("instance.json");
 
     if config_file.exists() {
@@ -48,17 +83,26 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
         existing_instance.accountUuid = instance.accountUuid;
 
         // Guardar la instancia actualizada
-        existing_instance.save();
+        existing_instance.save().map_err(|e| format!("Error saving instance: {}", e))?;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_instance_by_id(instanceId: String) -> Result<Option<MinecraftInstance>, String> {
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir(); // Obtén el directorio de instancias desde la configuración
-    let instances = get_instances(instances_dir.to_str().unwrap())?;
-    Ok(instances.into_iter().find(|i| i.instanceId == instanceId))
+pub fn get_instance_by_id(instance_id: String) -> Result<Option<MinecraftInstance>, String> {
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    
+    let config = config_manager
+        .as_ref()
+        .map_err(|e| e.clone())?;
+        
+    let instances_dir = config.get_instances_dir();
+    
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+    Ok(instances.into_iter().find(|i| i.instanceId == instance_id))
 }
 
 #[tauri::command]
@@ -72,9 +116,17 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir();
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    
+    let config = config_manager
+        .as_ref()
+        .map_err(|e| e.clone())?;
+        
+    let instances_dir = config.get_instances_dir();
 
-    let instances = get_instances(instances_dir.to_str().unwrap())?;
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
     let instance = instances
         .into_iter()
@@ -137,6 +189,19 @@ pub async fn create_local_instance(
     mc_version: String,
     forge_version: Option<String>
 ) -> Result<String, String> {
+    // Obtener el directorio de instancias
+    let instances_dir = {
+        let config_manager = get_config_manager()
+            .lock()
+            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+        
+        let config = config_manager
+            .as_ref()
+            .map_err(|e| e.clone())?;
+            
+        config.get_instances_dir()
+    };
+
     // Creamos una instancia de Minecraft
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name.clone();
@@ -144,7 +209,6 @@ pub async fn create_local_instance(
     instance.forgeVersion = forge_version.clone();
     instance.instanceId = uuid::Uuid::new_v4().to_string();
 
-    let instances_dir = get_config_manager().lock().unwrap().get_instances_dir();
     let instance_dir = instances_dir.join(&instance.instanceName);
     instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
 
@@ -222,7 +286,7 @@ pub async fn create_local_instance(
                         &task_id_clone,
                         TaskStatus::Completed,
                         100.0,
-                        &format!("Instancia {} creada", instance_clone.instanceName).to_string(),
+                        &format!("Instancia {} creada", instance_clone.instanceName),
                         Some(serde_json::json!({
                             "instanceName": instance_clone.instanceName.clone(),
                             "instanceId": instance_clone.instanceId.clone()

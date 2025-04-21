@@ -16,6 +16,7 @@ use crate::interfaces::game_launcher::GameLauncher;
 use uuid::Uuid;
 use std::os::windows::process::CommandExt;
 use anyhow::{Context, Result};
+use crate::config::get_config_manager;
 
 // Define a simple error type for the launcher
 #[derive(Debug)]
@@ -293,13 +294,19 @@ impl ForgeLoader {
     // --- Main Launch Logic ---
     fn launch_internal(&self) -> Result<Child, LaunchError> {
         // --- 1. Setup Paths and Versions ---
-        let config_manager = crate::utils::config_manager::get_config_manager();
-        let java_path = config_manager
-            .lock()
-            .expect("Failed to lock config manager mutex") // Keep expect for critical locks? Or convert to Result
-            .get_java_dir()
-            .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
+        let config_lock = get_config_manager()
+        .lock()
+        .expect("Failed to lock config manager mutex");
+    
+    let config = config_lock
+        .as_ref()
+        .expect("Config manager failed to initialize");
+    
+    let java_path = config.get_java_dir()
+        .ok_or_else(|| LaunchError("Java path is not set".to_string()))?
+        .join("bin")
+        .join(if cfg!(windows) { "java.exe" } else { "java" });
+        
     
         if !java_path.exists() {
             return Err(LaunchError(format!("Java executable not found at {}", java_path.display())));

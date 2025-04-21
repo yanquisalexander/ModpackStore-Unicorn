@@ -1,0 +1,47 @@
+# Configuración ModpackStore
+# Define todos los ajustes disponibles en la aplicación
+
+instancesDir:
+  type: path
+  default: "~/ModpackStore/Instances"
+  description: "Ubicación donde se guardarán todas las instancias de Minecraft"
+  ui_section: directories
+  validator: directory_exists_or_creatable
+
+javaDir:
+  type: path
+  default: "$JAVA_HOME"
+  description: "Ubicación de la instalación de Java para ejecutar Minecraft"
+  ui_section: directories
+  validator: directory_exists
+
+memory:
+  type: integer
+  default: 2048
+  min: 1024
+  max: 16384
+  description: "Memoria asignada para Minecraft (MB)"
+  ui_section: gameplay
+
+language:
+  type: enum
+  choices: 
+    - en
+    - es
+  default: "es"
+  description: "Idioma de la interfaz"
+  ui_section: general
+
+closeOnLaunch:
+  type: boolean
+  default: true
+  description: "Cierra el launcher cuando se inicie Minecraft"
+  ui_section: gameplay
+
+checkUpdatesOnStartup:
+  type: boolean
+  default: true
+  description: "Verifica actualizaciones al iniciar la aplicación"
+  ui_section: general
+
+# Añadir más configuraciones aquí

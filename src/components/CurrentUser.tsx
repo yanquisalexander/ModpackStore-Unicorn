@@ -3,6 +3,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -16,6 +17,7 @@ import {
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
+    const { openConfigDialog } = useConfigDialog();
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
     const [showReloadDialog, setShowReloadDialog] = useState(false);
@@ -51,6 +53,11 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const handleLogout = () => {
         closeMenu();
         logout();
+    };
+
+    const handleOpenConfig = () => {
+        closeMenu();
+        openConfigDialog();
     };
 
     useEffect(() => {
@@ -107,14 +114,15 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         <LucideSquareUserRound size={16} />
                         Ver perfil
                     </Link>
-                    <Link
-                        href="/settings"
-                        onClick={closeMenu}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+
+                    <button
+                        onClick={handleOpenConfig}
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded text-left cursor-pointer"
                     >
                         <LucideSettings2 size={16} />
                         Configuración
-                    </Link>
+                    </button>
+
                     {isPublisher && (
                         <Link
                             href="/creators"
@@ -123,7 +131,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         >
                             <LucidePackageOpen size={16} />
                             Centro de creadores
-
                         </Link>
                     )}
 

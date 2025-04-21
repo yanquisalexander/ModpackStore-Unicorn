@@ -236,8 +236,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         const activity = new Activity()
             .setState(isPlaying ? "Jugando" : "Preparando")
             .setDetails(stateText)
-            .setTimestamps(new Timestamps(Date.now()))
-            .setAssets(new Assets().setLargeImage("playing").setSmallImage("playing"));
 
         setActivity(activity)
             .catch(error => console.error("Error setting Discord activity:", error))

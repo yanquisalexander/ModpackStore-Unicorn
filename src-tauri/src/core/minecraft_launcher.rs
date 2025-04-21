@@ -6,15 +6,16 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::thread; // Crucial for asynchronous operations
+use log::{info, error};
 
 // --- Crate Imports ---
 // Core components
+use crate::core::forge_launcher::ForgeLoader; // Forge launch logic
+use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_account::MinecraftAccount; // If needed for validation
 use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
 use crate::core::vanilla_launcher::VanillaLauncher; // Vanilla launch logic
-use crate::core::forge_launcher::ForgeLoader; // Forge launch logic
-use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic
-use crate::core::instance_bootstrap::InstanceBootstrap; // Asset revalidation logic
+use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic // Asset revalidation logic
 
 // Utilities & Managers (adjust paths if needed)
 use crate::utils::config_manager::get_config_manager; // Access configuration
@@ -139,11 +140,15 @@ impl InstanceLauncher {
                         instance_name, exit_status
                     );
                     println!("[Monitor: {}] {}", instance_id, message);
-                    emitter_launcher.emit_status("instance-exited", &message, Some(serde_json::json!({
-                        "instanceName": instance_name,
-                        
-                        "exitCode": exit_status.code()
-                    })));
+                    emitter_launcher.emit_status(
+                        "instance-exited",
+                        &message,
+                        Some(serde_json::json!({
+                            "instanceName": instance_name,
+
+                            "exitCode": exit_status.code()
+                        })),
+                    );
                 }
                 Err(e) => {
                     // Failed to wait for the process (less common)
@@ -154,11 +159,14 @@ impl InstanceLauncher {
                     eprintln!("[Monitor: {}] {}", instance_id, error_message);
                     // Emit both error and exited events as the process state is uncertain but terminated.
                     emitter_launcher.emit_error(&error_message, None);
-                    emitter_launcher
-                        .emit_status("instance-exited", "Minecraft process ended unexpectedly.", Some(serde_json::json!({
+                    emitter_launcher.emit_status(
+                        "instance-exited",
+                        "Minecraft process ended unexpectedly.",
+                        Some(serde_json::json!({
                             "instanceName": instance_name,
                             "error": error_message
-                        })));
+                        })),
+                    );
                 }
             }
             println!("[Monitor: {}] Finished monitoring.", instance_id);
@@ -203,10 +211,10 @@ impl InstanceLauncher {
             return Err(IoError::new(IoErrorKind::InvalidData, err_msg));
         }
 
-       // Call revalidate_assets from InstanceBootstrap (We pass MinecraftInstance to it)
-   
-       let mut instance_bootstrap = InstanceBootstrap::new();
-         let result = instance_bootstrap.revalidate_assets(&mut self.instance)?;
+        // Call revalidate_assets from InstanceBootstrap (We pass MinecraftInstance to it)
+
+        let mut instance_bootstrap = InstanceBootstrap::new();
+        let result = instance_bootstrap.revalidate_assets(&mut self.instance)?;
 
         println!(
             "[Instance: {}] Asset revalidation completed.",
@@ -262,7 +270,7 @@ impl InstanceLauncher {
                 "[Launch Thread: {}] Preparing Forge launch...",
                 self.instance.instanceId
             );
-           
+
             let launcher = ForgeLoader::new(self.instance.clone());
             // Execute the launch command via the GameLauncher trait/implementation
             match GameLauncher::launch(&launcher) {
@@ -324,7 +332,7 @@ impl InstanceLauncher {
 
         // Log final status of the launch attempt within this thread
         if let Err(e) = final_launch_result {
-            eprintln!(
+            log::error!(
                 "[Launch Thread: {}] Launch sequence failed: {}",
                 self.instance.instanceId, e
             );
@@ -359,7 +367,7 @@ impl InstanceLauncher {
                 }
             }
 
-            println!(
+            log::info!(
                 "[Launch Thread: {}] Launch sequence initiated successfully (monitoring started).",
                 self.instance.instanceId
             );
@@ -382,7 +390,7 @@ impl InstanceLauncher {
         let instance_data_clone = self.instance.clone();
         let instance_id = instance_data_clone.instanceId.clone(); // For logging before spawn
 
-        println!(
+        log::info!(
             "[Main Thread] Spawning launch thread for instance: {}",
             instance_id
         );
@@ -397,7 +405,7 @@ impl InstanceLauncher {
         });
 
         // Return immediately to the caller.
-        println!(
+        log::info!(
             "[Main Thread] Finished spawning thread for {}. Caller continues.",
             instance_id
         );

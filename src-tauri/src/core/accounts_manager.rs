@@ -38,7 +38,12 @@ impl AccountsManager {
 
     pub fn add_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, String> {
         let uuid = Self::get_offline_player_uuid(username)?;
-        let account = MinecraftAccount::new(username.to_string(), uuid.clone(), None, "Local".to_string());
+        let account = MinecraftAccount::new(
+            username.to_string(),
+            uuid.clone(),
+            None,
+            "Local".to_string(),
+        );
         if self.accounts.iter().any(|a| a.uuid() == uuid) {
             return Err(format!("Account with UUID {} already exists", uuid));
         }
@@ -46,8 +51,6 @@ impl AccountsManager {
         self.save();
         Ok(account)
     }
-
-
 
     pub fn remove_account(&mut self, uuid: &str) {
         if let Some(pos) = self.accounts.iter().position(|a| a.uuid() == uuid) {
@@ -153,8 +156,6 @@ pub fn get_accounts_manager() -> Arc<Mutex<AccountsManager>> {
     ACCOUNTS_MANAGER.clone()
 }
 
-
-
 #[tauri::command]
 pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
     let accounts_manager = get_accounts_manager();
@@ -184,7 +185,8 @@ pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
 pub fn add_microsoft_account(
     username: &str,
     access_token: &str,
-    uuid: &str) -> Result<MinecraftAccount, String> {
+    uuid: &str,
+) -> Result<MinecraftAccount, String> {
     let accounts_manager = get_accounts_manager();
     let mut manager = accounts_manager.lock().unwrap();
     let account = MinecraftAccount::new(

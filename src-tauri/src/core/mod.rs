@@ -1,7 +1,9 @@
 pub mod accounts_manager;
 pub mod auth;
+pub mod forge_launcher;
 pub mod instance_bootstrap;
 pub mod instance_manager;
+pub mod microsoft_auth;
 pub mod minecraft_account;
 pub mod minecraft_instance;
 pub mod minecraft_launcher;
@@ -9,5 +11,3 @@ pub mod models;
 pub mod network_utilities;
 pub mod tasks_manager;
 pub mod vanilla_launcher;
-pub mod forge_launcher;
-pub mod microsoft_auth;

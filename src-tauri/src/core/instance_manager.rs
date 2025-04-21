@@ -1,30 +1,28 @@
 // src-tauri/src/core/instance_manager.rs
 
+use crate::config::get_config_manager;
+use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::models::ModpackInfo;
-use crate::config::get_config_manager;
+use crate::core::tasks_manager::{TaskStatus, TasksManager};
+use crate::GLOBAL_APP_HANDLE;
 use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::GLOBAL_APP_HANDLE;
+use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::Emitter;
-use crate::core::tasks_manager::{TasksManager, TaskStatus};
-use std::sync::Arc;
-use crate::core::instance_bootstrap::InstanceBootstrap;
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-    
-    let config = config_manager
-        .as_ref()
-        .map_err(|e| e.clone())?;
-        
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
     let instances_dir = config.get_instances_dir();
     get_instances(instances_dir.to_str().unwrap_or_default())
 }
@@ -34,13 +32,11 @@ pub fn get_instance_by_name(instance_name: String) -> Result<Option<MinecraftIns
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-    
-    let config = config_manager
-        .as_ref()
-        .map_err(|e| e.clone())?;
-        
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
     let instances_dir = config.get_instances_dir();
-    
+
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
     Ok(instances
         .into_iter()
@@ -52,29 +48,27 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-    
-    let config = config_manager
-        .as_ref()
-        .map_err(|e| e.clone())?;
-        
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
     let instances_dir = config.get_instances_dir();
-    
+
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
     let original_instance = instances
         .into_iter()
         .find(|i| i.instanceId == instance.instanceId)
         .ok_or_else(|| format!("Instance with ID {} not found", instance.instanceId))?;
-    
+
     let instance_path = match &original_instance.instanceDirectory {
         Some(dir) => Path::new(dir),
         None => return Err("Instance directory is missing".to_string()),
     };
-    
+
     let config_file = instance_path.join("instance.json");
 
     if config_file.exists() {
-        let contents = fs::read_to_string(&config_file)
-            .map_err(|e| format!("Error reading JSON: {}", e))?;
+        let contents =
+            fs::read_to_string(&config_file).map_err(|e| format!("Error reading JSON: {}", e))?;
 
         let mut existing_instance: MinecraftInstance =
             from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
@@ -83,7 +77,9 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
         existing_instance.accountUuid = instance.accountUuid;
 
         // Guardar la instancia actualizada
-        existing_instance.save().map_err(|e| format!("Error saving instance: {}", e))?;
+        existing_instance
+            .save()
+            .map_err(|e| format!("Error saving instance: {}", e))?;
     }
 
     Ok(())
@@ -94,13 +90,11 @@ pub fn get_instance_by_id(instance_id: String) -> Result<Option<MinecraftInstanc
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-    
-    let config = config_manager
-        .as_ref()
-        .map_err(|e| e.clone())?;
-        
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
     let instances_dir = config.get_instances_dir();
-    
+
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
     Ok(instances.into_iter().find(|i| i.instanceId == instance_id))
 }
@@ -119,11 +113,9 @@ pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-    
-    let config = config_manager
-        .as_ref()
-        .map_err(|e| e.clone())?;
-        
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
     let instances_dir = config.get_instances_dir();
 
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
@@ -187,18 +179,16 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
 pub async fn create_local_instance(
     instance_name: String,
     mc_version: String,
-    forge_version: Option<String>
+    forge_version: Option<String>,
 ) -> Result<String, String> {
     // Obtener el directorio de instancias
     let instances_dir = {
         let config_manager = get_config_manager()
             .lock()
             .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-        
-        let config = config_manager
-            .as_ref()
-            .map_err(|e| e.clone())?;
-            
+
+        let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
         config.get_instances_dir()
     };
 
@@ -214,13 +204,16 @@ pub async fn create_local_instance(
 
     // If the instance directory doesn't exist, create it
     if !instance_dir.exists() {
-        fs::create_dir_all(&instance_dir).map_err(|e| format!("Failed to create instance directory: {}", e))?;
+        fs::create_dir_all(&instance_dir)
+            .map_err(|e| format!("Failed to create instance directory: {}", e))?;
     }
     // Set the instance directory
     instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
-    
+
     // Guardamos la instancia inicialmente
-    instance.save().map_err(|e| format!("Failed to save instance: {}", e))?;
+    instance
+        .save()
+        .map_err(|e| format!("Failed to save instance: {}", e))?;
 
     // Creamos el task manager y lo envolvemos en Arc<Mutex<>> para compartirlo entre hilos
     let task_manager = Arc::new(Mutex::new(TasksManager::new()));
@@ -231,7 +224,7 @@ pub async fn create_local_instance(
             Some(serde_json::json!({
                 "instanceName": instance.instanceName.clone(),
                 "instanceId": instance.instanceId.clone()
-            }))
+            })),
         )
     };
 
@@ -246,38 +239,50 @@ pub async fn create_local_instance(
             Some(serde_json::json!({
                 "instanceName": instance.instanceName.clone(),
                 "instanceId": instance.instanceId.clone()
-            }))
+            })),
         );
     }
 
     // Crear la carpeta de la instancia y su respectivo instance.json
     let instance_path = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
     if !instance_path.exists() {
-        fs::create_dir_all(&instance_path).map_err(|e| format!("Failed to create instance directory: {}", e))?;
+        fs::create_dir_all(&instance_path)
+            .map_err(|e| format!("Failed to create instance directory: {}", e))?;
     }
     let instance_json_path = instance_path.join("instance.json");
-    fs::write(&instance_json_path, serde_json::to_string(&instance).unwrap())
-        .map_err(|e| format!("Failed to write instance.json: {}", e))?;
+    fs::write(
+        &instance_json_path,
+        serde_json::to_string(&instance).unwrap(),
+    )
+    .map_err(|e| format!("Failed to write instance.json: {}", e))?;
 
     // Clone los datos necesarios para el hilo
     let instance_clone = instance.clone();
     let task_id_clone = task_id.clone();
     let task_manager_clone = Arc::clone(&task_manager);
-    
+
     // Lanzar el proceso en segundo plano
     std::thread::spawn(move || {
         // Iniciar el bootstrap de la instancia
         let mut bootstrap = InstanceBootstrap::new();
-        
+
         // Determinar si es una instancia vanilla o forge
         let result = if instance_clone.forgeVersion.is_some() {
             // Si tiene forge version, usar el método para instancias forge
-            bootstrap.bootstrap_forge_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone)))
+            bootstrap.bootstrap_forge_instance(
+                &instance_clone,
+                Some(task_id_clone.clone()),
+                Some(Arc::clone(&task_manager_clone)),
+            )
         } else {
             // Si no tiene forge version, usar el método para instancias vanilla
-            bootstrap.bootstrap_vanilla_instance(&instance_clone, Some(task_id_clone.clone()), Some(Arc::clone(&task_manager_clone)))
+            bootstrap.bootstrap_vanilla_instance(
+                &instance_clone,
+                Some(task_id_clone.clone()),
+                Some(Arc::clone(&task_manager_clone)),
+            )
         };
-        
+
         match result {
             Ok(_) => {
                 // Emit task completion event
@@ -290,12 +295,12 @@ pub async fn create_local_instance(
                         Some(serde_json::json!({
                             "instanceName": instance_clone.instanceName.clone(),
                             "instanceId": instance_clone.instanceId.clone()
-                        }))
+                        })),
                     );
                 }
 
                 println!("Instance creation completed: {:?}", instance_clone);
-            },
+            }
             Err(e) => {
                 eprintln!("Error during bootstrap: {}", e);
                 // Actualizar el estado de la tarea a fallido
@@ -309,7 +314,7 @@ pub async fn create_local_instance(
                             "instanceName": instance_clone.instanceName.clone(),
                             "instanceId": instance_clone.instanceId.clone(),
                             "error": e
-                        }))
+                        })),
                     );
                 }
             }

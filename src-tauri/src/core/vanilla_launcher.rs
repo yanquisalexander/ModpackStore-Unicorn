@@ -5,11 +5,12 @@ use std::{
     process::{Child, Command},
 };
 
+use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
-use uuid::Uuid;
 use std::os::windows::process::CommandExt;
+use uuid::Uuid;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -25,14 +26,25 @@ impl VanillaLauncher {
 
 impl GameLauncher for VanillaLauncher {
     fn launch(&self) -> Option<Child> {
-        // Obtener el ConfigManager (asumo que tiene una implementación similar)
-        let config_manager = crate::utils::config_manager::get_config_manager();
-        let java_path = config_manager
-            .lock() // First lock the mutex to get the inner value
-            .expect("Failed to lock config manager mutex") // Handle potential lock failure
-            .get_java_dir() // Now call the method on the inner value
-            .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
+        let config_lock = get_config_manager()
+            .lock()
+            .expect("Failed to lock config manager mutex");
+
+        let config = config_lock
+            .as_ref()
+            .expect("Config manager failed to initialize");
+
+        // Obtener la ruta de Java desde la configuración
+        let java_path = config
+            .get_java_dir()
+            .map(|path| {
+                path.join("bin")
+                    .join(if cfg!(windows) { "java.exe" } else { "java" })
+            })
+            .unwrap_or_else(|| {
+                println!("Java path is not set");
+                PathBuf::from("default_java_path")
+            });
 
         let accounts_manager = AccountsManager::new();
 
@@ -207,7 +219,7 @@ impl GameLauncher for VanillaLauncher {
             // En Windows, se necesita usar la extensión para evitar que la ventana de consola aparezca
             command.creation_flags(CREATE_NO_WINDOW);
         }
-        
+
         // Ejecutar el comando
         let child = command.spawn().ok()?;
         println!("Spawned child process: {:?}", child.id());

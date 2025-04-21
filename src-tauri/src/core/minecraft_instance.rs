@@ -1,13 +1,13 @@
 // src-tauri/src/minecraft_instance.rs
 use crate::core::minecraft_launcher::InstanceLauncher;
 use crate::core::tasks_manager::{TaskInfo, TaskStatus, TasksManager};
+use crate::utils::config_manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
-use crate::utils::config_manager::ConfigManager;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackInfo {
@@ -38,27 +38,27 @@ impl MinecraftInstance {
         self.forgeVersion.is_some()
     }
 
-   pub fn new() -> Self {
-    Self {
-        instanceId: String::new(),
-        usesDefaultIcon: false,
-        iconName: None,
-        iconUrl: None,
-        instanceName: String::new(),
-        accountUuid: None,
-        minecraftPath: String::new(),
-        modpackId: None,
-        modpackInfo: None,
-        minecraftVersion: String::new(),
-        instanceDirectory: None,
-        forgeVersion: None,
+    pub fn new() -> Self {
+        Self {
+            instanceId: String::new(),
+            usesDefaultIcon: false,
+            iconName: None,
+            iconUrl: None,
+            instanceName: String::new(),
+            accountUuid: None,
+            minecraftPath: String::new(),
+            modpackId: None,
+            modpackInfo: None,
+            minecraftVersion: String::new(),
+            instanceDirectory: None,
+            forgeVersion: None,
+        }
     }
-   }
 
     pub fn from_instance_id(instance_id: &str) -> Option<Self> {
         // Get the ConfigManager instance from the singleton
         let config_manager_mutex = crate::utils::config_manager::get_config_manager();
-        
+
         // Lock the mutex to access the ConfigManager
         let config_manager = match config_manager_mutex.lock() {
             Ok(manager) => manager,
@@ -67,13 +67,17 @@ impl MinecraftInstance {
                 return None;
             }
         };
-        
+
         // Get the instances directory from ConfigManager
         // Since get_instances_dir() returns PathBuf directly, not Result<PathBuf, Error>
         let instances_dir = config_manager.get_instances_dir();
-        
-        println!("Searching for instance {} in directory: {}", instance_id, instances_dir.display());
-        
+
+        println!(
+            "Searching for instance {} in directory: {}",
+            instance_id,
+            instances_dir.display()
+        );
+
         // Try to read the instances directory
         let dir_entries = match fs::read_dir(&instances_dir) {
             Ok(entries) => entries,
@@ -82,7 +86,7 @@ impl MinecraftInstance {
                 return None;
             }
         };
-    
+
         // Iterate through all directories looking for instance.json
         for entry in dir_entries {
             if let Ok(entry) = entry {
@@ -92,12 +96,15 @@ impl MinecraftInstance {
                     if config_file.exists() {
                         // Try to read and parse the instance.json file
                         if let Ok(content) = fs::read_to_string(&config_file) {
-                            if let Ok(mut instance) = serde_json::from_str::<MinecraftInstance>(&content) {
+                            if let Ok(mut instance) =
+                                serde_json::from_str::<MinecraftInstance>(&content)
+                            {
                                 // Check if this is the instance we're looking for
                                 if instance.instanceId == instance_id {
                                     // Make sure instanceDirectory is set
                                     if instance.instanceDirectory.is_none() {
-                                        instance.instanceDirectory = Some(path.to_string_lossy().to_string());
+                                        instance.instanceDirectory =
+                                            Some(path.to_string_lossy().to_string());
                                     }
                                     println!("Found instance: {}", instance.instanceName);
                                     return Some(instance);
@@ -108,7 +115,7 @@ impl MinecraftInstance {
                 }
             }
         }
-    
+
         println!("No instance found with ID: {}", instance_id);
         None
     }
@@ -185,7 +192,7 @@ pub fn revalidate_assets(instance: MinecraftInstance) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance> {
-    /* 
+    /*
         Gets all instances that match the given modpack ID
     */
     let config_manager = crate::utils::config_manager::get_config_manager();
@@ -221,13 +228,10 @@ pub fn open_game_dir(instance_id: String) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id);
     if let Some(instance) = instance {
         let path = PathBuf::from(instance.minecraftPath);
-        println!(
-            "[Tauri Command] Opening game directory: {}",
-            path.display()
-        );
+        println!("[Tauri Command] Opening game directory: {}", path.display());
         if path.exists() {
             // Abre el directorio del juego con el programa predeterminado del sistema
-            if let Err(e) = tauri_plugin_opener::open_path(path,  None::<&str>) {
+            if let Err(e) = tauri_plugin_opener::open_path(path, None::<&str>) {
                 return Err(format!("Error opening game directory: {}", e));
             }
             Ok(())

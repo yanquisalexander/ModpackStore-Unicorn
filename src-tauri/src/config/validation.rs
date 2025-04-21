@@ -1,14 +1,24 @@
-use std::fmt;
-use std::path::Path;
 use super::schema::{ConfigValue, ConfigValueType};
 use serde_json::Value;
+use std::fmt;
+use std::path::Path;
 
 /// Errores posibles en la validación
 #[derive(Debug, Clone)]
 pub enum ValidationError {
-    TypeMismatch { expected: String, got: String },
-    ValueOutOfRange { min: Option<Value>, max: Option<Value>, value: Value },
-    InvalidChoice { value: Value, choices: Vec<Value> },
+    TypeMismatch {
+        expected: String,
+        got: String,
+    },
+    ValueOutOfRange {
+        min: Option<Value>,
+        max: Option<Value>,
+        value: Value,
+    },
+    InvalidChoice {
+        value: Value,
+        choices: Vec<Value>,
+    },
     UnknownKey(String),
     DirectoryNotExists(String),
     DirectoryNotCreatable(String),
@@ -20,7 +30,11 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ValidationError::TypeMismatch { expected, got } => {
-                write!(f, "Tipo incorrecto. Se esperaba {}, se recibió {}", expected, got)
+                write!(
+                    f,
+                    "Tipo incorrecto. Se esperaba {}, se recibió {}",
+                    expected, got
+                )
             }
             ValidationError::ValueOutOfRange { min, max, value } => {
                 write!(f, "Valor fuera de rango: {}. ", value)?;
@@ -55,10 +69,14 @@ impl fmt::Display for ValidationError {
 }
 
 /// Valida un valor de configuración según su definición
-pub fn validate_config_value(key: &str, value: &Value, def: &ConfigValue) -> Result<(), ValidationError> {
+pub fn validate_config_value(
+    key: &str,
+    value: &Value,
+    def: &ConfigValue,
+) -> Result<(), ValidationError> {
     // Validar tipo
     validate_type(value, &def.type_)?;
-    
+
     // Validar rango para números
     if let Some(min) = &def.min {
         if let (Value::Number(min_val), Value::Number(val)) = (min, value) {
@@ -73,7 +91,7 @@ pub fn validate_config_value(key: &str, value: &Value, def: &ConfigValue) -> Res
             }
         }
     }
-    
+
     if let Some(max) = &def.max {
         if let (Value::Number(max_val), Value::Number(val)) = (max, value) {
             if let (Some(val_f64), Some(max_f64)) = (val.as_f64(), max_val.as_f64()) {
@@ -87,8 +105,7 @@ pub fn validate_config_value(key: &str, value: &Value, def: &ConfigValue) -> Res
             }
         }
     }
-    
-    
+
     // Validar opciones para enums
     if def.type_ == ConfigValueType::Enum {
         if let Some(choices) = &def.choices {
@@ -100,7 +117,7 @@ pub fn validate_config_value(key: &str, value: &Value, def: &ConfigValue) -> Res
             }
         }
     }
-    
+
     // Ejecutar validador personalizado si existe
     if let Some(validator) = &def.validator {
         match validator.as_str() {
@@ -109,7 +126,7 @@ pub fn validate_config_value(key: &str, value: &Value, def: &ConfigValue) -> Res
             _ => return Err(ValidationError::InvalidValidator(validator.clone())),
         }
     }
-    
+
     Ok(())
 }
 
@@ -124,7 +141,7 @@ fn validate_type(value: &Value, expected_type: &ConfigValueType) -> Result<(), V
         ConfigValueType::Enum => true, // Se valida por separado con choices
         ConfigValueType::List => value.is_array(),
     };
-    
+
     if !valid {
         Err(ValidationError::TypeMismatch {
             expected: format!("{:?}", expected_type),
@@ -157,12 +174,12 @@ fn validate_directory_exists(value: &Value) -> Result<(), ValidationError> {
 fn validate_directory_exists_or_creatable(value: &Value) -> Result<(), ValidationError> {
     if let Value::String(path_str) = value {
         let path = expand_path(path_str);
-        
+
         // Si ya existe, perfecto
         if path.exists() && path.is_dir() {
             return Ok(());
         }
-        
+
         // Si no existe, verificar si se puede crear
         if let Some(parent) = path.parent() {
             if !parent.exists() {
@@ -176,20 +193,20 @@ fn validate_directory_exists_or_creatable(value: &Value) -> Result<(), Validatio
 /// Expande una ruta con variables de entorno y ~
 fn expand_path(path: &str) -> std::path::PathBuf {
     let mut result = path.to_string();
-    
+
     // Reemplazar ~ con la ruta del home
     if result.starts_with("~") {
         if let Some(home) = dirs::home_dir() {
             result = result.replacen("~", home.to_str().unwrap_or(""), 1);
         }
     }
-    
+
     // Reemplazar variables de entorno
     if result.contains("$") {
         for (key, value) in std::env::vars() {
             result = result.replace(&format!("${}", key), &value);
         }
     }
-    
+
     std::path::PathBuf::from(result)
 }

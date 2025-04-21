@@ -1,17 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
 mod core;
 mod interfaces;
 mod utils;
-mod config;
 
 use core::auth::*;
+use serde_json::json;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 use tauri::Wry;
 use tauri_plugin_store::StoreExt;
-use serde_json::json;
+use tauri_plugin_log::{Target, TargetKind};
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
@@ -19,7 +20,19 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
 static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
 
 pub fn main() {
+
+    let logs_dir = dirs::config_dir()
+        .expect("No se pudo obtener el directorio de configuración")
+        .join("dev.alexitoo.modpackstore")
+        .join("logs");
+
+    let log_file_name = format!(
+        "mstore_{}",
+        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
+    );
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -29,6 +42,15 @@ pub fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drpc::init())
+        .plugin(tauri_plugin_log::Builder::new()
+            .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+            .target(tauri_plugin_log::Target::new(
+                tauri_plugin_log::TargetKind::Folder {
+                    path: std::path::PathBuf::from(logs_dir),
+                    file_name: Some(log_file_name),
+                }
+            ))
+            .build())
         .manage(Arc::new(AuthState::new()))
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
@@ -40,8 +62,7 @@ pub fn main() {
             *app_handle = Some(app.handle().clone());
             // Emit an event to the main window
             main_window.emit("app-ready", ()).unwrap();
-          
-           
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

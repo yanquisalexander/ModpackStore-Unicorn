@@ -178,18 +178,10 @@ export const ExploreSection = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                 >
-                    <motion.div
-                        animate={{
-                            rotate: 360,
-                        }}
-                        transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            ease: "linear"
-                        }}
-                    >
-                        <LucideLoader className="size-10 -mt-12 text-white" />
-                    </motion.div>
+                    <div>
+
+                        <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-[1500ms] text-white" />
+                    </div>
                 </motion.div>
             ) : debouncedSearch.trim() !== "" ? (
                 <motion.div

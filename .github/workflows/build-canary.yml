@@ -102,20 +102,22 @@ jobs:
                 git push --force origin canary
                 git tag -f canary
                 git push --force origin refs/tags/canary
-                
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-          GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
+
+      - name: Release Canary Build
+        uses: softprops/action-gh-release@v2
         with:
-          owner: ModpackStore
-          repo: ModpackStore-Releases
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Canary Build ${{ steps.tag.outputs.tag }}
-          body: "Automated canary build for testing"
+          # replace these two invalid keys:
+          repository: ModpackStore/ModpackStore-Releases
+          token:      ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+          tag_name:   canary
+          name:       Canary Build canary
+          body:       Automated canary build for testing
+
+          # match everything under your tauri bundle + any JSON
           files: |
             src-tauri/target/release/bundle/**/*
             *.json
-          draft: false
-          prerelease: false
+
+          # (optional) don’t error if a glob matches nothing
+          fail_on_unmatched_files: false

@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { motion, useScroll, useTransform } from "motion/react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { invoke } from "@tauri-apps/api/core"
+import { InstallButton } from "../components/install-modpacks/ModpackInstallButton" // Importamos el componente de instalación
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
@@ -242,28 +243,39 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
-                            className="flex items-center gap-4"
+                            className="flex flex-col md:flex-row md:items-center gap-4"
                         >
-                            <img
-                                src={modpackData.iconUrl}
-                                onError={(e) => {
-                                    e.currentTarget.onerror = null; // Prevent infinite loop
-                                    e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback image
-                                }}
-                                alt="Modpack Icon"
-                                className="w-20 h-20 rounded-2xl shadow-md"
-                            />
-                            <div>
-                                <h1 className="text-4xl font-bold text-white">{modpackData.name}</h1>
-                                <div className="flex items-center gap-2 text-white/90 text-sm">
-                                    <span>{publisher.publisherName}</span>
-                                    {publisher.verified && <LucideVerified className="w-4 h-4 text-blue-400" />}
-                                    {publisher.partnered && (
-                                        <span className="bg-yellow-400 text-black text-xs font-medium px-2 py-0.5 rounded-md ml-2">
-                                            Partner
-                                        </span>
-                                    )}
+                            <div className="flex items-center gap-4 flex-1">
+                                <img
+                                    src={modpackData.iconUrl}
+                                    onError={(e) => {
+                                        e.currentTarget.onerror = null; // Prevent infinite loop
+                                        e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback image
+                                    }}
+                                    alt="Modpack Icon"
+                                    className="w-20 h-20 rounded-2xl shadow-md"
+                                />
+                                <div>
+                                    <h1 className="text-4xl font-bold text-white">{modpackData.name}</h1>
+                                    <div className="flex items-center gap-2 text-white/90 text-sm">
+                                        <span>{publisher.publisherName}</span>
+                                        {publisher.verified && <LucideVerified className="w-4 h-4 text-blue-400" />}
+                                        {publisher.partnered && (
+                                            <span className="bg-yellow-400 text-black text-xs font-medium px-2 py-0.5 rounded-md ml-2">
+                                                Partner
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Botón de instalación */}
+                            <div className="mt-2 md:mt-0">
+                                <InstallButton
+                                    modpackId={modpackId}
+                                    modpackName={modpackData.name}
+                                    localInstances={localInstancesOfModpack}
+                                />
                             </div>
                         </motion.div>
 
@@ -301,8 +313,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </TabsContent>
                             </Tabs>
                         </motion.div>
-
-
                     </div>
                 </motion.main>
             </div>

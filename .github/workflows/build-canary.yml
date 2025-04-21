@@ -54,6 +54,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
         with:
           tagName: ${{ steps.tag.outputs.tag }}
           releaseName: "Canary Build ${{ steps.tag.outputs.tag }}"
@@ -107,4 +109,18 @@ jobs:
           git tag -f canary
           git push --force origin refs/tags/canary:refs/tags/canary
 
-    
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
+        with:
+          repository: ModpackStore/ModpackStore-Releases
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Canary Build ${{ steps.tag.outputs.tag }}
+          body: "Automated canary build for testing"
+          files: |
+            src-tauri/target/release/bundle/**/*
+            *.json
+          draft: false
+          prerelease: false

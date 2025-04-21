@@ -85,12 +85,16 @@ jobs:
           # Limpiar todo excepto .git
           Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
           
-          # Copiar los archivos de release, incluyendo el json
+          # Copiar los archivos de release, incluyendo el latest.json
 
           Copy-Item -Path ../src-tauri/target/release/bundle/**/* -Destination . -Recurse -Force
-          Copy-Item -Path ../src-tauri/target/release/bundle/*.json -Destination . -Recurse -Force
+          Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
+
+          
           
          
+          Copy-Item -Path ../src-tauri/target/release/bundle/**/* -Destination . -Recurse -Force
+          Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
           
           # Crear un README si no existe
           Set-Content -Path README.md -Value @"

@@ -14,14 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,21 +25,8 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      # Added Rust installation and caching based on the second example
-      - name: install Rust stable
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          # Adjust the workspaces path if your tauri project is not directly in src-tauri
-          workspaces: |
-            ./src-tauri -> ./target
-
-      - name: Set static canary tag
-        id: tag
-        run: |
-          echo "tag=canary" >> $env:GITHUB_OUTPUT
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
@@ -60,53 +39,14 @@ jobs:
           repo: ModpackStore-Releases
 
       # Clean up existing canary release before creating a new one
+      - name: Set up GitHub CLI
+        uses: cli/setup-gh@v1
         
       - name: Remove existing canary release and tag
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
         run: |
           gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
-
-      - name: Checkout ModpackStore-Releases
-        uses: actions/checkout@v4
-        with:
-          repository: ModpackStore/ModpackStore-Releases
-          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
-          path: temp-release-repo
-          ref: main  # Use main instead of directly checking out canary which might not exist yet
-
-      - name: Sync canary build into release repo
-        shell: pwsh
-        run: |
-          cd temp-release-repo
-
-          # Create or reset the canary branch
-          git checkout -B canary
-
-          # remove everything but .git
-          Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
-
-          # copy your new artifacts (including latest.json)
-          Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse -Force
-          if (Test-Path ../src-tauri/target/release/bundle/latest.json) {
-            Copy-Item -Path ../src-tauri/target/release/bundle/latest.json -Destination . -Force
-          }
-
-          # ensure README.md
-          if (-not (Test-Path README.md)) {
-            @"
-          # ModpackStore Releases
-          Este repositorio contiene solo las releases de ModpackStore.
-          "@ | Set-Content README.md
-          }
-
-          git add -A
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update canary release" || echo "No changes to commit"
-
-          # push back to canary branch
-          git push --force origin canary
 
       - name: Release Canary Build
         uses: softprops/action-gh-release@v2

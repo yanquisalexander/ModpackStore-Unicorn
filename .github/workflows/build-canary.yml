@@ -63,6 +63,8 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
+          owner: ModpackStore
+          repo: ModpackStore-Releases
 
 
       - name: Checkout ModpackStore-Releases

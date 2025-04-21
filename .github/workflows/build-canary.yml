@@ -57,5 +57,5 @@ jobs:
           body: Automated canary build for testing
           files: |
             src-tauri/target/release/bundle/**/*
-            src-tauri/target/release/bundle/*.json
+            **/latest.json
           fail_on_unmatched_files: false

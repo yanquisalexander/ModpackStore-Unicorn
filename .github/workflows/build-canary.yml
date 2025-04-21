@@ -64,6 +64,7 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
 
+
       - name: Setup and Push to Release Repository
         run: |
           # Crear directorio temporal
@@ -85,53 +86,28 @@ jobs:
           git fetch origin canary || echo "Branch canary doesn't exist yet"
           
           # Checkout a la rama canary si existe, sino crear una nueva
-          git checkout canary 2>/dev/null || git checkout -b canary
+          git checkout canary 2>$null || git checkout -b canary
           
           # Limpiar todo excepto .git
-          if ($env:RUNNER_OS -eq "Windows") {
-            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
-          } else {
-            find . -mindepth 1 -not -path './.git*' -exec rm -rf {} +
-          }
+          Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
           
           # Copiar los archivos de release, incluyendo el latest.json
-          if ($env:RUNNER_OS -eq "Windows") {
-            Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse -Force
-            
-            # Buscar latest.json
-            $latestJsonPath = Get-ChildItem -Path . -Recurse -Filter latest.json | Select-Object -First 1
-            if ($latestJsonPath) {
-                Copy-Item -Path $latestJsonPath.FullName -Destination . -Force
-            } else {
-                Write-Host "latest.json not found"
-            }
+          Copy-Item -Path ../src-tauri/target/release/bundle/* -Destination . -Recurse -Force
+          
+          # Buscar latest.json
+          $latestJsonPath = Get-ChildItem -Path . -Recurse -Filter latest.json | Select-Object -First 1
+          if ($latestJsonPath) {
+              Copy-Item -Path $latestJsonPath.FullName -Destination . -Force
           } else {
-            cp -r ../src-tauri/target/release/bundle/* .
-            
-            # Buscar latest.json
-            latestJsonPath=$(find . -name "latest.json" -type f | head -n 1)
-            if [ -n "$latestJsonPath" ]; then
-                cp "$latestJsonPath" .
-            else
-                echo "latest.json not found"
-            fi
+              Write-Host "latest.json not found"
           }
           
           # Crear un README si no existe
-          if ($env:RUNNER_OS -eq "Windows") {
-            if (-not (Test-Path README.md)) {
-              Set-Content -Path README.md -Value @"
+          if (-not (Test-Path README.md)) {
+            Set-Content -Path README.md -Value @"
           # ModpackStore Releases
           Este repositorio contiene solo las releases de ModpackStore.
           "@
-            }
-          } else {
-            if [ ! -f README.md ]; then
-              cat > README.md << 'EOL'
-          # ModpackStore Releases
-          Este repositorio contiene solo las releases de ModpackStore.
-          EOL
-            fi
           }
           
           # Commit y push
@@ -144,6 +120,9 @@ jobs:
           # Crear y hacer push del tag (ahora que la tag remota ha sido eliminada)
           git tag -f canary
           git push origin refs/tags/canary
+        shell: pwsh
+    
+    
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:

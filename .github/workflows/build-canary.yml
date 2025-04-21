@@ -39,9 +39,7 @@ jobs:
           repo: ModpackStore-Releases
 
       # Clean up existing canary release before creating a new one
-      - name: Set up GitHub CLI
-        uses: cli/setup-gh@v1
-        
+
       - name: Remove existing canary release and tag
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}

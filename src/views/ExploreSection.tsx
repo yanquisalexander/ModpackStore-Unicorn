@@ -35,6 +35,7 @@ export const ExploreSection = () => {
             .setState("Explorando Modpacks")
             .setTimestamps(new Timestamps(Date.now()))
             .setAssets(new Assets().setLargeImage("exploring").setSmallImage("exploring"))
+
         setActivity(activity)
     }, [])
 

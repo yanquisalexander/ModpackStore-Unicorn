@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
 import { useInstances } from "@/stores/InstancesContext"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
-import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
+import { Activity, ActivityType, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
 import { EditInstanceInfo } from "@/components/EditInstanceInfo"
 import { playSound, SOUNDS } from "@/utils/sounds"
@@ -229,13 +229,12 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const updateDiscordRPC = useCallback(() => {
         if (!prelaunchState.instance) return;
 
-        const stateText = isPlaying
-            ? `Jugando "${prelaunchState.instance.instanceName}"`
-            : `Preparando "${prelaunchState.instance.instanceName}"`;
+
 
         const activity = new Activity()
-            .setState(isPlaying ? "Jugando" : "Preparando")
-            .setDetails(stateText)
+            .setState(isPlaying ? "Jugando" : "Preparando instancia")
+            .setDetails(prelaunchState.instance.instanceName)
+            .setTimestamps(new Timestamps(Date.now()))
 
         setActivity(activity)
             .catch(error => console.error("Error setting Discord activity:", error))

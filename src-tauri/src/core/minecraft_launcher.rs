@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::thread; // Crucial for asynchronous operations
 use log::{info, error};
+use std::sync::{Arc, Mutex}; // For thread-safe shared state
 
 
 // --- Crate Imports ---
@@ -38,6 +39,24 @@ use tauri::{Emitter, Manager}; // For emitting events to the frontend
 /// Holds the instance configuration and provides methods to launch it.
 pub struct InstanceLauncher {
     instance: MinecraftInstance, // The configuration of the instance to launch
+}
+
+enum PossibleErrorCode {
+    IncompatibleJavaVersion,
+    MissingLibraries,
+    CorruptedMod,
+    UnknownError,
+}
+
+impl PossibleErrorCode {
+    fn as_str(&self) -> &'static str {
+        match self {
+            PossibleErrorCode::IncompatibleJavaVersion => "INCOMPATIBLE_JAVA_VERSION",
+            PossibleErrorCode::MissingLibraries => "MISSING_LIBRARIES",
+            PossibleErrorCode::CorruptedMod => "CORRUPTED_MOD",
+            PossibleErrorCode::UnknownError => "UNKNOWN_ERROR",
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -129,6 +148,9 @@ impl InstanceLauncher {
     
         // Create a launcher instance specifically for emitting events from the monitor thread.
         let emitter_launcher = InstanceLauncher::new(instance);
+        
+        // Use Arc and Mutex to share the error code between threads
+        let detected_error = Arc::new(Mutex::new(None::<PossibleErrorCode>));
     
         // Spawn the monitoring thread
         thread::spawn(move || {
@@ -137,11 +159,21 @@ impl InstanceLauncher {
             // Set up stdout redirection if stdout is available
             if let Some(stdout) = child.stdout.take() {
                 let instance_id_clone = instance_id.clone();
+                let detected_error_clone = Arc::clone(&detected_error);
                 thread::spawn(move || {
                     let reader = BufReader::new(stdout);
                     for line in reader.lines() {
                         if let Ok(line) = line {
                             log::info!("[Minecraft: {}] {}", instance_id_clone, line);
+                            // Check for specific error messages
+                            let mut error = detected_error_clone.lock().unwrap();
+                            if line.contains("Unsupported major.minor version") || line.contains("UnsupportedClassVersionError") {
+                                *error = Some(PossibleErrorCode::IncompatibleJavaVersion);
+                            } else if line.contains("Could not find or load main class") {
+                                *error = Some(PossibleErrorCode::MissingLibraries);
+                            } else if line.contains("Exception in thread") && line.contains("mod") {
+                                *error = Some(PossibleErrorCode::CorruptedMod);
+                            }
                         }
                     }
                 });
@@ -150,11 +182,21 @@ impl InstanceLauncher {
             // Set up stderr redirection if stderr is available
             if let Some(stderr) = child.stderr.take() {
                 let instance_id_clone = instance_id.clone();
+                let detected_error_clone = Arc::clone(&detected_error);
                 thread::spawn(move || {
                     let reader = BufReader::new(stderr);
                     for line in reader.lines() {
                         if let Ok(line) = line {
                             log::error!("[Minecraft: {}] {}", instance_id_clone, line);
+                            // Check for specific error messages
+                            let mut error = detected_error_clone.lock().unwrap();
+                            if line.contains("Unsupported major.minor version") || line.contains("UnsupportedClassVersionError") {
+                                *error = Some(PossibleErrorCode::IncompatibleJavaVersion);
+                            } else if line.contains("Could not find or load main class") {
+                                *error = Some(PossibleErrorCode::MissingLibraries);
+                            } else if line.contains("Exception in thread") && line.contains("mod") {
+                                *error = Some(PossibleErrorCode::CorruptedMod);
+                            }
                         }
                     }
                 });
@@ -167,13 +209,36 @@ impl InstanceLauncher {
                         "Minecraft instance '{}' exited with status: {}",
                         instance_name, exit_status
                     );
+    
                     log::info!("[Monitor: {}] {}", instance_id, message);
+    
+                    // Get the detected error, if any, as a string
+                    let possible_error_code = {
+                        let error_guard = detected_error.lock().unwrap();
+                        match *error_guard {
+                            // Explicitly convert each enum variant to a string
+                            Some(PossibleErrorCode::IncompatibleJavaVersion) => "INCOMPATIBLE_JAVA_VERSION".to_string(),
+                            Some(PossibleErrorCode::MissingLibraries) => "MISSING_LIBRARIES".to_string(),
+                            Some(PossibleErrorCode::CorruptedMod) => "CORRUPTED_MOD".to_string(),
+                            Some(PossibleErrorCode::UnknownError) => "UNKNOWN_ERROR".to_string(),
+                            // Add any other variants your enum might have
+                            None => {
+                                // If no specific error was detected, use the exit code
+                                match exit_status.code() {
+                                    Some(code) => code.to_string(),
+                                    None => "UNKNOWN".to_string(),
+                                }
+                            }
+                        }
+                    };
+    
                     emitter_launcher.emit_status(
                         "instance-exited",
                         &message,
                         Some(serde_json::json!({
                             "instanceName": instance_name,
-                            "exitCode": exit_status.code()
+                            "exitCode": exit_status.code(),
+                            "possibleErrorCode": possible_error_code
                         })),
                     );
                 }
@@ -199,7 +264,6 @@ impl InstanceLauncher {
             log::info!("[Monitor: {}] Finished monitoring.", instance_id);
         });
     }
-
 
    
 

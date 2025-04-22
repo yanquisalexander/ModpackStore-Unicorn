@@ -83,6 +83,17 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(downloadingUnlisten);
 
+            const finishAssetsDownloadUnlisten = await listen("instance-finish-assets-download", (e: any) => {
+                const { id, message } = e.payload;
+                console.log("Finish assets download event:", { id, message });
+
+                updateInstance(id, {
+                    status: "idle",
+
+                });
+            })
+            unlistenList.push(finishAssetsDownloadUnlisten);
+
             // Evento para cuando la instancia ha sido lanzada
             const launchedUnlisten = await listen("instance-launched", (e: any) => {
                 const { id, message } = e.payload;

@@ -284,6 +284,13 @@ impl InstanceBootstrap {
         }
 
         log::info!("Asset revalidation completed");
+
+        // Emitir evento de finalización
+        Self::emit_status(
+            instance,
+            "instance-finish-assets-download",
+            &format!("Validación de assets completada para {}", instance.instanceName),
+        );
         Ok(())
     }
 

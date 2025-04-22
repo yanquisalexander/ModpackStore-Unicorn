@@ -80,11 +80,6 @@ function App() {
     return <LoadingScreen />;
   }
 
-  // Si no hay autenticación, mostrar el login
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
   // Si no hay conexión, mostrar el modo sin conexión
   if (!isConnected) {
     /* 
@@ -100,6 +95,13 @@ function App() {
       </Switch>
     );
   }
+
+  // Si no hay autenticación, mostrar el login
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+
 
   // Si hay conexión, mostrar la aplicación normal
   return (

@@ -43,6 +43,8 @@ pub fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drpc::init())
         .plugin(tauri_plugin_log::Builder::new()
+            .level(log::LevelFilter::Info)
+            .level_for("reqwest", log::LevelFilter::Info)
             .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
             .target(tauri_plugin_log::Target::new(
                 tauri_plugin_log::TargetKind::Folder {

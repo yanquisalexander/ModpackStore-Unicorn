@@ -87,10 +87,10 @@ jobs:
           name:       Canary Build canary
           body:       Automated canary build for testing
 
-          # match everything under your tauri bundle + any JSON
+          # match everything under your tauri bundle + latest.json
           files: |
             src-tauri/target/release/bundle/**/*
-            *.json
+            **/latest.json
 
           # (optional) don’t error if a glob matches nothing
           fail_on_unmatched_files: false

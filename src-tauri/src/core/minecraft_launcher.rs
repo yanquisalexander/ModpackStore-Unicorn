@@ -2,11 +2,12 @@
 //! Handles the logic for preparing and launching a specific Minecraft instance.
 
 // --- Standard Library Imports ---
-use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::thread; // Crucial for asynchronous operations
 use log::{info, error};
+
 
 // --- Crate Imports ---
 // Core components
@@ -125,14 +126,40 @@ impl InstanceLauncher {
     fn monitor_process(instance: MinecraftInstance, mut child: Child) {
         let instance_id = instance.instanceId.clone();
         let instance_name = instance.instanceName.clone();
-
+    
         // Create a launcher instance specifically for emitting events from the monitor thread.
-        // This requires MinecraftInstance to be Clone.
         let emitter_launcher = InstanceLauncher::new(instance);
-
+    
         // Spawn the monitoring thread
         thread::spawn(move || {
             println!("[Monitor: {}] Started monitoring process.", instance_id);
+            
+            // Set up stdout redirection if stdout is available
+            if let Some(stdout) = child.stdout.take() {
+                let instance_id_clone = instance_id.clone();
+                thread::spawn(move || {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines() {
+                        if let Ok(line) = line {
+                            log::info!("[Minecraft: {}] {}", instance_id_clone, line);
+                        }
+                    }
+                });
+            }
+            
+            // Set up stderr redirection if stderr is available
+            if let Some(stderr) = child.stderr.take() {
+                let instance_id_clone = instance_id.clone();
+                thread::spawn(move || {
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines() {
+                        if let Ok(line) = line {
+                            log::error!("[Minecraft: {}] {}", instance_id_clone, line);
+                        }
+                    }
+                });
+            }
+    
             match child.wait() {
                 Ok(exit_status) => {
                     // Process exited normally (or with an error code)
@@ -140,13 +167,12 @@ impl InstanceLauncher {
                         "Minecraft instance '{}' exited with status: {}",
                         instance_name, exit_status
                     );
-                    println!("[Monitor: {}] {}", instance_id, message);
+                    log::info!("[Monitor: {}] {}", instance_id, message);
                     emitter_launcher.emit_status(
                         "instance-exited",
                         &message,
                         Some(serde_json::json!({
                             "instanceName": instance_name,
-
                             "exitCode": exit_status.code()
                         })),
                     );
@@ -157,7 +183,7 @@ impl InstanceLauncher {
                         "Failed to wait for Minecraft instance '{}' process: {}",
                         instance_name, e
                     );
-                    eprintln!("[Monitor: {}] {}", instance_id, error_message);
+                    log::error!("[Monitor: {}] {}", instance_id, error_message);
                     // Emit both error and exited events as the process state is uncertain but terminated.
                     emitter_launcher.emit_error(&error_message, None);
                     emitter_launcher.emit_status(
@@ -170,26 +196,12 @@ impl InstanceLauncher {
                     );
                 }
             }
-            println!("[Monitor: {}] Finished monitoring.", instance_id);
+            log::info!("[Monitor: {}] Finished monitoring.", instance_id);
         });
     }
 
-    // --- Placeholder/Implementation for Core Logic Steps ---
 
-    /// Validates the Minecraft account associated with the launch (if necessary).
-    /// TODO: Replace with actual account validation logic.
-    fn validate_account(&self) -> IoResult<Value> {
-        println!(
-            "[Instance: {}] Validating account...",
-            self.instance.instanceId
-        );
-        // --- Replace with your actual validation logic ---
-        // Example: Check credentials, refresh tokens, etc.
-        // If validation fails, return an appropriate IoError:
-        // return Err(IoError::new(IoErrorKind::PermissionDenied, "Invalid credentials"));
-        // --- End Placeholder ---
-        Ok(serde_json::json!({ "status": "validated" })) // Placeholder success
-    }
+   
 
     /// Revalidates or downloads necessary game assets, libraries, etc.
     /// TODO: Replace with actual asset checking/downloading logic.
@@ -252,17 +264,7 @@ impl InstanceLauncher {
             self.instance.instanceId
         );
 
-        // 1. Validate Account
-        if let Err(e) = self.validate_account() {
-            let err_msg = format!("Error en validación de cuenta: {}", e);
-            eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
-            self.emit_error(&err_msg, None);
-            return; // Stop the thread execution
-        }
-        println!(
-            "[Launch Thread: {}] Account validation successful.",
-            self.instance.instanceId
-        );
+    
 
         // 2. Revalidate Assets
         if let Err(e) = self.revalidate_assets() {
@@ -290,7 +292,7 @@ impl InstanceLauncher {
                 // Assumes this returns Option<Child>
                 Some(child_process) => {
                     // Success! Game process obtained.
-                    println!(
+                    log::info!(
                         "[Launch Thread: {}] Minecraft process started successfully (PID: {}).",
                         self.instance.instanceId,
                         child_process.id()
@@ -304,14 +306,14 @@ impl InstanceLauncher {
                     // Failure: GameLauncher::launch returned None.
                     let err_msg =
                         "Fallo al iniciar el proceso de Minecraft (GameLauncher retornó None).";
-                    eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
+                    log::error!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
                     self.emit_error(err_msg, None);
                     Err(IoError::new(IoErrorKind::Other, err_msg))
                 }
             }
         } else {
             // --- Vanilla Launch ---
-            println!(
+            log::info!(
                 "[Launch Thread: {}] Preparing Vanilla launch...",
                 self.instance.instanceId
             );

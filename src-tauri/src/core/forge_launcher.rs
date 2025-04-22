@@ -7,7 +7,7 @@ use std::{
     fs,
     io,
     path::{Path, PathBuf},
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
 };
 
 use crate::config::get_config_manager;
@@ -734,6 +734,9 @@ impl ForgeLoader {
         if cfg!(windows) {
             command.creation_flags(CREATE_NO_WINDOW);
         }
+
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
 
         match command.spawn() {
             Ok(child) => {

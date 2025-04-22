@@ -2,8 +2,9 @@ use serde_json::Value;
 use std::{
     fs,
     path::PathBuf,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
 };
+use std::io::{BufRead, BufReader};
 
 use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
@@ -219,6 +220,10 @@ impl GameLauncher for VanillaLauncher {
             // En Windows, se necesita usar la extensión para evitar que la ventana de consola aparezca
             command.creation_flags(CREATE_NO_WINDOW);
         }
+
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+        
 
         // Ejecutar el comando
         let child = command.spawn().ok()?;

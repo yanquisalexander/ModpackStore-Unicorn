@@ -1,6 +1,7 @@
 // src-tauri/src/auth/microsoft.rs
 
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use crate::core::minecraft_account::MinecraftAccount;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::thread;
@@ -8,6 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::async_runtime;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_http::reqwest;
+use crate::core::accounts_manager::AccountsManager;
 
 // Estructuras para respuestas de API
 #[derive(Deserialize, Debug)]
@@ -72,15 +74,6 @@ struct MinecraftSkin {
     variant: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MinecraftAccount {
-    pub username: String,
-    pub uuid: String,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub token_expiration: u64,
-    pub account_type: String,
-}
 
 // Estructuras para eventos
 #[derive(Serialize, Clone)]
@@ -245,36 +238,26 @@ impl MicrosoftAuthenticator {
             None,
         );
 
-        // Calcular tiempo de expiración
-        let expiration = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_secs()
-            + minecraft_token.expires_in;
 
-        // Crear y retornar la cuenta
-        let account = MinecraftAccount {
-            username: profile.name,
-            uuid: profile.id,
-            access_token: minecraft_token.access_token,
-            refresh_token: token_response.refresh_token,
-            token_expiration: expiration,
-            account_type: "microsoft".to_string(),
-        };
 
-        log::info!("Autenticación exitosa: {:?}", account);
+        log::info!("Autenticación exitosa: {:?}", profile);
 
         // Emitir evento de éxito
-        let _ = app_handle.emit("microsoft-auth-success", account.clone());
-        // Guardar la cuenta en el gestor de cuentas
-        let accounts_manager = crate::core::accounts_manager::get_accounts_manager();
-        let mut manager = accounts_manager.lock().unwrap();
-        if manager.accounts.iter().any(|a| a.uuid == account.uuid) {
-            return Err(format!("La cuenta con UUID {} ya existe", account.uuid).into());
-        }
+        let _ = app_handle.emit("microsoft-auth-success", None::<String>);
+     
+       
+               // Usar el método add_microsoft_account para crear y guardar la cuenta
+let account = match AccountsManager::add_microsoft_account(
+    &profile.name,
+    &minecraft_token.access_token,
+    &profile.id,
+) {
+    Ok(account) => account,
+    Err(e) => return Err(e.into()),
+};
 
-        manager.accounts.push(account.clone());
-        manager.save().await?;
+        
+
         log::info!("Cuenta guardada: {:?}", account);
         // Emitir evento de cuenta guardada
         let _ = app_handle.emit("microsoft-auth-account-saved", account.clone());

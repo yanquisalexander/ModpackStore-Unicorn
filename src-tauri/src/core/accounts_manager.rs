@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 pub struct AccountsManager {
-    accounts: Vec<MinecraftAccount>,
+    pub accounts: Vec<MinecraftAccount>,
     accounts_file: PathBuf,
 }
 
@@ -34,6 +34,27 @@ impl AccountsManager {
         };
         manager.load();
         manager
+    }
+
+    pub fn add_microsoft_account(
+        username: &str,
+        access_token: &str,
+        uuid: &str,
+    ) -> Result<MinecraftAccount, String> {
+        let accounts_manager = get_accounts_manager();
+        let mut manager = accounts_manager.lock().unwrap();
+        let account = MinecraftAccount::new(
+            username.to_string(),
+            uuid.to_string(),
+            Some(access_token.to_string()),
+            "Microsoft".to_string(),
+        );
+        if manager.accounts.iter().any(|a| a.uuid() == uuid) {
+            return Err(format!("Account with UUID {} already exists", uuid));
+        }
+        manager.accounts.push(account.clone());
+        manager.save();
+        Ok(account)
     }
 
     pub fn add_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, String> {
@@ -97,7 +118,7 @@ impl AccountsManager {
         }
     }
 
-    fn save(&self) {
+    pub fn save(&self) {
         if let Some(parent) = self.accounts_file.parent() {
             if !parent.exists() {
                 if let Err(e) = fs::create_dir_all(parent) {
@@ -181,27 +202,6 @@ pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
     Ok(manager.get_all_accounts())
 }
 
-#[tauri::command]
-pub fn add_microsoft_account(
-    username: &str,
-    access_token: &str,
-    uuid: &str,
-) -> Result<MinecraftAccount, String> {
-    let accounts_manager = get_accounts_manager();
-    let mut manager = accounts_manager.lock().unwrap();
-    let account = MinecraftAccount::new(
-        username.to_string(),
-        uuid.to_string(),
-        Some(access_token.to_string()),
-        "Microsoft".to_string(),
-    );
-    if manager.accounts.iter().any(|a| a.uuid() == uuid) {
-        return Err(format!("Account with UUID {} already exists", uuid));
-    }
-    manager.accounts.push(account.clone());
-    manager.save();
-    Ok(account)
-}
 
 #[tauri::command]
 pub fn ensure_account_exists(uuid: &str) -> Result<bool, String> {

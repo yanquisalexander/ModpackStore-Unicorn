@@ -91,30 +91,6 @@ impl InstanceLauncher {
     ///   This can be a JSON object or any other serializable type.
 
 
-    fn is_java_available(&self) -> bool {
-        // Check if Java is available in the configured path
-        let config_lock = get_config_manager()
-            .lock()
-            .expect("Failed to lock config manager mutex");
-        let config = config_lock
-            .as_ref()
-            .expect("Config manager failed to initialize");
-        let java_path = config.get_java_dir();
-        if let Some(path) = java_path {
-            let java_executable = path.join("bin").join(if cfg!(windows) { "java.exe" } else { "java" });
-            if java_executable.exists() {
-                return true;
-            } else {
-                eprintln!(
-                    "[Instance: {}] Java executable not found at: {}",
-                    self.instance.instanceId, java_executable.display()
-                );
-            }
-        } else {
-            eprintln!("[Instance: {}] Java path is not set in the configuration.", self.instance.instanceId);
-        }
-        false
-    }
 
     fn emit_status(&self, event_name: &str, message: &str, data: Option<Value>) {
         println!(
@@ -398,14 +374,6 @@ impl InstanceLauncher {
             self.instance.instanceId
         );
 
-        // 1. Check if Java is available
-        if !self.is_java_available() {
-            let err_msg = "La ruta de Java no está configurada o el ejecutable no se encuentra.";
-            eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
-            self.emit_error(err_msg, None);
-            return; // Stop the thread execution
-        }
-
     
 
         // 2. Revalidate Assets
@@ -502,10 +470,10 @@ impl InstanceLauncher {
 
             if close_on_launch {
                 // Close the main process if configured to do so
-                println!(
-                    "[Launch Thread: {}] Closing main process as per configuration.",
-                    self.instance.instanceId
-                );
+                println!("[Launch Thread: {}] Waiting for Minecraft to initialize before closing...", self.instance.instanceId);
+                thread::sleep(std::time::Duration::from_secs(5)); 
+    
+
                 // Use the global app handle to close the main process
                 if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
                     if let Some(app_handle) = guard.as_ref() {

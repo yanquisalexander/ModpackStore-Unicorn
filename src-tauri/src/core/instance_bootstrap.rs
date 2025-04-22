@@ -1,6 +1,7 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
 use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::java_manager::JavaManager;
 use crate::core::tasks_manager::{TaskStatus, TasksManager};
 use crate::GLOBAL_APP_HANDLE;
 use serde_json::{json, Value};
@@ -570,6 +571,60 @@ impl InstanceBootstrap {
                 );
             }
         }
+
+/* 
+"javaVersion": {"majorVersion": 21},
+*/
+            // Check if correct Java version is installed for this instance
+            let java_version = version_details["javaVersion"]
+                .as_object()
+                .ok_or_else(|| "Java version not found in version details".to_string())?;
+                
+            // As string
+            let java_major_version = java_version
+                .get("majorVersion")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Java major version not found".to_string())?;
+
+            println!("Java Major Version: {}", java_major_version);
+
+            let java_manager = JavaManager::new()
+                .map_err(|e| format!("Failed to create JavaManager: {}", e))?;  // Convert error to String
+
+            let is_version_installed = java_manager.is_version_installed(java_major_version);
+                
+
+            if !is_version_installed {
+                // Create Tokio runtime for async task execution
+                let java_path = tokio::runtime::Runtime::new()
+                    .expect("Failed to create Tokio runtime")
+                    .block_on(java_manager.get_java_path(java_major_version))
+                    .map_err(|e| {
+                        format!("Error obtaining Java path for version {}: {}", java_major_version, e)
+                    })?;
+
+                // Update task to indicate Java installation
+                if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+                    if let Ok(mut tm) = task_manager.lock() {
+                        tm.update_task(
+                            task_id,
+                            TaskStatus::Running,
+                            50.0,
+                            "Instalando Java",
+                            Some(serde_json::json!({
+                                "instanceName": instance.instanceName.clone(),
+                                "instanceId": instance.instanceId.clone()
+                            })),
+                        );
+                    }
+                }
+               
+                let mut instance_to_modify = instance.clone();
+                instance_to_modify
+                    .set_java_path(java_path);
+                   
+            }
+
 
         // Download and validate libraries
         Self::emit_status(

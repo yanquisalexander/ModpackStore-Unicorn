@@ -31,6 +31,8 @@ pub struct MinecraftInstance {
     pub minecraftVersion: String,
     pub instanceDirectory: Option<String>,
     pub forgeVersion: Option<String>,
+    pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
+
 }
 
 impl MinecraftInstance {
@@ -52,6 +54,7 @@ impl MinecraftInstance {
             minecraftVersion: String::new(),
             instanceDirectory: None,
             forgeVersion: None,
+            javaPath: None,
         }
     }
 
@@ -173,6 +176,15 @@ impl MinecraftInstance {
         );
         Ok(())
     }
+
+    pub fn set_java_path(&mut self, java_path: PathBuf) {
+        self.javaPath = Some(java_path.to_string_lossy().to_string());
+
+        // Guardar la ruta de Java en el archivo de configuración
+        self.save().unwrap_or_else(|e| {
+            println!("Error saving Java path: {}", e);
+        });
+    }
 }
 
 #[tauri::command]
@@ -227,7 +239,11 @@ pub fn open_game_dir(instance_id: String) -> Result<(), String> {
     );
     let instance = MinecraftInstance::from_instance_id(&instance_id);
     if let Some(instance) = instance {
-        let path = PathBuf::from(instance.minecraftPath);
+        let path = if cfg!(target_os = "windows") {
+            PathBuf::from(instance.minecraftPath.replace("/", "\\"))
+        } else {
+            PathBuf::from(instance.minecraftPath.replace("\\", "/"))
+        };
         println!("[Tauri Command] Opening game directory: {}", path.display());
         if path.exists() {
             // Abre el directorio del juego con el programa predeterminado del sistema

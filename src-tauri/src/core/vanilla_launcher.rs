@@ -219,10 +219,12 @@ impl GameLauncher for VanillaLauncher {
         if cfg!(windows) {
             // En Windows, se necesita usar la extensión para evitar que la ventana de consola aparezca
             command.creation_flags(CREATE_NO_WINDOW);
+            // Create a new process group
+            command.creation_flags(0x00000004);
         }
 
         command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
+        command.stderr(Stdio::piped()); 
         
 
         // Ejecutar el comando

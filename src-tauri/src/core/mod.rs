@@ -11,3 +11,4 @@ pub mod models;
 pub mod network_utilities;
 pub mod tasks_manager;
 pub mod vanilla_launcher;
+pub mod java_manager;

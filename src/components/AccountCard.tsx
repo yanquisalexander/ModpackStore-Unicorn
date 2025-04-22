@@ -20,7 +20,7 @@ export const AccountCard = ({ account, onRemove }: { account: TauriCommandReturn
     // Construct the URL for the 3D head render using the UUID
     const headUrl = `https://crafatar.com/renders/head/${account.uuid}?overlay=true&scale=8`;
 
-    const isLocalAccount = account.user_type.toLowerCase() === "offline" || account.user_type.toLowerCase() === "local";
+    const isLocalAccount = account.user_type.toLowerCase() === "offline"
 
     // Handle delete confirmation
     const handleConfirmDelete = () => {

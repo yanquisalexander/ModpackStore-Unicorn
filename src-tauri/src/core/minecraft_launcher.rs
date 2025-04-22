@@ -46,6 +46,8 @@ enum PossibleErrorCode {
     MissingLibraries,
     CorruptedMod,
     UnknownError,
+    OutOfMemory,
+    TerminatedByUser
 }
 
 impl PossibleErrorCode {
@@ -55,6 +57,8 @@ impl PossibleErrorCode {
             PossibleErrorCode::MissingLibraries => "MISSING_LIBRARIES",
             PossibleErrorCode::CorruptedMod => "CORRUPTED_MOD",
             PossibleErrorCode::UnknownError => "UNKNOWN_ERROR",
+            PossibleErrorCode::OutOfMemory => "OUT_OF_MEMORY",
+            PossibleErrorCode::TerminatedByUser => "TERMINATED_BY_USER",
         }
     }
 }
@@ -173,6 +177,13 @@ impl InstanceLauncher {
                                 *error = Some(PossibleErrorCode::MissingLibraries);
                             } else if line.contains("Exception in thread") && line.contains("mod") {
                                 *error = Some(PossibleErrorCode::CorruptedMod);
+                            } else if line.contains("java.lang.OutOfMemoryError") {
+                                *error = Some(PossibleErrorCode::OutOfMemory);
+                            } else if line.contains("Exception") || line.contains("Error") {
+                                // Capturar cualquier excepción genérica como UnknownError
+                                if error.is_none() {
+                                    *error = Some(PossibleErrorCode::UnknownError);
+                                }
                             }
                         }
                     }
@@ -196,12 +207,21 @@ impl InstanceLauncher {
                                 *error = Some(PossibleErrorCode::MissingLibraries);
                             } else if line.contains("Exception in thread") && line.contains("mod") {
                                 *error = Some(PossibleErrorCode::CorruptedMod);
+                            } else if line.contains("java.lang.OutOfMemoryError") {
+                                *error = Some(PossibleErrorCode::OutOfMemory);
+                            } else if line.contains("Exception") || line.contains("Error") {
+                                // Capturar cualquier excepción genérica como UnknownError
+                                if error.is_none() {
+                                    *error = Some(PossibleErrorCode::UnknownError);
+                                }
                             }
                         }
                     }
                 });
             }
     
+            // Esperar un poco para dar tiempo a los hilos de análisis de logs a detectar errores
+            // antes de proceder con la terminación del proceso
             match child.wait() {
                 Ok(exit_status) => {
                     // Process exited normally (or with an error code)
@@ -209,8 +229,29 @@ impl InstanceLauncher {
                         "Minecraft instance '{}' exited with status: {}",
                         instance_name, exit_status
                     );
-    
+                    
                     log::info!("[Monitor: {}] {}", instance_id, message);
+                    
+                    // Esperar un poco para dar tiempo a los hilos a procesar las últimas líneas del log
+                    // Esto es importante porque los errores a menudo aparecen justo antes de que el proceso termine
+                    thread::sleep(std::time::Duration::from_millis(1000));
+    
+                    // Evaluar el código de error basado en el código de salida
+                    let exit_code = exit_status.code().unwrap_or(-1);
+                    
+                    // Si no se detectó un error específico en los logs pero hay un código de salida no cero,
+                    // establecer un error predeterminado basado en el código
+                    if exit_code != 0 {
+                        let mut error_guard = detected_error.lock().unwrap();
+                        if error_guard.is_none() {
+                            *error_guard = match exit_code {
+                                1 => Some(PossibleErrorCode::UnknownError),
+                                137 => Some(PossibleErrorCode::OutOfMemory), // Código común para OOM en Linux
+                                143 => Some(PossibleErrorCode::TerminatedByUser), // SIGTERM
+                                _ => Some(PossibleErrorCode::UnknownError),
+                            };
+                        }
+                    }
     
                     // Get the detected error, if any, as a string
                     let possible_error_code = {
@@ -220,13 +261,15 @@ impl InstanceLauncher {
                             Some(PossibleErrorCode::IncompatibleJavaVersion) => "INCOMPATIBLE_JAVA_VERSION".to_string(),
                             Some(PossibleErrorCode::MissingLibraries) => "MISSING_LIBRARIES".to_string(),
                             Some(PossibleErrorCode::CorruptedMod) => "CORRUPTED_MOD".to_string(),
+                            Some(PossibleErrorCode::OutOfMemory) => "OUT_OF_MEMORY".to_string(),
+                            Some(PossibleErrorCode::TerminatedByUser) => "TERMINATED_BY_USER".to_string(),
                             Some(PossibleErrorCode::UnknownError) => "UNKNOWN_ERROR".to_string(),
-                            // Add any other variants your enum might have
                             None => {
-                                // If no specific error was detected, use the exit code
-                                match exit_status.code() {
-                                    Some(code) => code.to_string(),
-                                    None => "UNKNOWN".to_string(),
+                                // Si no hay error detectado y el código de salida es 0, todo está bien
+                                if exit_code == 0 {
+                                    "SUCCESS".to_string()
+                                } else {
+                                    format!("ERROR_CODE_{}", exit_code)
                                 }
                             }
                         }
@@ -256,7 +299,8 @@ impl InstanceLauncher {
                         "Minecraft process ended unexpectedly.",
                         Some(serde_json::json!({
                             "instanceName": instance_name,
-                            "error": error_message
+                            "error": error_message,
+                            "possibleErrorCode": "PROCESS_ERROR"
                         })),
                     );
                 }
@@ -264,7 +308,6 @@ impl InstanceLauncher {
             log::info!("[Monitor: {}] Finished monitoring.", instance_id);
         });
     }
-
    
 
     /// Revalidates or downloads necessary game assets, libraries, etc.

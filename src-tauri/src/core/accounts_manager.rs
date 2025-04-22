@@ -63,7 +63,7 @@ impl AccountsManager {
             username.to_string(),
             uuid.clone(),
             None,
-            "Local".to_string(),
+            "offline".to_string(),
         );
         if self.accounts.iter().any(|a| a.uuid() == uuid) {
             return Err(format!("Account with UUID {} already exists", uuid));

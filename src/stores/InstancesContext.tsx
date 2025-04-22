@@ -117,9 +117,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Evento para cuando la instancia ha salido
             const exitedUnlisten = await listen("instance-exited", (e: any) => {
                 const { id, message, data, name: instanceName } = e.payload;
-                const { exitCode } = data || { exitCode: "desconocido" };
+                const { exitCode, possibleErrorCode } = data || { exitCode: "desconocido" };
                 console.log(e.payload);
-                console.log("Instance exited event:", { id, message });
 
                 trackEvent("instance_exited", {
                     instanceId: id,
@@ -137,9 +136,12 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 window.setFocus();
 
                 if (exitCode !== 0) {
+                    const errorDesc = possibleErrorCode === "UNKNOWN_ERROR"
+                        ? `Esto puede ser causado por un error en la configuración de la instancia o un problema con tu instalación de Java.`
+                        : `Código de error: ${exitCode}`;
                     toast.error(`La instancia "${instanceName}" se ha cerrado con el código de error ${exitCode}`, {
                         duration: 10000,
-                        description: "Esto puede ser causado por un error en la configuración de la instancia o un problema con tu instalación de Java."
+                        description: errorDesc,
                     });
                     playSound("ERROR_NOTIFICATION")
                     trackEvent("instance_crash", {

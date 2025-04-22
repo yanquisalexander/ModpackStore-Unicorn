@@ -74,7 +74,7 @@ impl GameLauncher for VanillaLauncher {
                     "offline".to_string(),
                     Uuid::new_v4().to_string(),
                     None,
-                    "Local".to_string(),
+                    "offline".to_string(),
                 )
             });
 
@@ -210,7 +210,7 @@ impl GameLauncher for VanillaLauncher {
         if account.user_type() != "offline" {
             command.args(["--userType", "mojang"]);
         } else {
-            command.args(["--userType", "Local"]);
+            command.args(["--userType", "legacy"]);
         }
 
         command.current_dir(&game_dir);

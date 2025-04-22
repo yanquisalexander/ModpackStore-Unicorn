@@ -37,11 +37,16 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
     };
 
     const updateInstance = (id: string, updates: Partial<InstanceState>) => {
-        setInstances(prev =>
-            prev.map(instance =>
-                instance.id === id ? { ...instance, ...updates } : instance
-            )
-        );
+        setInstances(prev => {
+            const instanceExists = prev.some(instance => instance.id === id);
+            if (instanceExists) {
+                return prev.map(instance =>
+                    instance.id === id ? { ...instance, ...updates } : instance
+                );
+            } else {
+                return [...prev, { id, ...updates } as InstanceState];
+            }
+        });
     };
 
     const removeInstance = (id: string) => {

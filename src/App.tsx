@@ -19,6 +19,7 @@ import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
 import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
+import NoticeTestBuild from "./components/NoticeTestBuild";
 
 
 // Componente de carga para unificar la presentación
@@ -88,6 +89,7 @@ function App() {
   return (
     <main className="overflow-y-auto h-full">
       <HomeMainHeader />
+      <NoticeTestBuild />
       <div className="h-[calc(100vh-6rem)]">
         <Switch>
           <Route path="/" component={ExploreSection} />

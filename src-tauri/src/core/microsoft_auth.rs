@@ -262,6 +262,23 @@ impl MicrosoftAuthenticator {
             account_type: "microsoft".to_string(),
         };
 
+        log::info!("Autenticación exitosa: {:?}", account);
+
+        // Emitir evento de éxito
+        let _ = app_handle.emit("microsoft-auth-success", account.clone());
+        // Guardar la cuenta en el gestor de cuentas
+        let accounts_manager = crate::core::accounts_manager::get_accounts_manager();
+        let mut manager = accounts_manager.lock().unwrap();
+        if manager.accounts.iter().any(|a| a.uuid == account.uuid) {
+            return Err(format!("La cuenta con UUID {} ya existe", account.uuid).into());
+        }
+
+        manager.accounts.push(account.clone());
+        manager.save().await?;
+        log::info!("Cuenta guardada: {:?}", account);
+        // Emitir evento de cuenta guardada
+        let _ = app_handle.emit("microsoft-auth-account-saved", account.clone());
+
         Ok(account)
     }
 
@@ -349,6 +366,7 @@ impl MicrosoftAuthenticator {
 
             // Si el error es que aún no se ha completado la autenticación, seguimos esperando
             if error_code != "authorization_pending" {
+                log::error!("Error en la autenticación: {}", error);
                 return Err(format!("Error en la autenticación: {}", error_code).into());
             }
 
@@ -489,7 +507,7 @@ impl MicrosoftAuthenticator {
         }
 
         let license_data: serde_json::Value = license_response.json().await?;
-        println!("License data: {:?}", license_data);
+        log::info!("License data: {:?}", license_data);
 
         // Check if user has valid Java Edition license (not trial)
         let has_valid_license = license_data
@@ -529,7 +547,7 @@ impl MicrosoftAuthenticator {
         }
 
         let profile: MinecraftProfileResponse = profile_response.json().await?;
-        println!("Minecraft profile: {:?}", profile);
+        log::info!("Minecraft profile: {:?}", profile);
 
         Ok(profile)
     }

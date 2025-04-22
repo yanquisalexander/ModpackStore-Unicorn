@@ -75,28 +75,23 @@ export const AddAccountDialog = ({
         });
 
         // Escuchar eventos de éxito de autenticación
-        const successUnlisten = listen<MicrosoftAccount>("microsoft-auth-success", async (event) => {
+        const successUnlisten = listen<MicrosoftAccount>("microsoft-auth-account-saved", async (event) => {
             const account = event.payload;
+            setMicrosoftLoading(false);
+            setAuthProgress(null);
 
-            try {
-                // Guardar la cuenta usando un comando de Tauri
-                await invoke("save_microsoft_account", { account });
 
-                toast.success("Cuenta Microsoft añadida", {
-                    description: `Se ha añadido la cuenta ${account.username} correctamente`,
-                });
+            toast.success("Cuenta añadida", {
+                description: `Se ha añadido la cuenta de Microsoft ${account.username} correctamente`,
+                duration: 10000,
+            });
 
-                setMicrosoftLoading(false);
-                setAuthProgress(null);
-                setOpen(false);
-                onAccountAdded();
-            } catch (error) {
-                playSound("ERROR_NOTIFICATION")
-                console.error("Error al guardar la cuenta Microsoft:", error);
-                toast.error("No se pudo guardar la cuenta. Inténtalo de nuevo.");
-                setMicrosoftLoading(false);
-                setAuthProgress(null);
-            }
+            trackEvent("microsoft_account_added", {
+                name: "Microsoft Account Added",
+                timestamp: new Date().toISOString(),
+            });
+
+            onAccountAdded();
         });
 
         // Escuchar eventos de error de autenticación

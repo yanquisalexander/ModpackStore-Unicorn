@@ -38,10 +38,12 @@ closeOnLaunch:
   description: "Cierra el launcher cuando se inicie Minecraft"
   ui_section: gameplay
 
-checkUpdatesOnStartup:
-  type: boolean
-  default: true
-  description: "Verifica actualizaciones al iniciar la aplicación"
-  ui_section: general
+releaseChannel:
+  type: enum
+  choices: 
+    - canary
+  default: "canary"
+  description: "Canal de lanzamiento para actualizaciones"
+  ui_section: experimental
 
 # Añadir más configuraciones aquí

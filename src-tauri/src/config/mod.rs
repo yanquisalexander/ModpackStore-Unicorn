@@ -90,7 +90,13 @@ impl ConfigManager {
             self.values.insert(key.to_string(), value_json);
             Ok(())
         } else {
-            Err(ValidationError::UnknownKey(key.to_string()))
+            // No lanzar error si la clave no está en el esquema
+            // Quizá sea de una versión anterior que ya no existe
+            // Informamos y eliminamos el valor
+            log::warn!("La clave '{}' no está definida en el esquema de configuración", key);
+            self.values.remove(key);
+            // Guardar la configuración actualizada
+            return Ok(());
         }
     }
 

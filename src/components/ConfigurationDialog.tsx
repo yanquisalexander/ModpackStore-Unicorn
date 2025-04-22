@@ -234,10 +234,11 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         value={value || def.default}
                         onValueChange={(val) => handleConfigChange(key, val)}
                     >
+
                         <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
                             <SelectValue placeholder={def.description} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white z-9999">
                             {def.choices?.map((choice, idx) => (
                                 <SelectItem key={idx} value={choice}>
                                     {choice}

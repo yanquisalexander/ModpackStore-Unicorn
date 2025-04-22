@@ -34,7 +34,7 @@ language:
 
 closeOnLaunch:
   type: boolean
-  default: true
+  default: false
   description: "Cierra el launcher cuando se inicie Minecraft"
   ui_section: gameplay
 

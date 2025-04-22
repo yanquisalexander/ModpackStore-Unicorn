@@ -18,26 +18,8 @@ import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
 import { preloadSounds } from "./utils/sounds";
-import { useConfigDialog } from "./stores/ConfigDialogContext";
-import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { OfflineMode } from "./views/OfflineMode";
 
-const ConfigDialogLoader = () => {
-  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog();
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === ',') {
-        openConfigDialog();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openConfigDialog]);
-
-  return <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />;
-};
 
 // Componente de carga para unificar la presentación
 const LoadingScreen = () => (
@@ -102,11 +84,9 @@ function App() {
   }
 
 
-
   // Si hay conexión, mostrar la aplicación normal
   return (
     <main className="overflow-y-auto h-full">
-      <ConfigDialogLoader />
       <HomeMainHeader />
       <div className="h-[calc(100vh-6rem)]">
         <Switch>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppTitleBar } from "./components/AppTitleBar";
@@ -10,6 +10,25 @@ import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AuthProvider } from "./stores/AuthContext";
 import { ConfigDialogProvider } from "./stores/ConfigDialogContext";
+import { useConfigDialog } from "./stores/ConfigDialogContext";
+import { ConfigurationDialog } from "./components/ConfigurationDialog";
+
+const ConfigDialogLoader = () => {
+  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === ',') {
+        openConfigDialog();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openConfigDialog]);
+
+  return <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />;
+};
 
 
 startDiscordRpc("943184136976334879").catch((err) => {
@@ -25,6 +44,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <InstancesProvider>
           <ConfigDialogProvider>
             <AppTitleBar />
+            <ConfigDialogLoader />
             <App />
             <Toaster theme="dark" />
             <UpdateStatus />

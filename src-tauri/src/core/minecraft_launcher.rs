@@ -89,6 +89,33 @@ impl InstanceLauncher {
     /// * `message` - A descriptive message for the frontend.
     /// * `data` - Optional additional data to send with the event.
     ///   This can be a JSON object or any other serializable type.
+
+
+    fn is_java_available(&self) -> bool {
+        // Check if Java is available in the configured path
+        let config_lock = get_config_manager()
+            .lock()
+            .expect("Failed to lock config manager mutex");
+        let config = config_lock
+            .as_ref()
+            .expect("Config manager failed to initialize");
+        let java_path = config.get_java_dir();
+        if let Some(path) = java_path {
+            let java_executable = path.join("bin").join(if cfg!(windows) { "java.exe" } else { "java" });
+            if java_executable.exists() {
+                return true;
+            } else {
+                eprintln!(
+                    "[Instance: {}] Java executable not found at: {}",
+                    self.instance.instanceId, java_executable.display()
+                );
+            }
+        } else {
+            eprintln!("[Instance: {}] Java path is not set in the configuration.", self.instance.instanceId);
+        }
+        false
+    }
+
     fn emit_status(&self, event_name: &str, message: &str, data: Option<Value>) {
         println!(
             "[Instance: {}] Emitting Event: {} - Message: {}",
@@ -370,6 +397,14 @@ impl InstanceLauncher {
             "[Launch Thread: {}] Starting launch steps.",
             self.instance.instanceId
         );
+
+        // 1. Check if Java is available
+        if !self.is_java_available() {
+            let err_msg = "La ruta de Java no está configurada o el ejecutable no se encuentra.";
+            eprintln!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
+            self.emit_error(err_msg, None);
+            return; // Stop the thread execution
+        }
 
     
 

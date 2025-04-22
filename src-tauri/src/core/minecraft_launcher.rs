@@ -10,6 +10,7 @@ use log::{info, error};
 
 // --- Crate Imports ---
 // Core components
+use crate::core::network_utilities; // Network utilities for checking internet connection
 use crate::core::forge_launcher::ForgeLoader; // Forge launch logic
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_account::MinecraftAccount; // If needed for validation
@@ -209,6 +210,18 @@ impl InstanceLauncher {
             eprintln!("[Instance: {}] {}", self.instance.instanceId, err_msg);
             self.emit_error(err_msg, None);
             return Err(IoError::new(IoErrorKind::InvalidData, err_msg));
+        }
+
+        // ¿Has internet connection? Continue with asset revalidation
+        // Otherwise, skip this step (¿Maybe user has downloaded assets before?)
+
+        let has_internet = network_utilities::check_real_connection();
+
+
+        if !has_internet {
+            let warning_msg = "No internet connection. Skipping asset revalidation.";
+            eprintln!("[Instance: {}] {}", self.instance.instanceId, warning_msg);
+            return Ok(());
         }
 
         // Call revalidate_assets from InstanceBootstrap (We pass MinecraftInstance to it)

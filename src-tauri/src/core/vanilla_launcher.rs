@@ -53,11 +53,11 @@ impl GameLauncher for VanillaLauncher {
             .unwrap_or(default_java_path)
             .join("bin")
             .join(if cfg!(windows) {
-                "javaw.exe"
+                "java.exe"
             } else {
                 "java"
             });
-            
+
         println!("Java path: {}", java_path.display());
 
 

@@ -35,17 +35,31 @@ impl GameLauncher for VanillaLauncher {
             .as_ref()
             .expect("Config manager failed to initialize");
 
-        // Obtener la ruta de Java desde la configuración
-        let java_path = config
+        // Obtenemos el java global de la configuración
+        let default_java_path = config
             .get_java_dir()
-            .map(|path| {
-                path.join("bin")
-                    .join(if cfg!(windows) { "java.exe" } else { "java" })
-            })
+            
             .unwrap_or_else(|| {
                 println!("Java path is not set");
                 PathBuf::from("default_java_path")
             });
+
+        // Obtenemos el javaPath de la instancia
+        let java_path = self
+            .instance
+            .javaPath
+            .as_ref()
+            .map(|path| PathBuf::from(path))
+            .unwrap_or(default_java_path)
+            .join("bin")
+            .join(if cfg!(windows) {
+                "javaw.exe"
+            } else {
+                "java"
+            });
+            
+        println!("Java path: {}", java_path.display());
+
 
         let accounts_manager = AccountsManager::new();
 

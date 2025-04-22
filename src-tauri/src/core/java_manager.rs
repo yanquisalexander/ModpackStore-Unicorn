@@ -45,7 +45,7 @@ impl JavaManager {
     /// Si la versión no está instalada, la descarga
     pub async fn get_java_path(&self, major_version: &str) -> Result<PathBuf> {
         let version_num = major_version.parse::<u8>().context("La versión de Java no es un número válido")?;
-        let version_dir = self.base_path.join(format!("java-{}", major_version));
+        let version_dir = self.base_path.join(format!("java{}", major_version));
         
         // Comprobar si la versión ya está instalada
         if !self.is_java_installed(&version_dir) {
@@ -53,8 +53,7 @@ impl JavaManager {
             self.download_java(version_num, &version_dir).await?;
         }
         
-        // Devolver la ruta al ejecutable de Java según el sistema operativo
-        self.get_java_executable(&version_dir)
+        Ok(self.get_java_directory(major_version))
     }
     
     /// Comprueba si Java está instalado en el directorio especificado
@@ -66,6 +65,10 @@ impl JavaManager {
         // Verificar que el ejecutable de Java existe
         let java_exec = self.get_java_executable(version_dir);
         java_exec.is_ok() && java_exec.unwrap().exists()
+    }
+
+    fn get_java_directory(&self, version: &str) -> PathBuf {
+        self.base_path.join(format!("java{}", version))
     }
     
     /// Obtiene la ruta al ejecutable de Java según el sistema operativo
@@ -84,6 +87,7 @@ impl JavaManager {
             Err(anyhow!("El ejecutable de Java no existe en {}", bin_dir.display()))
         }
     }
+
     
     /// Descarga e instala la versión de Java especificada
     async fn download_java(&self, version: u8, target_dir: &PathBuf) -> Result<()> {
@@ -389,7 +393,7 @@ impl JavaManager {
     }
 
     pub fn is_version_installed(&self, version: &str) -> bool {
-        let version_dir = self.base_path.join(format!("java-{}", version));
+        let version_dir = self.base_path.join(format!("{}", version));
         version_dir.exists()
     }
 }

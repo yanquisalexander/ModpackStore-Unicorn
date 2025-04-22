@@ -580,25 +580,35 @@ impl InstanceBootstrap {
                 .as_object()
                 .ok_or_else(|| "Java version not found in version details".to_string())?;
                 
+            println!("");
+            println!("");
+            println!("");
+
+            println!("Java Version Details: {:?}", java_version);
+            println!("");
+            println!("");
+            println!("");
+
             // As string
             let java_major_version = java_version
-                .get("majorVersion")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| "Java major version not found".to_string())?;
+            .get("majorVersion")
+            .and_then(|v| v.as_u64()) // Lo tomás como número primero
+            .map(|v| v.to_string())   // Luego lo convertís a String
+            .ok_or_else(|| "8".to_string())?; // Valor por defecto si falla
 
             println!("Java Major Version: {}", java_major_version);
 
             let java_manager = JavaManager::new()
                 .map_err(|e| format!("Failed to create JavaManager: {}", e))?;  // Convert error to String
 
-            let is_version_installed = java_manager.is_version_installed(java_major_version);
+            let is_version_installed = java_manager.is_version_installed(&java_major_version);
                 
 
             if !is_version_installed {
                 // Create Tokio runtime for async task execution
                 let java_path = tokio::runtime::Runtime::new()
                     .expect("Failed to create Tokio runtime")
-                    .block_on(java_manager.get_java_path(java_major_version))
+                    .block_on(java_manager.get_java_path(&java_major_version))
                     .map_err(|e| {
                         format!("Error obtaining Java path for version {}: {}", java_major_version, e)
                     })?;

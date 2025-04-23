@@ -2,20 +2,45 @@ import { Link } from "wouter"
 import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
 
 export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
+    // Verificamos si debemos mostrar el usuario como publicador
+    const { showUserAsPublisher } = modpack
 
-    const publisherVerified = modpack.publisher.verified
-    const publisherPartner = modpack.publisher.partnered
+    // Creamos una copia del publisher para mostrar el usuario si es necesario
+    let displayPublisher = { ...modpack.publisher }
+    const originalPublisherName = displayPublisher.publisherName
 
-    const publisherName = modpack.publisher.publisherName
-
-    const publisherTagClasses = {
-        NORMAL: "",
-        VERIFIED: "bg-green-700 text-white",
-        PARTNERED: "bg-indigo-500 text-white",
-
+    // Si debemos mostrar el usuario como publisher, cambiamos el nombre
+    if (showUserAsPublisher && modpack.creatorUser) {
+        displayPublisher = {
+            ...displayPublisher,
+            publisherName: modpack.creatorUser.username || "Desconocido",
+        }
     }
 
-    const publisherClass = publisherPartner ? publisherTagClasses.PARTNERED : publisherVerified ? publisherTagClasses.VERIFIED : publisherTagClasses.NORMAL;
+    // Definimos clases para los diferentes tipos de publisher
+    const publisherTagClasses = {
+        NORMAL: "bg-gray-800 text-white border-white/10",
+        VERIFIED: "bg-green-700 text-white",
+        PARTNERED: "bg-indigo-500 text-white",
+        AFFILIATE: "bg-twitch-purple text-white",
+    }
+
+    // Determinamos qué clase usar basado en el tipo de publisher
+    let publisherClass = publisherTagClasses.NORMAL
+
+    // Solo aplicamos verificado o partner si no estamos mostrando al usuario
+    if (!showUserAsPublisher) {
+        if (displayPublisher.partnered) {
+            publisherClass = publisherTagClasses.PARTNERED
+        } else if (displayPublisher.verified) {
+            publisherClass = publisherTagClasses.VERIFIED
+        }
+    }
+
+    // Si es un hosting partner y mostramos al usuario, usamos la clase de afiliado
+    if (showUserAsPublisher && displayPublisher.isHostingPartner) {
+        publisherClass = publisherTagClasses.AFFILIATE
+    }
 
     return (
         <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
@@ -37,19 +62,37 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                     alt={modpack.name}
                 />
 
-
-
                 {/* Tags section */}
                 <div className="opacity-100 flex transition flex-col gap-2 flex-1">
-                    <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                        <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass || "bg-gray-800 text-white border-white/10"}`}>
-                            {publisherPartner || publisherVerified ? (
-                                <LucideVerified className="h-4 w-auto" />
-                            ) : (
-                                <LucideUser2 className="h-4 w-auto" />
-                            )}
-                            {publisherName}
-                        </span>
+                    <div className="flex justify-end items-start flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
+                        {/* Publisher Badge con texto que no se rompe */}
+                        {showUserAsPublisher && displayPublisher.isHostingPartner ? (
+                            <div className="flex flex-col items-end gap-1">
+                                <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full overflow-hidden text-ellipsis`}>
+                                    <LucideUser2 className="h-4 w-auto flex-shrink-0" />
+                                    <span className="truncate">{displayPublisher.publisherName}</span>
+                                </span>
+
+                                {/* Badge separado para "de [Publisher]" */}
+                                <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-yellow-500 max-w-full`}>
+                                    <span className="whitespace-nowrap text-black text-xs">de {originalPublisherName}</span>
+                                    {displayPublisher.verified && (
+                                        <LucideVerified className="w-4 h-4 text-black flex-shrink-0" />
+                                    )}
+                                </span>
+                            </div>
+                        ) : (
+                            <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full`}>
+                                {!showUserAsPublisher && (displayPublisher.partnered || displayPublisher.verified) ? (
+                                    <LucideVerified className="h-4 w-auto flex-shrink-0" />
+                                ) : (
+                                    <LucideUser2 className="h-4 w-auto flex-shrink-0" />
+                                )}
+                                <span className="truncate">{displayPublisher.publisherName}</span>
+                            </span>
+                        )}
+
+
                     </div>
                 </div>
 

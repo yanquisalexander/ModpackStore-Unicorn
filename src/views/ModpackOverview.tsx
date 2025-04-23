@@ -181,12 +181,17 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
     const { modpackData } = pageState
     const { showUserAsPublisher } = modpackData
-    let publisher = modpackData.publisher as NonNullable<ModpackDataOverview["publisher"]>
 
-    if (showUserAsPublisher) {
-        publisher = {
-            ...publisher,
-            publisherName: modpackData.creatorUser?.username || "Desconocido",
+    // Creamos una copia del publisher para mostrar el usuario si es necesario
+    let displayPublisher = { ...modpackData.publisher } as NonNullable<ModpackDataOverview["publisher"]>
+    console.log("Publisher data:", displayPublisher)
+    const originalPublisherName = displayPublisher.publisherName
+
+    // Si debemos mostrar el usuario como publisher, cambiamos el nombre
+    if (showUserAsPublisher && modpackData.creatorUser) {
+        displayPublisher = {
+            ...displayPublisher,
+            publisherName: modpackData.creatorUser.username || "Desconocido",
         }
     }
 
@@ -277,11 +282,28 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 <div>
                                     <h1 className="text-4xl font-bold text-white">{modpackData.name}</h1>
                                     <div className="flex items-center gap-2 text-white/90 text-sm">
-                                        <span>{publisher.publisherName}</span>
-                                        {publisher.verified && <LucideVerified className="w-4 h-4 text-blue-400" />}
-                                        {publisher.partnered && (
+                                        <span>{displayPublisher.publisherName}</span>
+
+                                        {/* Mostramos el verificado solo si no estamos mostrando el usuario como publisher */}
+                                        {!showUserAsPublisher && displayPublisher.verified && (
+                                            <LucideVerified className="w-4 h-4 text-blue-400" />
+                                        )}
+
+                                        {/* Badge de Partner */}
+                                        {!showUserAsPublisher && displayPublisher.partnered && (
                                             <span className="bg-yellow-400 text-black text-xs font-medium px-2 py-0.5 rounded-md ml-2">
                                                 Partner
+                                            </span>
+                                        )}
+
+                                        {/* Badge de Afiliado cuando el publisher es un socio de hosting */}
+                                        {showUserAsPublisher && displayPublisher.isHostingPartner && (
+                                            <span className="bg-purple-500 text-white text-xs font-medium px-2 py-0.5 rounded-md ml-2 flex items-center">
+                                                Afiliado de {originalPublisherName} {
+                                                    displayPublisher.verified && (
+                                                        <LucideVerified className="w-4 h-4 text-white  ml-1" />
+                                                    )
+                                                }
                                             </span>
                                         )}
                                     </div>

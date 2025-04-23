@@ -285,39 +285,100 @@ pub async fn init_session(
                         }
                     }
                     // can't compare tauri_plugin_http::reqwest::StatusCode with hyper::StatusCode
+                    // Replace the problematic section in the init_session function with this code:
                     else if user_resp.status() == StatusCode::UNAUTHORIZED {
                         println!("Tokens expirados, intentando renovar...");
-                       
-                        
 
-
+                        // Acceder directamente al refresh_token como String
                         let refresh_token = tokens.refresh_token.clone();
-                        if let Some(token) = refresh_token {
-                            let client = Client::new();
-                            let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
-                            let res = client
-                                .post(&refresh_endpoint)
-                                .json(&json!({ "refresh_token": token }))
-                                .send()
-                                .await;
 
-                            match res {
-                                Ok(resp) if resp.status().is_success() => {
-                                    let new_tokens: Tokens = resp.json().await?;
+                        let client = Client::new();
+                        let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
 
-                                    save_tokens_to_store(&app_handle, &new_tokens).await?;
-                                    println!("Tokens renovados con éxito");
-                                    let _ = emit_event("auth-status-changed", Some(new_tokens));
-                                }
-                                Ok(resp) => {
-                                    eprintln!("Error al renovar tokens: {}", resp.status());
-                                }
-                                Err(e) => {
-                                    eprintln!("Error al contactar API para renovación: {}", e);
+                        match client
+                            .post(&refresh_endpoint)
+                            .json(&json!({ "refresh_token": refresh_token }))
+                            .send()
+                            .await
+                        {
+                            Ok(resp) if resp.status().is_success() => {
+                                match resp.json::<TokenResponse>().await {
+                                    Ok(new_tokens) => {
+                                        // Guardar los nuevos tokens
+                                        if let Err(e) =
+                                            save_tokens_to_store(&app_handle, &new_tokens).await
+                                        {
+                                            eprintln!("Error al guardar tokens renovados: {}", e);
+                                            return Ok(None);
+                                        }
+
+                                        println!("Tokens renovados con éxito");
+
+                                        // Intentar nuevamente obtener la sesión con el nuevo token
+                                        let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
+
+                                        match client
+                                            .get(&session_endpoint)
+                                            .bearer_auth(&new_tokens.access_token)
+                                            .send()
+                                            .await
+                                        {
+                                            Ok(new_user_resp)
+                                                if new_user_resp.status().is_success() =>
+                                            {
+                                                match new_user_resp.json::<UserSession>().await {
+                                                    Ok(user) => {
+                                                        println!("Sesión recuperada con éxito tras renovar tokens");
+                                                        // Guardar la sesión en memoria
+                                                        let mut session_guard =
+                                                            auth_state.session.lock().await;
+                                                        *session_guard = Some(user.clone());
+                                                        drop(session_guard);
+
+                                                        // Notificar al frontend
+                                                        let _ = emit_event(
+                                                            "auth-status-changed",
+                                                            Some(user.clone()),
+                                                        );
+
+                                                        return Ok(Some(user));
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("Error al parsear datos de sesión tras renovar: {}", e);
+                                                        let _ =
+                                                            remove_tokens_from_store(&app_handle)
+                                                                .await;
+                                                    }
+                                                }
+                                            }
+                                            Ok(_) => {
+                                                eprintln!("Error al verificar sesión con tokens renovados");
+                                                let _ = remove_tokens_from_store(&app_handle).await;
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Error al contactar API tras renovar tokens: {}", e);
+                                                let _ = remove_tokens_from_store(&app_handle).await;
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Error al parsear respuesta de tokens renovados: {}",
+                                            e
+                                        );
+                                        let _ = remove_tokens_from_store(&app_handle).await;
+                                    }
                                 }
                             }
+                            Ok(resp) => {
+                                eprintln!("Error al renovar tokens: {}", resp.status());
+                                let _ = remove_tokens_from_store(&app_handle).await;
+                            }
+                            Err(e) => {
+                                eprintln!("Error al contactar API para renovación: {}", e);
+                                let _ = remove_tokens_from_store(&app_handle).await;
+                            }
                         }
-                        let _ = remove_tokens_from_store(&app_handle).await;
                     } else {
                         eprintln!("Error al verificar sesión: {}", user_resp.status());
                         let _ = remove_tokens_from_store(&app_handle).await;

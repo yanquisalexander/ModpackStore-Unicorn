@@ -1,5 +1,5 @@
 import { Link } from "wouter"
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw } from "lucide-react"
+import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2 } from "lucide-react"
 import { useState } from "react"
 import {
     ContextMenu,
@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { invoke } from "@tauri-apps/api/core"
 
-export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () => { } }: { instance: any, className?: string, onInstanceRemoved?: () => void }) => {
+//                            onDelete={() => openDeleteDialog(instance)}
+
+
+export const InstanceCard = ({ instance, className = "", running, onInstanceRemoved }: { instance: any, className?: string, running?: boolean, onInstanceRemoved: () => void }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
 
@@ -39,29 +42,23 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
     }
 
     const handleDeleteInstance = async () => {
-        setShowDeleteAlert(false)
-
-        toast.promise(
-            invoke('remove_instance', { instanceId: instance.instanceId }),
-            {
-                loading: 'Eliminando instancia...',
-                success: () => {
-                    //playSound("SUCCESS_NOTIFICATION")
-                    onInstanceRemoved()
-                    return 'Instancia eliminada correctamente'
-                },
-                error: (error) => {
-                    playSound("ERROR_NOTIFICATION")
-                    console.error('Error al eliminar instancia:', error)
-                    return `Error al eliminar instancia: ${error?.message || 'Error desconocido'}`
-                }
-            }
-        )
+        try {
+            await invoke('remove_instance', { instanceId: instance.instanceId })
+            //playSound("SUCCESS_NOTIFICATION")
+            toast.success('Instancia eliminada correctamente')
+            onInstanceRemoved()
+        } catch (error) {
+            playSound("ERROR_NOTIFICATION")
+            console.error('Error al eliminar instancia:', error)
+            toast.error(`Error al eliminar instancia: ${(error as any)?.message || 'Error desconocido'}`)
+        } finally {
+            setShowDeleteAlert(false)
+        }
     }
 
     return (
         <>
-            <ContextMenu onOpenChange={setIsOpen}>
+            <ContextMenu onOpenChange={setIsOpen} modal={false}>
                 <ContextMenuTrigger asChild>
                     <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
                       transition 
@@ -81,6 +78,25 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
                                 className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
                                 alt={instance.instanceName}
                             />
+
+                            {/* 
+                                Running badge, pero a la inversa (Se debe mostrar cuando no es hover)
+                            */}
+
+                            {
+                                running && (
+                                    <div className="opacity-100 flex transition flex-col gap-2 flex-1 absolute top-4 left-3">
+                                        <div className="flex justify-end items-center flex-wrap gap-2 transition opacity-100 -translate-y-1 group-hover:translate-y-0 group-hover:opacity-0 duration-300">
+                                            <span className="backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-green-600 text-white border-white/10">
+                                                <LucideGamepad2 className="h-4 w-auto" />
+                                                Corriendo
+                                            </span>
+                                        </div>
+                                    </div>
+                                )
+                            }
+
+
 
                             {/* Badge for installed status */}
                             <div className="opacity-100 flex transition flex-col gap-2 flex-1">
@@ -141,7 +157,14 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
                     <ContextMenuSeparator className="bg-neutral-800" />
 
                     <ContextMenuItem
-                        onClick={() => setShowDeleteAlert(true)}
+                        onClick={() => {
+                            if (running) {
+                                playSound("ERROR_NOTIFICATION")
+                                toast.warning("No puedes eliminar una instancia que está en ejecución")
+                                return
+                            }
+                            setShowDeleteAlert(true)
+                        }}
                         className="hover:bg-red-700 focus:bg-red-700 text-red-400 hover:text-white focus:text-white cursor-pointer"
                     >
                         <LucideTrash2 className="mr-2 h-4 w-4 text-inherit" />
@@ -150,7 +173,6 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
                 </ContextMenuContent>
             </ContextMenu>
 
-            {/* Alert Dialog para confirmar la eliminación */}
             <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
                 <AlertDialogContent className="bg-neutral-900 border-neutral-700 text-white">
                     <AlertDialogHeader>
@@ -164,8 +186,11 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={handleDeleteInstance}
                             className="bg-red-700 text-white hover:bg-red-600"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteInstance();
+                            }}
                         >
                             Eliminar
                         </AlertDialogAction>

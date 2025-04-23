@@ -11,10 +11,10 @@ import {
 import { LucideTestTube2 } from 'lucide-react';
 
 const NoticeTestBuild = () => {
-    const [open, setOpen] = useState(true);
+    const [_open, setOpen] = useState(true);
 
     return (
-        <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialog defaultOpen={true} onOpenChange={setOpen}>
             <AlertDialogContent className="max-w-md">
                 <AlertDialogHeader>
                     <div className="flex items-center gap-2 text-amber-600">
@@ -22,12 +22,12 @@ const NoticeTestBuild = () => {
                         <AlertDialogTitle>Versión de Desarrollo</AlertDialogTitle>
                     </div>
                     <AlertDialogDescription className="pt-2">
-                        <p className="mb-2 text-base text-foreground">
+                        <span className="mb-2 text-base text-foreground">
                             Estás utilizando una <span className="font-semibold">versión en desarrollo</span> de Modpack Store.
-                        </p>
-                        <p className="text-sm text-foreground">
+                        </span>
+                        <span className="text-sm text-foreground">
                             Esta versión puede contener errores y funcionalidades incompletas.
-                        </p>
+                        </span>
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

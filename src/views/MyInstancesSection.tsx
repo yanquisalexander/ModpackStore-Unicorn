@@ -57,6 +57,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                         key={instance.instanceId}
                         instance={instance}
                         onInstanceRemoved={fetchInstances}
+                        running={instancesOnContext.some((i) => i.id === instance.instanceId && i.status === "running")}
                     />
                 ))}
                 {

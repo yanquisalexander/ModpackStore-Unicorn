@@ -89,7 +89,6 @@ function App() {
   return (
     <main className="overflow-y-auto h-full">
       <HomeMainHeader />
-      <NoticeTestBuild />
       <div className="h-[calc(100vh-6rem)]">
         <Switch>
           <Route path="/" component={ExploreSection} />
@@ -117,6 +116,7 @@ function App() {
             <NotFound />
           </Route>
         </Switch>
+        <NoticeTestBuild />
         <KonamiCode />
       </div>
     </main>

@@ -3,18 +3,17 @@ use tauri_plugin_http::reqwest;
 
 use crate::API_ENDPOINT;
 #[tauri::command]
-pub fn check_connection() -> bool {
-    std::thread::sleep(std::time::Duration::from_secs(1));
-    // Attempt to ping the API endpoint
+pub async fn check_connection() -> bool {
+    // Usando tokio para el retardo asíncrono
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    
+    // Attempt to ping the API endpoint using async reqwest
     let api_url = format!("{}/ping", API_ENDPOINT);
-    let response = reqwest::blocking::get(&api_url);
-
-    if let Ok(resp) = response {
-        if resp.status().is_success() {
-            return true;
-        }
+    
+    match reqwest::get(&api_url).await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false
     }
-    false
 }
 
 pub fn check_real_connection() -> bool {

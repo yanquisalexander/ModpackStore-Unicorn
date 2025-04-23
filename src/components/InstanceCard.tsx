@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/context-menu"
 import { toast } from "sonner"
 import { playSound } from "@/utils/sounds"
-import { EditInstanceInfo } from "./EditInstanceInfo"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -39,7 +38,7 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
         })
     }
 
-    const handleDeleteInstance = () => {
+    const handleDeleteInstance = async () => {
         setShowDeleteAlert(false)
 
         toast.promise(
@@ -47,7 +46,7 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
             {
                 loading: 'Eliminando instancia...',
                 success: () => {
-                    // playSound("SUCCESS_NOTIFICATION")
+                    //playSound("SUCCESS_NOTIFICATION")
                     onInstanceRemoved()
                     return 'Instancia eliminada correctamente'
                 },

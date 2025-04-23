@@ -335,26 +335,36 @@ pub async fn create_local_instance(
 
 #[tauri::command]
 // Returns bool
-pub fn remove_instance(instance_id: String) -> Result<bool, String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
+    // Obtener la información necesaria antes de las operaciones asíncronas
+    let instance_directory = {
+        let config_manager = get_config_manager()
+            .lock()
+            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
 
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+        let config = config_manager.as_ref().map_err(|e| e.clone())?;
 
-    let instances_dir = config.get_instances_dir();
+        let instances_dir = config.get_instances_dir();
 
-    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+        let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
-    let instance = instances
-        .into_iter()
-        .find(|i| i.instanceId == instance_id)
-        .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
+        let instance = instances
+            .into_iter()
+            .find(|i| i.instanceId == instance_id)
+            .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
-    // Delete the instance directory
-    if let Some(instance_directory) = &instance.instanceDirectory {
-        fs::remove_dir_all(instance_directory)
-            .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
+        // Obtener el directorio y clonarlo para uso posterior
+        instance.instanceDirectory.clone()
+    };
+
+    // Delete the instance directory asynchronously
+    if let Some(directory) = instance_directory {
+        // Usar spawn_blocking para operaciones de I/O intensivas
+        let result = tokio::task::spawn_blocking(move || {
+            std::fs::remove_dir_all(&directory)
+        }).await
+        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
     }
 
     Ok(true)

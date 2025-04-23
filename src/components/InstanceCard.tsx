@@ -21,7 +21,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { invoke } from "@tauri-apps/api/tauri"
+import { invoke } from "@tauri-apps/api/core"
 
 export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () => { } }: { instance: any, className?: string, onInstanceRemoved?: () => void }) => {
     const [isOpen, setIsOpen] = useState(false)
@@ -47,7 +47,7 @@ export const InstanceCard = ({ instance, className = "", onInstanceRemoved = () 
             {
                 loading: 'Eliminando instancia...',
                 success: () => {
-                    playSound("SUCCESS_NOTIFICATION")
+                    // playSound("SUCCESS_NOTIFICATION")
                     onInstanceRemoved()
                     return 'Instancia eliminada correctamente'
                 },

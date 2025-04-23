@@ -78,7 +78,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
         };
     }, [openMenu]);
 
-    const baseClasses = "flex h-7 items-center self-center space-x-2 transition-all px-2 rounded-md backdrop-blur-xl cursor-pointer";
+    const baseClasses = "flex h-full items-center space-x-2 transition-all px-2 cursor-pointer";
     const lightMode = "hover:bg-white/40 text-neutral-800";
     const darkMode = "hover:bg-neutral-700 text-white";
 
@@ -87,7 +87,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const isPublisher = session?.publisher?.id !== undefined;
 
     return (
-        <div className="relative self-center" ref={containerRef}>
+        <div className="relative" ref={containerRef}>
             <div
                 onClick={toggleMenu}
                 className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}

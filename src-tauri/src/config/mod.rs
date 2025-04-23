@@ -160,6 +160,12 @@ impl ConfigManager {
             .and_then(Value::as_bool)
             .unwrap_or(false)
     }
+
+    pub fn get_minecraft_memory(&self) -> Option<u32> {
+        self.get("memory")
+            .and_then(Value::as_u64)
+            .map(|v| v as u32)
+    }
 }
 
 // Convierte un Value en un HashMap

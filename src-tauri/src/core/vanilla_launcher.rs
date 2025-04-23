@@ -35,6 +35,11 @@ impl GameLauncher for VanillaLauncher {
             .as_ref()
             .expect("Config manager failed to initialize");
 
+            let mc_memory = config
+            .get_minecraft_memory()
+            .unwrap_or(2048); // Default to 2GB if not set
+        println!("Minecraft memory: {}MB", mc_memory);
+
         // Obtenemos el java global de la configuración
         let default_java_path = config
             .get_java_dir()
@@ -195,6 +200,7 @@ impl GameLauncher for VanillaLauncher {
         let mut command = Command::new(java_path);
         command
             .arg("-Xms512M")
+            .arg(format!("-Xmx{}M", mc_memory))
             .arg(format!("-Djava.library.path={}", natives_dir.display()))
             .arg(format!("-Dminecraft.client.jar={}", client_jar.display()))
             .arg("-Dminecraft.launcher.brand=modpackstore")

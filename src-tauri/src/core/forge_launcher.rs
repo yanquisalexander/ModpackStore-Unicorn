@@ -310,6 +310,10 @@ impl ForgeLoader {
         .as_ref()
         .expect("Config manager failed to initialize");
 
+    let mc_memory = config
+        .get_minecraft_memory()
+        .unwrap_or(2048); // Default to 2GB if not set
+    println!("Minecraft memory: {}MB", mc_memory);
     // Obtenemos el java global de la configuración
     let default_java_path = config
         .get_java_dir()
@@ -600,7 +604,7 @@ impl ForgeLoader {
         // Add essential JVM args if not already present in the manifest
         if !added_args.contains("-xms") && !added_args.contains("-xmx") {
             final_args.push("-Xms512M".to_string());
-            final_args.push("-Xmx2G".to_string());
+            final_args.push(format!("-Xmx{}M", mc_memory));
             added_args.insert("-xms".to_string());
             added_args.insert("-xmx".to_string());
         }

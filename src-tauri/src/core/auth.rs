@@ -287,8 +287,36 @@ pub async fn init_session(
                     // can't compare tauri_plugin_http::reqwest::StatusCode with hyper::StatusCode
                     else if user_resp.status() == StatusCode::UNAUTHORIZED {
                         println!("Tokens expirados, intentando renovar...");
-                        // Aquí podrías implementar renovación de tokens con refresh_token
-                        // Por ahora solo eliminamos los tokens
+                       
+                        
+
+
+                        let refresh_token = tokens.refresh_token.clone();
+                        if let Some(token) = refresh_token {
+                            let client = Client::new();
+                            let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
+                            let res = client
+                                .post(&refresh_endpoint)
+                                .json(&json!({ "refresh_token": token }))
+                                .send()
+                                .await;
+
+                            match res {
+                                Ok(resp) if resp.status().is_success() => {
+                                    let new_tokens: Tokens = resp.json().await?;
+
+                                    save_tokens_to_store(&app_handle, &new_tokens).await?;
+                                    println!("Tokens renovados con éxito");
+                                    let _ = emit_event("auth-status-changed", Some(new_tokens));
+                                }
+                                Ok(resp) => {
+                                    eprintln!("Error al renovar tokens: {}", resp.status());
+                                }
+                                Err(e) => {
+                                    eprintln!("Error al contactar API para renovación: {}", e);
+                                }
+                            }
+                        }
                         let _ = remove_tokens_from_store(&app_handle).await;
                     } else {
                         eprintln!("Error al verificar sesión: {}", user_resp.status());

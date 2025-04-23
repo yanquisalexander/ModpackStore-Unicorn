@@ -26,4 +26,5 @@ export type TauriCommandReturns = {
     "get_instances_by_modpack_id": MinecraftInstance[];
     "ensure_account_exists": Boolean;
     "add_offline_account": MCAccount;
+    "search_instances": MinecraftInstance[];
 }

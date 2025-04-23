@@ -1,26 +1,16 @@
 import { useAuthentication } from "@/stores/AuthContext";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle
-} from "@/components/ui/alert-dialog";
+import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
     const { openConfigDialog } = useConfigDialog();
+    const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
-    const [showReloadDialog, setShowReloadDialog] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const toggleMenu = (event: React.MouseEvent) => {
@@ -43,11 +33,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const handleReloadApp = () => {
         closeMenu();
-        setShowReloadDialog(true);
-    };
-
-    const confirmReload = async () => {
-        await relaunch();
+        showReloadDialog(); // Llamar a la función desde el contexto
     };
 
     const handleLogout = () => {
@@ -157,24 +143,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     )}
                 </ul>
             </div>
-
-            {/* Shadcn Alert Dialog */}
-            <AlertDialog open={showReloadDialog} onOpenChange={setShowReloadDialog}>
-                <AlertDialogContent className="dark">
-                    <AlertDialogHeader className="text-white">
-                        <AlertDialogTitle>Recargar aplicación</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            ¿Estás seguro de que quieres recargar la aplicación? Se detendrán todas las tareas en curso, incluyendo descargas y actualizaciones.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="cursor-pointer text-neutral-500">Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            className="cursor-pointer"
-                            onClick={confirmReload}>Recargar</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </div>
     );
 };

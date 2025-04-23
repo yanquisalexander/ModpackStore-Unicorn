@@ -20,6 +20,7 @@ import { ModpackOverview } from "./views/ModpackOverview";
 import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
+import CommandPalette from "./components/CommandPalette";
 
 
 // Componente de carga para unificar la presentación
@@ -117,6 +118,7 @@ function App() {
           </Route>
         </Switch>
         <NoticeTestBuild />
+        <CommandPalette />
         <KonamiCode />
       </div>
     </main>

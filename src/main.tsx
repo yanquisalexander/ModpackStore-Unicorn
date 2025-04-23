@@ -12,6 +12,7 @@ import { AuthProvider } from "./stores/AuthContext";
 import { ConfigDialogProvider } from "./stores/ConfigDialogContext";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
+import { ReloadProvider } from "./stores/ReloadContext";
 
 const ConfigDialogLoader = () => {
   const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog();
@@ -42,13 +43,15 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <AuthProvider>
       <TasksProvider>
         <InstancesProvider>
-          <ConfigDialogProvider>
-            <AppTitleBar />
-            <ConfigDialogLoader />
-            <App />
-            <Toaster theme="dark" />
-            <UpdateStatus />
-          </ConfigDialogProvider>
+          <ReloadProvider>
+            <ConfigDialogProvider>
+              <AppTitleBar />
+              <ConfigDialogLoader />
+              <App />
+              <Toaster theme="dark" />
+              <UpdateStatus />
+            </ConfigDialogProvider>
+          </ReloadProvider>
         </InstancesProvider>
       </TasksProvider>
     </AuthProvider>

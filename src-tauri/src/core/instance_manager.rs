@@ -369,3 +369,55 @@ pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
 
     Ok(true)
 }
+
+#[tauri::command]
+pub async fn search_instances(
+    query: String
+) -> Result<Vec<MinecraftInstance>, String> {
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
+    let instances_dir = config.get_instances_dir();
+    
+    // Obtener la ruta segura como str
+    let dir_path = instances_dir
+        .to_str()
+        .ok_or_else(|| "Invalid instances directory path".to_string())?;
+    
+    // Convertir la consulta a minúsculas para hacer la búsqueda case-insensitive
+    let query_lowercase = query.to_lowercase();
+    
+    // Buscar instancias
+    let instances = get_instances(dir_path)?;
+    
+    // Filtrar instancias de manera más flexible
+    let filtered_instances: Vec<MinecraftInstance> = if query.is_empty() {
+        // Si la consulta está vacía, devolver todas las instancias
+        instances
+    } else {
+        instances
+            .into_iter()
+            .filter(|instance| {
+                // Buscar en nombre (case-insensitive)
+                instance.instanceName.to_lowercase().contains(&query_lowercase) ||
+                // Buscar en version
+                instance.minecraftVersion.to_lowercase().contains(&query_lowercase)
+                
+            })
+            .collect()
+    };
+
+    // Devuelve resultados con un límite para evitar sobrecarga
+    // pero solo si hay muchas instancias
+    let max_results = 20;
+    let results = if filtered_instances.len() > max_results {
+        filtered_instances.into_iter().take(max_results).collect()
+    } else {
+        filtered_instances
+    };
+
+    Ok(results)
+}

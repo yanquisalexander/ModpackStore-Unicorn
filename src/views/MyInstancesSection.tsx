@@ -56,6 +56,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     <InstanceCard
                         key={instance.instanceId}
                         instance={instance}
+                        onInstanceRemoved={fetchInstances}
                     />
                 ))}
                 {

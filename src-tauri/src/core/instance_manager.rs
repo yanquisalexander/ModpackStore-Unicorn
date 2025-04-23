@@ -331,3 +331,31 @@ pub async fn create_local_instance(
     // Devolvemos inmediatamente una respuesta con el ID de la instancia
     Ok(instance.instanceId)
 }
+
+
+#[tauri::command]
+// Returns bool
+pub fn remove_instance(instance_id: String) -> Result<bool, String> {
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+
+    let instances_dir = config.get_instances_dir();
+
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+
+    let instance = instances
+        .into_iter()
+        .find(|i| i.instanceId == instance_id)
+        .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
+
+    // Delete the instance directory
+    if let Some(instance_directory) = &instance.instanceDirectory {
+        fs::remove_dir_all(instance_directory)
+            .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
+    }
+
+    Ok(true)
+}

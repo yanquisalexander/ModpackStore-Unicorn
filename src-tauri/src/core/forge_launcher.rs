@@ -303,25 +303,37 @@ impl ForgeLoader {
     fn launch_internal(&self) -> Result<Child, LaunchError> {
         // --- 1. Setup Paths and Versions ---
         let config_lock = get_config_manager()
-            .lock()
-            .expect("Failed to lock config manager mutex");
+        .lock()
+        .expect("Failed to lock config manager mutex");
 
-        let config = config_lock
-            .as_ref()
-            .expect("Config manager failed to initialize");
+    let config = config_lock
+        .as_ref()
+        .expect("Config manager failed to initialize");
 
-        let java_path = config
-            .get_java_dir()
-            .ok_or_else(|| LaunchError("Java path is not set".to_string()))?
-            .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
+    // Obtenemos el java global de la configuración
+    let default_java_path = config
+        .get_java_dir()
+        
+        .unwrap_or_else(|| {
+            println!("Java path is not set");
+            PathBuf::from("default_java_path")
+        });
 
-        if !java_path.exists() {
-            return Err(LaunchError(format!(
-                "Java executable not found at {}",
-                java_path.display()
-            )));
-        }
+    // Obtenemos el javaPath de la instancia
+    let java_path = self
+        .instance
+        .javaPath
+        .as_ref()
+        .map(|path| PathBuf::from(path))
+        .unwrap_or(default_java_path)
+        .join("bin")
+        .join(if cfg!(windows) {
+            "java.exe"
+        } else {
+            "java"
+        });
+
+    println!("Java path: {}", java_path.display());
 
         // --- Account ---
         let account_uuid_str =

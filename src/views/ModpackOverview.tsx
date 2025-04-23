@@ -7,6 +7,7 @@ import { motion, useScroll, useTransform } from "motion/react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { invoke } from "@tauri-apps/api/core"
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton" // Importamos el componente de instalación
+import { ModpackDataOverview } from "@/types/ApiResponses"
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
@@ -14,7 +15,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         loading: true,
         error: false,
         errorMessage: "",
-        modpackData: null as any,
+        modpackData: null as ModpackDataOverview | null,
     })
 
     const [isMuted, setIsMuted] = useState(true)
@@ -169,8 +170,26 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         )
     }
 
+    if (!pageState.modpackData) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen w-full text-red-500">
+                <p className="text-lg font-semibold">Error:</p>
+                <p>Modpack no encontrado.</p>
+            </div>
+        )
+    }
+
     const { modpackData } = pageState
-    const publisher = modpackData.publisher
+    const { showUserAsPublisher } = modpackData
+    let publisher = modpackData.publisher as NonNullable<ModpackDataOverview["publisher"]>
+
+    if (showUserAsPublisher) {
+        publisher = {
+            ...publisher,
+            publisherName: modpackData.creatorUser?.username || "Desconocido",
+        }
+    }
+
     const hasVideo = modpackData.trailerUrl && modpackData.trailerUrl.length > 0;
 
     return (
@@ -273,7 +292,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                             <div className="mt-2 md:mt-0">
                                 <InstallButton
                                     modpackId={modpackId}
-                                    modpackName={modpackData.name}
+                                    modpackName={modpackData.name!}
                                     localInstances={localInstancesOfModpack}
                                 />
                             </div>

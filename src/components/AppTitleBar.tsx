@@ -136,10 +136,10 @@ export const AppTitleBar = () => {
                     <button
                         onClick={handlePatreonClick}
                         title="Colaborar con el desarrollo"
-                        className="cursor-pointer flex group size-9 aspect-square items-center justify-center"
+                        className="cursor-pointer flex group size-9 aspect-square items-center justify-center hover:bg-neutral-800"
                         aria-label="Patreon"
                     >
-                        <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500 transition duration-300" />
+                        <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500" />
                     </button>
 
                     <CurrentUser titleBarOpaque={titleBarState.opaque} />

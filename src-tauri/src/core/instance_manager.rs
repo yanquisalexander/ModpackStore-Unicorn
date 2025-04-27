@@ -199,6 +199,18 @@ pub async fn create_local_instance(
     instance.forgeVersion = forge_version.clone();
     instance.instanceId = uuid::Uuid::new_v4().to_string();
 
+    let is_forge = instance.forgeVersion.is_some();
+
+    let DEFAULT_VANILLA_ICON = "/images/default_instances/default_vanilla.webp";
+
+    // If is vanilla, set the icon to the default vanilla icon
+
+    if !is_forge {
+        instance.bannerUrl = Some(DEFAULT_VANILLA_ICON.to_string());
+    }
+
+
+
     let instance_dir = instances_dir.join(&instance.instanceName);
     instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
 

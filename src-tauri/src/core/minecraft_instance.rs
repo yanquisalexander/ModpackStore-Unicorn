@@ -21,8 +21,8 @@ pub struct ModpackInfo {
 pub struct MinecraftInstance {
     pub instanceId: String,
     pub usesDefaultIcon: bool,
-    pub iconName: Option<String>,
     pub iconUrl: Option<String>,
+    pub bannerUrl: Option<String>,
     pub instanceName: String,
     pub accountUuid: Option<String>,
     pub minecraftPath: String,
@@ -44,8 +44,8 @@ impl MinecraftInstance {
         Self {
             instanceId: String::new(),
             usesDefaultIcon: false,
-            iconName: None,
             iconUrl: None,
+            bannerUrl: None,
             instanceName: String::new(),
             accountUuid: None,
             minecraftPath: String::new(),

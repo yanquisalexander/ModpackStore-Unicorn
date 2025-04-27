@@ -9,6 +9,7 @@ export type TaskInfo = {
     status: TaskStatus;
     progress: number;
     message: string;
+    data?: any;
 };
 
 type TaskContextType = {
@@ -16,6 +17,7 @@ type TaskContextType = {
     setTasks: React.Dispatch<React.SetStateAction<TaskInfo[]>>;
     hasRunningTasks: boolean;
     taskCount: number;
+    instancesBootstraping: TaskInfo[];
 };
 
 const TasksContext = createContext<TaskContextType | undefined>(undefined);
@@ -24,6 +26,10 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [tasks, setTasks] = useState<TaskInfo[]>([]);
     const hasRunningTasks = tasks.some((task) => task.status === "Running");
     const taskCount = tasks.length;
+    // Filtrar tareas en "Running" y que tengan un instanceId en su data, y solo devolver un array de id de instancia
+    const instancesBootstraping = tasks.filter(
+        (task) => task.status === "Running" && task.data?.instanceId
+    ).map((task) => task.data.instanceId);
 
     useEffect(() => {
         const unlisten1 = listen<string>("task-created", (event) => {
@@ -55,7 +61,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     return (
-        <TasksContext.Provider value={{ tasks, setTasks, hasRunningTasks, taskCount }}>
+        <TasksContext.Provider value={{ tasks, setTasks, hasRunningTasks, taskCount, instancesBootstraping }}>
             {children}
         </TasksContext.Provider>
     );

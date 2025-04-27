@@ -332,8 +332,6 @@ pub async fn create_local_instance(
             }
         }
 
-        // Remover la tarea eventualmente (Quizá después de 2 minutos)
-        std::thread::sleep(std::time::Duration::from_secs(120));
         if let Ok(mut tm) = task_manager_clone.lock() {
             tm.remove_task(&task_id_clone);
             println!("Task removed: {:?}", task_id_clone);

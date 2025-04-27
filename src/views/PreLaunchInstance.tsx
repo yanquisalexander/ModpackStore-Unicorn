@@ -13,6 +13,7 @@ import { setActivity } from "tauri-plugin-drpc"
 import { EditInstanceInfo } from "@/components/EditInstanceInfo"
 import { playSound, SOUNDS } from "@/utils/sounds"
 import { trackEvent } from "@aptabase/web"
+import { useTasksContext } from "@/stores/TasksContext"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -34,6 +35,8 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     // Context and state
     const { setTitleBarState } = useGlobalContext();
     const { instances } = useInstances();
+    const { instancesBootstraping } = useTasksContext()
+    const isInstanceBootstraping = instancesBootstraping.includes(instanceId)
     const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
     const isPlaying = currentInstanceRunning?.status === "running";
 
@@ -167,8 +170,8 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     }, [currentInstanceRunning?.status, getRandomMessage]);
 
     const handlePlayButtonClick = useCallback(async () => {
-        // Evitar iniciar si ya está cargando o jugando
-        if (loadingStatus.isLoading || isPlaying) return;
+        // Evitar iniciar si ya está cargando o jugando, o si la instancia está en proceso de bootstraping
+        if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
 
         const instance = prelaunchState.instance;
 
@@ -443,7 +446,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         } as CSSProperties}
                         id="play-button"
                         onClick={handlePlayButtonClick}
-                        disabled={loadingStatus.isLoading || isPlaying}
+                        disabled={loadingStatus.isLoading || isPlaying || isInstanceBootstraping}
                         className={`
                         ${hasCustomPosition ? "fixed" : ""}
                         cursor-pointer
@@ -463,10 +466,19 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         border-[var(--border-color)]
                         `}
                     >
-                        <LucideGamepad2 className="size-6 text-[var(--text-color)]" />
-                        {isPlaying
-                            ? "Ya estás jugando"
-                            : appearance?.playButton?.text ?? "Jugar ahora"}
+                        {isInstanceBootstraping ? (
+                            <>
+                                <LucideLoaderCircle className="size-6 animate-spin-clockwise animate-iteration-count-infinite animate-duration-[1500ms]" />
+                                <span className="text-sm">Instalando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <LucideGamepad2 className="size-6" />
+                                <span className="text-sm">
+                                    {isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
+                                </span>
+                            </>
+                        )}
                     </button>
 
                     {/* Footer content */}

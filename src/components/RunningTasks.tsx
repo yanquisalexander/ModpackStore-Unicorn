@@ -100,7 +100,7 @@ export const RunningTasks = () => {
                                         <span className="text-xs text-neutral-400">{task.progress}%</span>
                                     </div>
                                     {task.message && (
-                                        <div className="ml-6 text-xs text-neutral-400 truncate">
+                                        <div className="ml-6 text-xs text-neutral-400 break-words whitespace-normal overflow-wrap-anywhere">
                                             {task.message}
                                         </div>
                                     )}

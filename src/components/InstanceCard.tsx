@@ -25,9 +25,10 @@ import { invoke } from "@tauri-apps/api/core"
 //                            onDelete={() => openDeleteDialog(instance)}
 
 
-export const InstanceCard = ({ instance, className = "", running, onInstanceRemoved }: { instance: any, className?: string, running?: boolean, onInstanceRemoved: () => void }) => {
+export const InstanceCard = ({ instance, className = "", running, onInstanceRemoved, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceRemoved: () => void, isBootstrapping: boolean }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
+
 
     const handleContextAction = (action: string) => {
         playSound("ERROR_NOTIFICATION")
@@ -73,9 +74,10 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                         <Link href={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
                             {/* Background image */}
                             <img
+                                {...isBootstrapping && { "data-bootstraping": true }}
                                 src={instance.bannerUrl || "/images/modpack-fallback.webp"}
                                 onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
-                                className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
+                                className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80 data-[bootstraping]:opacity-50 data-[bootstraping]:blur-sm data-[bootstraping]:grayscale"
                                 alt={instance.instanceName}
                             />
 
@@ -132,7 +134,18 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                                     <LucidePlay className="h-4 w-auto" />
                                     Jugar
                                 </span>
+
                             </div>
+                            {/* 
+                                    Indeterminate loading animation for bootstraping
+                                */}
+                            {
+                                isBootstrapping && (
+                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl group-hover:opacity-0 opacity-100 transition duration-500">
+                                        <LucideRefreshCw className="size-8 animate-duration-[1500ms] animate-spin text-white" />
+                                    </div>
+                                )
+                            }
                         </Link>
                     </article>
                 </ContextMenuTrigger>
@@ -163,6 +176,13 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                                 toast.warning("No puedes eliminar una instancia que está en ejecución")
                                 return
                             }
+
+                            if (isBootstrapping) {
+                                playSound("ERROR_NOTIFICATION")
+                                toast.warning("No puedes eliminar una instancia que está en proceso de instalación")
+                                return
+                            }
+
                             setShowDeleteAlert(true)
                         }}
                         className="hover:bg-red-700 focus:bg-red-700 text-red-400 hover:text-white focus:text-white cursor-pointer"

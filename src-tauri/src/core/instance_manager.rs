@@ -332,9 +332,9 @@ pub async fn create_local_instance(
             }
         }
 
+        std::thread::sleep(std::time::Duration::from_secs(60));
         if let Ok(mut tm) = task_manager_clone.lock() {
             tm.remove_task(&task_id_clone);
-            println!("Task removed: {:?}", task_id_clone);
         }
     });
 

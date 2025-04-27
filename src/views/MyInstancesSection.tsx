@@ -3,6 +3,7 @@ import { InstanceCard } from "@/components/InstanceCard";
 import { trackSectionView } from "@/lib/analytics";
 import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
+import { useTasksContext } from "@/stores/TasksContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen } from "lucide-react";
@@ -13,6 +14,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const { titleBarState, setTitleBarState } = useGlobalContext()
 
     const { instances: instancesOnContext } = useInstances()
+    const { instancesBootstraping } = useTasksContext()
+    console.log({ instancesBootstraping })
 
     const [instances, setInstances] = useState<any[]>([])
     const fetchInstances = async () => {
@@ -56,6 +59,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     <InstanceCard
                         key={instance.instanceId}
                         instance={instance}
+                        isBootstrapping={instancesBootstraping.some((id) => id === instance.instanceId)}
                         onInstanceRemoved={fetchInstances}
                         running={instancesOnContext.some((i) => i.id === instance.instanceId && i.status === "running")}
                     />

@@ -42,16 +42,27 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
         publisherClass = publisherTagClasses.AFFILIATE
     }
 
+    const isPatreonModpack = modpack.visibility === "patreon"
+
     return (
-        <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
-      transition 
-      before:left-1/2 before:bottom-0 before:-translate-x-1/2 before:w-full before:h-1/2 
-      before:rounded-full before:bg-black before:absolute before:translate-y-full 
-      hover:before:translate-y-1/2 before:blur-3xl before:-z-10 before:transition before:duration-200 
-      after:left-0 after:bottom-0 after:-translate-x-full after:translate-y-full 
-      hover:after:-translate-x-1/2 hover:after:translate-y-1/2 after:w-2/2 after:aspect-square 
-      after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
-      after:-z-10 after:opacity-0 after:transition after:duration-200 ${className}`}>
+        <article className={`z-10 group relative overflow-hidden rounded-xl h-full
+            transition 
+            before:left-1/2 before:bottom-0 before:-translate-x-1/2 before:w-full before:h-1/2 
+            before:rounded-full before:bg-black before:absolute before:translate-y-full 
+            hover:before:translate-y-1/2 before:blur-3xl before:-z-10 before:transition before:duration-200 
+            after:left-0 after:bottom-0 after:-translate-x-full after:translate-y-full 
+            hover:after:-translate-x-1/2 hover:after:translate-y-1/2 after:w-2/2 after:aspect-square 
+            after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
+            after:-z-10 after:opacity-0 after:transition after:duration-200
+            border ${isPatreonModpack ? 'patreon-card border-transparent' : 'border-white/20'}
+            ${className}`}>
+
+            {/* Patreon border overlay */}
+            {isPatreonModpack && (
+                <div className="absolute inset-0 rounded-xl pointer-events-none">
+                    <div className="absolute inset-0 rounded-xl patreon-gradient-border opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
+                </div>
+            )}
 
             <Link href={href} className="flex aspect-video flex-col h-full p-4">
                 {/* Background image */}

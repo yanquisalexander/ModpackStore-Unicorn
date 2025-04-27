@@ -219,3 +219,64 @@ body,
     @apply bg-background text-foreground;
   }
 }
+
+
+/* Estilos para los modpacks de Patreon */
+
+/* Clase base para la tarjeta de Patreon */
+.patreon-card {
+  position: relative;
+}
+
+/* Borde con gradiente animado */
+.patreon-gradient-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  /* rounded-xl */
+  padding: 2px;
+  background: linear-gradient(45deg,
+      #ff424d,
+      /* Rojo Patreon */
+      #ff9a4b,
+      /* Naranja */
+      #ffd54b,
+      /* Amarillo */
+      #4bffd5,
+      /* Turquesa */
+      #4b83ff,
+      /* Azul */
+      #bc4bff,
+      /* Púrpura */
+      #ff4bd0,
+      /* Rosa */
+      #ff424d
+      /* Rojo Patreon (repetido para ciclo continuo) */
+    );
+  background-size: 300% 300%;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.patreon-card:hover .patreon-gradient-border {
+  animation: gradientBorder 5s linear infinite;
+  /* Animación continua del borde */
+}
+
+/* Animación para el desplazamiento del gradiente */
+@keyframes gradientBorder {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}

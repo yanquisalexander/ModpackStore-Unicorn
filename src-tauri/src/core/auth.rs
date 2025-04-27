@@ -381,8 +381,24 @@ pub async fn init_session(
                             }
                         }
                     } else {
-                        eprintln!("Error al verificar sesión: {}", user_resp.status());
-                        let _ = remove_tokens_from_store(&app_handle).await;
+                        let status_code = user_resp.status();
+                        eprintln!("Error al verificar sesión: {}", status_code);
+
+                        if status_code.is_server_error() {
+                            log::error!("Error del servidor: {}", status_code);
+                            // Don't remove tokens, just log the error
+                           emit_event::<String>(
+                                "auth-error",
+                                Some(format!("Error del servidor: {}", status_code)),
+                            )?;
+                        } else {
+                            // Si no es un error del servidor, eliminar tokens
+                            let _ = remove_tokens_from_store(&app_handle).await;
+                            eprintln!("Tokens inválidos, eliminando...");
+                            let _ = emit_event("auth-status-changed", Option::<UserSession>::None);
+                            return Ok(None);
+                        }
+                        
                     }
                 }
                 Err(e) => {

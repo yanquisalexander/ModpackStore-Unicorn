@@ -152,6 +152,23 @@ impl TasksManager {
             .lock()
             .expect("Failed to lock tasks mutex for remove")
             .remove(id);
+
+        // Emitir evento de eliminación
+        println!("Task removed: {}", id);
+        // Bloquea el Mutex para acceder al Option<AppHandle> global
+        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                if let Err(e) = app_handle.emit("task-removed", id) {
+                    eprintln!("Failed to emit task-removed event: {}", e);
+                } else {
+                    println!("Successfully emitted task-removed event.");
+                }
+            } else {
+                eprintln!("Error: GLOBAL_APP_HANDLE is None when trying to emit task-removed.");
+            }
+        } else {
+            eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-removed.");
+        }
     }
 }
 

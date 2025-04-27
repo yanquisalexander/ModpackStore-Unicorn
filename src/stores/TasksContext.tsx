@@ -43,9 +43,14 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             });
         });
 
+        const unlisten3 = listen<string>("task-removed", (event) => {
+            setTasks((prev) => prev.filter((task) => task.id !== event.payload));
+        });
+
         return () => {
             unlisten1.then((fn) => fn());
             unlisten2.then((fn) => fn());
+            unlisten3.then((fn) => fn());
         };
     }, []);
 

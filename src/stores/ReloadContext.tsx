@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface ReloadContextType {
-    showReloadDialog: () => void;
+    showReloadDialog: ({ fromOffline }: { fromOffline?: boolean }) => void;
 }
 
 const ReloadContext = createContext<ReloadContextType | undefined>(undefined);
@@ -27,8 +27,10 @@ export const useReloadApp = () => {
 
 export const ReloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isFromOffline, setIsFromOffline] = useState(false); // Offline: App launched in offline mode because cannot connect to the server
 
-    const showReloadDialog = () => {
+    const showReloadDialog = ({ fromOffline = false }: { fromOffline?: boolean }) => {
+        setIsFromOffline(fromOffline);
         setIsDialogOpen(true);
     };
 
@@ -45,7 +47,11 @@ export const ReloadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     <AlertDialogHeader className="text-white">
                         <AlertDialogTitle>Recargar aplicación</AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que quieres recargar la aplicación? Se detendrán todas las tareas en curso, incluyendo descargas y actualizaciones.
+                            {isFromOffline ? (
+                                "Modpack Store se ha lanzado en modo offline porque no se pudo conectar al servidor. ¿Quieres recargar la aplicación para intentar conectarte de nuevo?"
+                            ) : (
+                                "¿Estás seguro de que quieres recargar la aplicación? Se detendrán todas las tareas en curso, incluyendo descargas y actualizaciones."
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

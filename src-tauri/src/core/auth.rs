@@ -372,6 +372,7 @@ pub async fn init_session(
                             }
                             Ok(resp) => {
                                 eprintln!("Error al renovar tokens: {}", resp.status());
+                                eprintln!("Cuerpo de error: {}", resp.text().await.unwrap_or_default());
                                 let _ = remove_tokens_from_store(&app_handle).await;
                             }
                             Err(e) => {

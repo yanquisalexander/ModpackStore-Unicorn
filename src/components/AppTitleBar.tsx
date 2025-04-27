@@ -1,4 +1,4 @@
-import { LucideArrowLeft, LucideDownload, LucideMinus, LucidePictureInPicture2, LucideSquare, LucideX } from "lucide-react";
+import { LucideArrowLeft, LucideDownload, LucideMinus, LucidePictureInPicture2, LucideSquare, LucideWifiOff, LucideX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
@@ -19,12 +19,16 @@ import {
     AlertDialogHeader,
     AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { useCheckConnection } from "@/utils/checkConnection";
+import { useReloadApp } from "@/stores/ReloadContext";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState(getCurrentWindow());
     const [isMaximized, setIsMaximized] = useState(false);
     const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
     const { titleBarState, updateState, applyUpdate } = useGlobalContext();
+    const { isLoading: isLoadingConnectionCheck, isConnected } = useCheckConnection();
+    const { showReloadDialog } = useReloadApp();
 
     useEffect(() => {
         const handleResize = async () => {
@@ -76,6 +80,12 @@ export const AppTitleBar = () => {
         window.minimize();
     };
 
+    const showReloadOnOffline = !isLoadingConnectionCheck && !isConnected;
+
+    const handleReloadAppOffline = () => {
+        showReloadDialog({ fromOffline: true });
+    }
+
     return (
         <>
             <div
@@ -119,6 +129,20 @@ export const AppTitleBar = () => {
                 </div>
 
                 <div className="flex ml-auto border-r px-1 mr-1 border-white/10">
+
+                    {
+                        showReloadOnOffline && (
+                            <button
+                                onClick={handleReloadAppOffline}
+                                title="Recargar aplicación (offline)"
+                                className="cursor-pointer flex  size-9 aspect-square items-center justify-center hover:bg-neutral-800"
+                                aria-label="Reload"
+                            >
+                                <LucideWifiOff className="size-4 text-yellow-400" />
+                            </button>
+                        )
+                    }
+
                     {updateState === 'ready-to-install' && (
                         <button
                             onClick={applyUpdate}

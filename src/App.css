@@ -40,11 +40,18 @@
   --font-minecraft-ten: "Minecraft Ten", sans-serif;
   --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
-  --color-twitch-purple: #9146FF
+  --color-twitch-purple: #9146FF;
+  --animate-spin: spin 1s linear infinite;
 }
 
 * {
   @apply select-none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 html,

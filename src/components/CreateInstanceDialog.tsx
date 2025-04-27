@@ -1,4 +1,4 @@
-import { useState, useEffect, PointerEventHandler } from "react"
+import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { LucidePlus, Loader2, LucideAnvil } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
@@ -36,12 +36,6 @@ interface MinecraftVersion {
     releaseTime?: string;
 }
 
-interface ForgeVersion {
-    id: string;
-    type: string;
-    url: string;
-}
-
 // Instance type definition
 type InstanceType = "vanilla" | "forge";
 
@@ -50,12 +44,15 @@ interface CreateInstanceDialogProps {
     onInstanceCreated: () => void;
 }
 
+const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
+
 export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialogProps) => {
     const [open, setOpen] = useState(false);
     const [instanceName, setInstanceName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
-    const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, ForgeVersion[]>>({});
+    const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
     const [selectedType, setSelectedType] = useState<InstanceType>("vanilla");
     const [selectedMinecraftVersion, setSelectedMinecraftVersion] = useState<string>("");
     const [selectedForgeVersion, setSelectedForgeVersion] = useState<string>("");
@@ -72,11 +69,11 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
     // Update compatible forge versions when Minecraft version changes
     useEffect(() => {
         const forgeVersions = forgeVersionsMap[selectedMinecraftVersion] || [];
-        setCompatibleForgeVersions(forgeVersions.map(version => version.id));
+        setCompatibleForgeVersions(forgeVersions);
 
         // Set the first compatible forge version as selected if available
         if (forgeVersions.length > 0 && !selectedForgeVersion) {
-            setSelectedForgeVersion(forgeVersions[0].id);
+            setSelectedForgeVersion(forgeVersions[0]);
         } else if (forgeVersions.length === 0) {
             setSelectedForgeVersion("");
         }
@@ -86,7 +83,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
         setLoadingVersions(true);
         try {
             // Fetch Minecraft versions
-            const response = await fetch("https://launchermeta.mojang.com/mc/game/version_manifest.json");
+            const response = await fetch(LAUNCHER_VERSIONS_URL);
             const data = await response.json();
 
             // Filter only release versions
@@ -113,9 +110,24 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
 
     const fetchForgeVersions = async (): Promise<void> => {
         try {
-            const response = await fetch("https://mrnavastar.github.io/ForgeVersionAPI/forge-versions.json");
+            const response = await fetch(FORGE_VERSIONS_URL);
             const data = await response.json();
-            setForgeVersionsMap(data);
+
+            // Check if the data structure is the new format (result array)
+            if (data.result) {
+                // The new format with result array
+                setForgeVersionsMap(data.result[0] || {});
+            } else {
+                // The old format with direct mapping
+                // Convert old format to new format structure
+                const newFormatMap: Record<string, string[]> = {};
+
+                for (const mcVersion in data) {
+                    newFormatMap[mcVersion] = data[mcVersion].map((version: any) => version.id);
+                }
+
+                setForgeVersionsMap(newFormatMap);
+            }
         } catch (error) {
             console.error("Error fetching Forge versions:", error);
             toast.error("No se pudieron cargar las versiones de Forge");

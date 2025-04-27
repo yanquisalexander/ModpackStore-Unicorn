@@ -23,7 +23,7 @@ impl InstanceBootstrap {
     const MOJANG_VERSION_MANIFEST_URL: &'static str =
         "https://launchermeta.mojang.com/mc/game/version_manifest.json";
     const FORGE_API_BASE_URL: &'static str =
-        "https://mrnavastar.github.io/ForgeVersionAPI/forge-versions.json";
+        "https://mc-versions-api.net/api/forge";
     const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hora
 
     pub fn new() -> Self {
@@ -89,9 +89,7 @@ impl InstanceBootstrap {
         Ok(versions)
     }
 
-    pub fn fetch_forge_versions(
-        &self,
-    ) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    pub fn fetch_forge_versions(&self) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
         let forge_data = self
             .client
             .get(Self::FORGE_API_BASE_URL)
@@ -99,22 +97,50 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error connecting to Forge API: {}", e))?
             .json::<Value>()
             .map_err(|e| format!("Error parsing Forge API response: {}", e))?;
-
+    
         let mut forge_versions = std::collections::HashMap::new();
-
-        if let Some(obj) = forge_data.as_object() {
-            for (mc_version, forge_version_array) in obj {
-                let forge_version_list: Vec<String> = forge_version_array
-                    .as_array()
-                    .unwrap_or(&Vec::new())
-                    .iter()
-                    .filter_map(|v| v["id"].as_str().map(String::from))
-                    .collect();
-
-                forge_versions.insert(mc_version.clone(), forge_version_list);
+    
+        // Verificar si el nuevo formato tiene la clave "result"
+        if let Some(result_array) = forge_data.get("result").and_then(|v| v.as_array()) {
+            // Nuevo formato
+            for version_object in result_array {
+                if let Some(obj) = version_object.as_object() {
+                    for (mc_version, forge_version_array) in obj {
+                        if let Some(versions) = forge_version_array.as_array() {
+                            let forge_version_list: Vec<String> = versions
+                                .iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect();
+                            
+                            if !forge_version_list.is_empty() {
+                                forge_versions.insert(mc_version.clone(), forge_version_list);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Formato antiguo
+            if let Some(obj) = forge_data.as_object() {
+                for (mc_version, forge_version_array) in obj {
+                    if let Some(versions) = forge_version_array.as_array() {
+                        let forge_version_list: Vec<String> = versions
+                            .iter()
+                            .filter_map(|v| v.get("id").and_then(|id| id.as_str()).map(String::from))
+                            .collect();
+                        
+                        if !forge_version_list.is_empty() {
+                            forge_versions.insert(mc_version.clone(), forge_version_list);
+                        }
+                    }
+                }
             }
         }
-
+    
+        if forge_versions.is_empty() {
+            return Err("No se pudieron encontrar versiones de Forge en la respuesta".to_string());
+        }
+    
         Ok(forge_versions)
     }
 

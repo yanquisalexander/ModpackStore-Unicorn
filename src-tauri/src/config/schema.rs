@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// Define los posibles tipos de valores de configuración
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -89,12 +90,12 @@ impl ConfigSchema {
     }
 }
 
+/// Procesa y normaliza valores de configuración, especialmente rutas
 fn process_default_value(value: &serde_json::Value) -> serde_json::Value {
-    use serde_json::json;
-
     match value {
         serde_json::Value::String(s) => {
             if s.starts_with('$') {
+                // Reemplaza variables de entorno
                 let var_name = &s[1..];
                 match std::env::var(var_name) {
                     Ok(val) => json!(val),
@@ -107,12 +108,28 @@ fn process_default_value(value: &serde_json::Value) -> serde_json::Value {
                     }
                 }
             } else if s.starts_with('~') {
+                // Reemplaza el directorio de inicio del usuario y normaliza la ruta
                 if let Some(home) = dirs::home_dir() {
-                    let home_str = home.to_str().unwrap_or("");
-                    let expanded = s.replacen("~", home_str, 1);
-                    json!(expanded)
+                    let path_str = s.replacen("~", home.to_str().unwrap_or(""), 1);
+                    // Convertir a PathBuf para normalizar según el OS
+                    let path = PathBuf::from(path_str);
+                    // Convertir de vuelta a String para JSON
+                    if let Some(normalized_path) = path.to_str() {
+                        json!(normalized_path)
+                    } else {
+                        eprintln!("Advertencia: no se pudo convertir la ruta a texto.");
+                        value.clone()
+                    }
                 } else {
                     eprintln!("Advertencia: no se pudo determinar el directorio home.");
+                    value.clone()
+                }
+            } else if value_is_likely_path(s) {
+                // Normaliza otras rutas que no comienzan con ~ o $
+                let path = PathBuf::from(s);
+                if let Some(normalized_path) = path.to_str() {
+                    json!(normalized_path)
+                } else {
                     value.clone()
                 }
             } else {
@@ -120,5 +137,43 @@ fn process_default_value(value: &serde_json::Value) -> serde_json::Value {
             }
         }
         _ => value.clone(),
+    }
+}
+
+/// Determina si un string probablemente representa una ruta
+fn value_is_likely_path(s: &str) -> bool {
+    // Comprueba si contiene separadores de ruta comunes
+    s.contains('/') || 
+    s.contains('\\') || 
+    // Comprueba si comienza con una letra de unidad en Windows (e.g., "C:")
+    (s.len() >= 2 && s.chars().nth(1) == Some(':')) ||
+    // Comprueba si es una ruta absoluta
+    Path::new(s).is_absolute()
+}
+
+/// Normaliza una ruta según el sistema operativo
+pub fn normalize_path(path_str: &str) -> String {
+    let path = if path_str.starts_with('~') {
+        if let Some(home) = dirs::home_dir() {
+            let home_str = home.to_str().unwrap_or("");
+            PathBuf::from(path_str.replacen("~", home_str, 1))
+        } else {
+            PathBuf::from(path_str)
+        }
+    } else {
+        PathBuf::from(path_str)
+    };
+    
+    path.to_string_lossy().to_string()
+}
+
+// Extension trait para PathBuf para facilitar la conversión a String
+trait PathBufExt {
+    fn to_string(&self) -> String;
+}
+
+impl PathBufExt for PathBuf {
+    fn to_string(&self) -> String {
+        self.to_string_lossy().to_string()
     }
 }

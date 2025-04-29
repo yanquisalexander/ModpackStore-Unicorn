@@ -500,7 +500,7 @@ impl ForgeLoader {
             .unwrap_or("legacy"); // Default if not found
 
         // Create a standard natives directory - may be overridden by arguments later
-        let natives_dir = game_dir.join("natives").join(&version_id);
+        let natives_dir = game_dir.join("natives").join(&minecraft_version);
         fs::create_dir_all(&natives_dir)?;
 
         // --- 5. Build Classpath ---

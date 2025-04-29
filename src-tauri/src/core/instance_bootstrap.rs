@@ -1,6 +1,9 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
 use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::instance_manager::{
+    get_instance_by_id,
+};
 use crate::core::java_manager::JavaManager;
 use crate::core::tasks_manager::{TaskStatus, TasksManager};
 use crate::GLOBAL_APP_HANDLE;
@@ -72,77 +75,157 @@ impl InstanceBootstrap {
         }
     }
 
-    pub fn fetch_minecraft_versions(&mut self) -> Result<Vec<String>, String> {
-        let root_node = self
-            .get_version_manifest()
-            .map_err(|e| format!("Error fetching version manifest: {}", e))?;
 
-        let versions_node = root_node["versions"]
-            .as_array()
-            .ok_or_else(|| "Invalid version manifest format".to_string())?;
 
-        let versions: Vec<String> = versions_node
-            .iter()
-            .filter_map(|v| v["id"].as_str().map(String::from))
-            .collect();
-
-        Ok(versions)
-    }
-
-    pub fn fetch_forge_versions(&self) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
-        let forge_data = self
-            .client
-            .get(Self::FORGE_API_BASE_URL)
-            .send()
-            .map_err(|e| format!("Error connecting to Forge API: {}", e))?
-            .json::<Value>()
-            .map_err(|e| format!("Error parsing Forge API response: {}", e))?;
+// Implementación del método extract_natives
+fn extract_natives(
+    &self,
+    version_details: &Value,
+    libraries_dir: &Path,
+    natives_dir: &Path,
+    instance: &MinecraftInstance,
+) -> Result<(), String> {
+    // Obtener el sistema operativo actual
+    let os = std::env::consts::OS;
+    let os_name = match os {
+        "windows" => "windows",
+        "macos" => "osx",
+        "linux" => "linux",
+        _ => return Err(format!("Sistema operativo no soportado: {}", os)),
+    };
     
-        let mut forge_versions = std::collections::HashMap::new();
+    // Obtener la arquitectura
+    let arch = std::env::consts::ARCH;
+    let arch_name = match arch {
+        "x86_64" => "64",
+        "x86" => "32",
+        "aarch64" => "arm64",
+        _ => return Err(format!("Arquitectura no soportada: {}", arch)),
+    };
     
-        // Verificar si el nuevo formato tiene la clave "result"
-        if let Some(result_array) = forge_data.get("result").and_then(|v| v.as_array()) {
-            // Nuevo formato
-            for version_object in result_array {
-                if let Some(obj) = version_object.as_object() {
-                    for (mc_version, forge_version_array) in obj {
-                        if let Some(versions) = forge_version_array.as_array() {
-                            let forge_version_list: Vec<String> = versions
-                                .iter()
-                                .filter_map(|v| v.as_str().map(String::from))
-                                .collect();
-                            
-                            if !forge_version_list.is_empty() {
-                                forge_versions.insert(mc_version.clone(), forge_version_list);
-                            }
-                        }
+    // Obtener las bibliotecas del manifiesto de versión
+    let libraries = version_details["libraries"]
+        .as_array()
+        .ok_or_else(|| "No se encontraron bibliotecas en el manifiesto".to_string())?;
+    
+    for library in libraries {
+        // Verificar si la biblioteca tiene nativos
+        if let Some(natives) = library.get("natives") {
+            let os_natives = natives.get(os_name);
+            
+            // Si hay nativos para este sistema operativo
+            if let Some(os_natives_value) = os_natives {
+                // Obtener información sobre la biblioteca
+                let library_info = library["downloads"]["classifiers"]
+                    .get(os_natives_value.as_str().unwrap_or(&format!("{}-{}", os_name, arch_name)))
+                    .or_else(|| library["downloads"]["classifiers"]
+                        .get(&format!("{}-{}", os_name, arch_name)))
+                    .ok_or_else(|| format!("No se encontró información de nativos para la biblioteca"))?;
+                
+                // Obtener la ruta y URL del archivo JAR
+                let path = library_info["path"]
+                    .as_str()
+                    .ok_or_else(|| "No se encontró la ruta del archivo nativo".to_string())?;
+                
+                let library_path = libraries_dir.join(path);
+                
+                // Si el archivo no existe, descargarlo
+                if !library_path.exists() {
+                    let url = library_info["url"]
+                        .as_str()
+                        .ok_or_else(|| "No se encontró la URL del archivo nativo".to_string())?;
+                    
+                    // Crear el directorio padre si no existe
+                    if let Some(parent) = library_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Error creando directorio para biblioteca nativa: {}", e))?;
                     }
+                    
+                    Self::emit_status(
+                        instance,
+                        "instance-downloading-native-library",
+                        &format!("Descargando biblioteca nativa: {}", path),
+                    );
+                    
+                    // Descargar el archivo JAR
+                    self.download_file(url, &library_path)
+                        .map_err(|e| format!("Error descargando biblioteca nativa: {}", e))?;
                 }
-            }
-        } else {
-            // Formato antiguo
-            if let Some(obj) = forge_data.as_object() {
-                for (mc_version, forge_version_array) in obj {
-                    if let Some(versions) = forge_version_array.as_array() {
-                        let forge_version_list: Vec<String> = versions
+                
+                // Verificar si hay reglas de extracción (exclude)
+                let exclude_patterns: Vec<String> = if let Some(extract) = library.get("extract") {
+                    if let Some(exclude) = extract.get("exclude") {
+                        exclude
+                            .as_array()
+                            .unwrap_or(&Vec::new())
                             .iter()
-                            .filter_map(|v| v.get("id").and_then(|id| id.as_str()).map(String::from))
-                            .collect();
-                        
-                        if !forge_version_list.is_empty() {
-                            forge_versions.insert(mc_version.clone(), forge_version_list);
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                
+                // Extraer el archivo JAR al directorio de nativos
+                Self::emit_status(
+                    instance,
+                    "instance-extracting-native-library",
+                    &format!("Extrayendo biblioteca nativa: {}", path),
+                );
+                
+                // Abrir el archivo JAR
+                let file = fs::File::open(&library_path)
+                    .map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
+                
+                let reader = std::io::BufReader::new(file);
+                let mut archive = zip::ZipArchive::new(reader)
+                    .map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+                
+                // Extraer cada entrada que no esté excluida
+                for i in 0..archive.len() {
+                    let mut file = archive.by_index(i)
+                        .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
+                    
+                    let file_name = file.name().to_string();
+                    
+                    // Verificar si el archivo está excluido
+                    let should_extract = !exclude_patterns.iter().any(|pattern| {
+                        if pattern.ends_with("*") {
+                            let prefix = &pattern[0..pattern.len() - 1];
+                            file_name.starts_with(prefix)
+                        } else {
+                            file_name == *pattern
                         }
+                    });
+                    
+                    if should_extract && !file.is_dir() {
+                        // Crear la ruta de destino
+                        let output_path = natives_dir.join(file_name);
+                        
+                        // Crear directorios padres si no existen
+                        if let Some(parent) = output_path.parent() {
+                            fs::create_dir_all(parent)
+                                .map_err(|e| format!("Error creando directorio para archivo nativo: {}", e))?;
+                        }
+                        
+                        // Extraer el archivo
+                        let mut output_file = fs::File::create(&output_path)
+                            .map_err(|e| format!("Error creando archivo nativo: {}", e))?;
+                        
+                        std::io::copy(&mut file, &mut output_file)
+                            .map_err(|e| format!("Error escribiendo archivo nativo: {}", e))?;
                     }
                 }
             }
         }
-    
-        if forge_versions.is_empty() {
-            return Err("No se pudieron encontrar versiones de Forge en la respuesta".to_string());
-        }
-    
-        Ok(forge_versions)
     }
+    
+    Ok(())
+}    
+
+   
 
     pub fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> {
         log::info!("Revalidando assets para: {}", instance.instanceName);
@@ -704,6 +787,59 @@ impl InstanceBootstrap {
             fs::write(&launcher_profiles_path, default_profiles.to_string())
                 .map_err(|e| format!("Error creating launcher_profiles.json: {}", e))?;
         }
+
+        // Extraemos las librerías nativas en el directorio de nativos con el nombre de la versión
+        // por ejemplo /natives/1.20.2
+
+        if !natives_dir.exists() {
+            fs::create_dir_all(&natives_dir)
+                .map_err(|e| format!("Error creating natives directory: {}", e))?;
+        }
+
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    75.0,
+                    "Extrayendo bibliotecas nativas",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
+            }
+        }
+        
+        Self::emit_status(
+            instance,
+            "instance-extracting-natives",
+            "Extrayendo bibliotecas nativas",
+        );
+        
+        // Extraer bibliotecas nativas
+        if let Err(e) = self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
+            log::error!("Error extrayendo bibliotecas nativas: {}", e);
+            // No devolver error aquí, ya que es opcional
+        }
+        
+        // Update task status - 90%
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    90.0,
+                    "Finalizando configuración",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
+            }
+        }
+        
+        
 
         // No emitimos el 100% aquí porque también usamos este método para
         // crear instancias de Forge, y no queremos que se emita el evento
@@ -1356,10 +1492,16 @@ impl InstanceBootstrap {
                     return Ok(legacy_url);
                 }
 
+                log::warn!(
+                    "No se encontró URL de instalador válida para Forge {} - {}",
+                    minecraft_version, forge_version
+                );
+
                 Err(format!(
                     "No se encontró URL de instalador válida para Forge {} - {}",
                     minecraft_version, forge_version
                 ))
+
             }
             Err(e) => Err(format!("Error al verificar URL de Forge: {}", e)),
         }
@@ -1495,4 +1637,231 @@ impl InstanceBootstrap {
 
         Ok(())
     }
+
+    pub fn verify_integrity_vanilla(
+        &self,
+        instance: Option<&MinecraftInstance>,
+        task_id: Option<String>,
+        task_manager: Option<Arc<Mutex<TasksManager>>>,
+    ) -> Result<(), String> {
+        // Verificar integridad de la instancia Vanilla
+        let instance = instance.ok_or_else(|| "Instance is not provided".to_string())?;
+        
+        Self::emit_status(
+            instance,
+            "instance-verifying-vanilla",
+            "Verificando integridad de la instancia Vanilla",
+        );
+
+        // Update task status if task_id exists
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    5.0,
+                    "Verificando integridad de la instancia Vanilla",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
+            }
+        }
+
+        // Get manifest for the minecraft version, and check each dependency
+        // And download missing files
+
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let minecraft_dir = instance_dir.join("minecraft");
+        let versions_dir = minecraft_dir.join("versions");
+        let natives_dir = minecraft_dir.join("natives").join(&instance.minecraftVersion);
+        let instance_version_dir = versions_dir.join(&instance.minecraftVersion);
+        let instance_version_json_path = instance_version_dir.join(format!(
+            "{}.json",
+            instance.minecraftVersion
+        ));
+        let libraries_dir = minecraft_dir.join("libraries");
+        
+        // Get the version manifest
+        let version_manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+        let version_manifest: Value = self
+            .client
+            .get(version_manifest_url)
+            .send()
+            .map_err(|e| format!("Error al obtener el manifiesto de versiones: {}", e))?
+            .json()
+            .map_err(|e| format!("Error al parsear el manifiesto de versiones: {}", e))?;
+        let versions = version_manifest["versions"]
+            .as_array()
+            .ok_or_else(|| "No se encontraron versiones en el manifiesto".to_string())?;
+        let version_id = instance.minecraftVersion.clone();
+        let version_info = versions
+            .iter()
+            .find(|v| v["id"].as_str() == Some(&version_id))
+            .ok_or_else(|| format!("No se encontró la versión {} en el manifiesto", version_id))?;
+        let version_url = version_info["url"]
+            .as_str()
+            .ok_or_else(|| "No se encontró la URL de la versión".to_string())?;
+        let version_details: Value = self
+            .client
+            .get(version_url)
+            .send()
+            .map_err(|e| format!("Error al obtener los detalles de la versión: {}", e))?
+            .json()
+            .map_err(|e| format!("Error al parsear los detalles de la versión: {}", e))?;
+
+        // Get the libraries from the version details
+        let libraries = version_details["libraries"]
+            .as_array()
+            .ok_or_else(|| "No se encontraron librerías en los detalles de la versión".to_string())?;
+        let total_libraries = libraries.len();
+        let mut downloaded_libraries = 0;
+        for library in libraries {
+            // Check if we should skip this library based on rules
+            if let Some(rules) = library.get("rules") {
+                let mut allowed = false;
+
+                for rule in rules.as_array().unwrap_or(&Vec::new()) {
+                    let action = rule["action"].as_str().unwrap_or("disallow");
+
+                    // Handle OS-specific rules
+                    if let Some(os) = rule.get("os") {
+                        let os_name = os["name"].as_str().unwrap_or("");
+                        let current_os = if cfg!(target_os = "windows") {
+                            "windows"
+                        } else if cfg!(target_os = "macos") {
+                            "osx"
+                        } else {
+                            "linux"
+                        };
+
+                        if os_name == current_os {
+                            allowed = action == "allow";
+                        }
+                    } else {
+                        // No OS specified, apply to all
+                        allowed = action == "allow";
+                    }
+                }
+
+                if !allowed {
+                    continue; // Skip this library
+                }
+            }
+
+            // Get library info
+            let downloads = library
+                .get("downloads")
+                .ok_or_else(|| "Library downloads info not found".to_string())?;
+
+            // Handle artifact
+            if let Some(artifact) = downloads.get("artifact") {
+                let path = artifact["path"]
+                    .as_str()
+                    .ok_or_else(|| "Library artifact path not found".to_string())?;
+                let url = artifact["url"]
+                    .as_str()
+                    .ok_or_else(|| "Library artifact URL not found".to_string())?;
+
+                let target_path = libraries_dir.join(path);
+
+                // Create parent directories if needed
+                if let Some(parent) = target_path.parent() {
+                    fs::create_dir_all(parent)
+                        .map_err(|e| format!("Error creating directory: {}", e))?;
+                }
+
+                // Download if file doesn't exist
+                if !target_path.exists() {
+                    self.download_file(url, &target_path)
+                        .map_err(|e| format!("Error downloading library: {}", e))?;
+                }
+            }
+
+            downloaded_libraries += 1;
+
+            // Update progress every 5 libraries or on last library
+            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
+                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
+                Self::emit_status(
+                    instance,
+                    "instance-verifying-libraries",
+                    &format!(
+                        "Verificando librerías: {}/{} ({:.1}%)",
+                        downloaded_libraries, total_libraries, progress
+                    ),
+                );
+                // Update task status if task_id exists
+                if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+                    if let Ok(mut tm) = task_manager.lock() {
+                        tm.update_task(
+                            task_id,
+                            TaskStatus::Running,
+                            progress,
+                            "Verificando librerías",
+                            Some(serde_json::json!({
+                                "instanceName": instance.instanceName.clone(),
+                                "instanceId": instance.instanceId.clone()
+                            })),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Extraer bibliotecas nativas
+        if let Err(e) = self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
+            log::error!("Error extrayendo bibliotecas nativas: {}", e);
+            // No devolver error aquí, ya que es opcional
+        }
+       
+
+        // Emit end event
+        Self::emit_status(
+            instance,
+            "instance-verifying-complete",
+            "Verificación de la instancia Vanilla completada",
+        );
+        // Update task status if task_id exists
+        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    task_id,
+                    TaskStatus::Completed,
+                    100.0,
+                    "Verificación de la instancia Vanilla completada",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
+    // Obtener la instancia de Minecraft
+    let instance = get_instance_by_id(instance_id)
+        .map_err(|e| format!("Error al obtener la instancia: {}", e))?;
+
+    if instance.is_none() {
+        return Err("No se encontró la instancia".to_string());
+    }
+
+    let bootstrapper = InstanceBootstrap::new();
+    // Verificar que la instancia sea válida
+    
+    // Verificar la integridad de la instancia
+    bootstrapper
+        .verify_integrity_vanilla(instance.as_ref(), None, None)
+        .map_err(|e| format!("Error al verificar la integridad de la instancia: {}", e))?;
+
+
+
+    Ok(())
 }

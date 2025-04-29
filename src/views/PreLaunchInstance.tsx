@@ -2,18 +2,19 @@ import { useGlobalContext } from "@/stores/GlobalContext"
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideFolderOpen, LucideGamepad2, LucideLoaderCircle, LucideSettings, LucideShieldCheck, LucideUnplug } from "lucide-react"
+import { LucideGamepad2, LucideLoaderCircle, LucideUnplug } from "lucide-react"
 import { CSSProperties, useEffect, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
 import { useInstances } from "@/stores/InstancesContext"
-import { TauriCommandReturns } from "@/types/TauriCommandReturns"
-import { Activity, ActivityType, Assets, Timestamps } from "tauri-plugin-drpc/activity"
+import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns"
+import { Activity, Timestamps } from "tauri-plugin-drpc/activity"
 import { setActivity } from "tauri-plugin-drpc"
-import { EditInstanceInfo } from "@/components/EditInstanceInfo"
 import { playSound, SOUNDS } from "@/utils/sounds"
 import { trackEvent } from "@aptabase/web"
 import { useTasksContext } from "@/stores/TasksContext"
+// Import the new component
+import PreLaunchQuickActions from "@/components/PreLaunchQuickActions"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -43,17 +44,17 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     // Refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
-    const quickActionsRef = useRef<HTMLDivElement | null>(null);
 
     // State
     const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null);
-    const [quickActionsOpen, setQuickActionsOpen] = useState(false);
     const [prelaunchState, setPrelaunchState] = useState({
         isLoading: true,
         error: null as string | null,
-        instance: null as any | null,
+        instance: null as MinecraftInstance | null,
     });
     const [loadingStatus, setLoadingStatus] = useState(DEFAULT_LOADING_STATE);
+
+    const IS_FORGE = prelaunchState.instance?.forgeVersion !== undefined && prelaunchState.instance?.forgeVersion !== null;
 
     // Helper functions
     const getRandomMessage = useCallback(() => {
@@ -114,36 +115,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         }
     }, [instanceId, prelaunchState.instance]);
 
-    // Action handlers
-    const notAvailable = useCallback(() => {
-        setQuickActionsOpen(false);
-        toast.error("Función no disponible aún", {
-            description: "Esta función estará disponible en futuras versiones.",
-        });
-    }, []);
-
-    const toggleQuickActions = useCallback(() => {
-        setQuickActionsOpen(prev => !prev);
-    }, []);
-
-    const openGameDir = useCallback(async () => {
-        try {
-            await invoke("open_game_dir", { instanceId });
-            toast.success("Abriendo carpeta de la instancia...");
-            setQuickActionsOpen(false);
-        } catch (error) {
-            console.error("Error opening game directory:", error);
-            toast.error("Error al abrir la carpeta de la instancia", {
-                description: "No se pudo abrir la carpeta de la instancia. Intenta nuevamente.",
-                dismissible: true,
-            });
-        }
-    }, [instanceId]);
-
-    const reloadInfo = useCallback(async () => {
-        await fetchInstanceData();
-    }, [fetchInstanceData]);
-
     // Launch instance handling
     const startMessageInterval = useCallback(() => {
         // Clear existing interval
@@ -170,12 +141,10 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     }, [currentInstanceRunning?.status, getRandomMessage]);
 
     const handlePlayButtonClick = useCallback(async () => {
-        // Evitar iniciar si ya está cargando o jugando, o si la instancia está en proceso de bootstraping
         if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
 
         const instance = prelaunchState.instance;
 
-        // Validar que la instancia exista
         if (!instance) {
             playSound('ERROR_NOTIFICATION');
             toast.error("Error al iniciar la instancia", {
@@ -227,12 +196,9 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         }
     }, [instanceId, loadingStatus.isLoading, isPlaying, prelaunchState.instance, startMessageInterval]);
 
-
     // Discord RPC handling
     const updateDiscordRPC = useCallback(() => {
         if (!prelaunchState.instance) return;
-
-
 
         const activity = new Activity()
             .setState(isPlaying ? "Jugando" : "Preparando instancia")
@@ -307,39 +273,27 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         };
     }, [setTitleBarState]);
 
-    // 2. Click outside handler for quick actions menu
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (quickActionsRef.current && !quickActionsRef.current.contains(event.target as Node)) {
-                setQuickActionsOpen(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // 3. Initial instance loading
+    // 2. Initial instance loading
     useEffect(() => {
         fetchInstanceData();
     }, [fetchInstanceData]);
 
-    // 4. Load appearance
+    // 3. Load appearance
     useEffect(() => {
         loadAppearance();
     }, [loadAppearance]);
 
-    // 5. Update Discord RPC
+    // 4. Update Discord RPC
     useEffect(() => {
         updateDiscordRPC();
     }, [updateDiscordRPC]);
 
-    // 6. Audio handling
+    // 5. Audio handling
     useEffect(() => {
         return handleAudio();
     }, [handleAudio]);
 
-    // 7. Update loading status based on current instance
+    // 6. Update loading status based on current instance
     useEffect(() => {
         updateLoadingStatus();
     }, [updateLoadingStatus]);
@@ -506,64 +460,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         );
     };
 
-    const renderQuickActions = () => {
-        if (!prelaunchState.instance) return null;
-
-        return (
-            <div className="absolute right-0 bottom-40 z-40 group" ref={quickActionsRef}>
-                <div className="flex items-center justify-end relative w-fit">
-                    {/* Settings button */}
-                    <button
-                        onClick={toggleQuickActions}
-                        className="size-12 cursor-pointer group hover:bg-neutral-900 transition bg-neutral-800 rounded-l-md flex items-center justify-center">
-                        <LucideSettings
-                            style={{
-                                transform: quickActionsOpen ? "rotate(90deg)" : "rotate(0deg)",
-                                transition: "transform 0.3s ease-in-out",
-                            }}
-                            className="size-5 text-white"
-                        />
-                    </button>
-
-                    {/* Actions menu */}
-                    <div className={`absolute right-full bottom-0 mr-2 ${quickActionsOpen
-                        ? "opacity-100 pointer-events-auto translate-x-0"
-                        : "opacity-0 pointer-events-none translate-x-2"
-                        } transition-all duration-300`}
-                    >
-                        <div className="bg-neutral-900 border border-neutral-700 rounded-md shadow-md p-2 space-y-2 max-w-xs w-64">
-                            <button
-                                onClick={openGameDir}
-                                className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
-                            >
-                                <LucideFolderOpen className="size-4 text-white" />
-                                Abrir .minecraft
-                            </button>
-                            <EditInstanceInfo
-                                instanceId={instanceId}
-                                onUpdate={reloadInfo}
-                            />
-                            <button
-                                onClick={notAvailable}
-                                className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
-                            >
-                                <LucideLoaderCircle className="size-4 text-white" />
-                                Descargar mods
-                            </button>
-                            <button
-                                onClick={notAvailable}
-                                className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
-                            >
-                                <LucideShieldCheck className="size-4 text-white" />
-                                Verificar integridad
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
     // Loading and error handling
     if (prelaunchState.isLoading) {
         return renderLoading();
@@ -581,7 +477,13 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 {renderBackground()}
                 {renderLogo()}
                 {renderFooter()}
-                {renderQuickActions()}
+                {prelaunchState.instance && (
+                    <PreLaunchQuickActions
+                        instanceId={instanceId}
+                        isForge={IS_FORGE}
+                        onReloadInfo={fetchInstanceData}
+                    />
+                )}
             </div>
         </div>
     );

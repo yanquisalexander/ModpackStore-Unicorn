@@ -17,7 +17,7 @@ type TaskContextType = {
     setTasks: React.Dispatch<React.SetStateAction<TaskInfo[]>>;
     hasRunningTasks: boolean;
     taskCount: number;
-    instancesBootstraping: TaskInfo[];
+    instancesBootstraping: string[]; // Array de instanceId de tareas en "Running"
 };
 
 const TasksContext = createContext<TaskContextType | undefined>(undefined);

@@ -113,21 +113,26 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
             const response = await fetch(FORGE_VERSIONS_URL);
             const data = await response.json();
 
-            // Check if the data structure is the new format (result array)
-            if (data.result) {
-                // The new format with result array
-                setForgeVersionsMap(data.result[0] || {});
-            } else {
-                // The old format with direct mapping
-                // Convert old format to new format structure
-                const newFormatMap: Record<string, string[]> = {};
+            // Assume the new format with result array is used
+            // Get the data object from the result array, or an empty object if result is empty or undefined
+            const rawData = data.result?.[0] || {};
 
-                for (const mcVersion in data) {
-                    newFormatMap[mcVersion] = data[mcVersion].map((version: any) => version.id);
+            const processedData: Record<string, string[]> = {};
+
+            // Filter versions before 1.5.2 from the new format structure
+            for (const mcVersion in rawData) {
+                if (Object.prototype.hasOwnProperty.call(rawData, mcVersion)) {
+                    processedData[mcVersion] = rawData[mcVersion].filter((version: string) => {
+                        const versionParts = version.split('.');
+                        // Ensure there are at least two parts and check the version number
+                        // This filter logic remains the same to exclude versions before 1.5.2
+                        return versionParts.length > 1 && (parseInt(versionParts[0]) > 1 || (parseInt(versionParts[0]) === 1 && parseInt(versionParts[1]) >= 5));
+                    });
                 }
-
-                setForgeVersionsMap(newFormatMap);
             }
+
+            setForgeVersionsMap(processedData);
+
         } catch (error) {
             console.error("Error fetching Forge versions:", error);
             toast.error("No se pudieron cargar las versiones de Forge");

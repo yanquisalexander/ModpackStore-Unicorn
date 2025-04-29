@@ -106,8 +106,9 @@ impl MinecraftInstance {
                                 if instance.instanceId == instance_id {
                                     // Make sure instanceDirectory is set
                                     if instance.instanceDirectory.is_none() {
-                                        instance.instanceDirectory =
-                                            Some(path.to_string_lossy().to_string());
+                                        let native_path_str = path.to_string_lossy().to_string();
+                                        let normalized_to_forward_slash = native_path_str.replace("\\", "/"); // Reemplazar \ con /
+                                        instance.instanceDirectory = Some(normalized_to_forward_slash);
                                     }
                                     println!("Found instance: {}", instance.instanceName);
                                     return Some(instance);
@@ -136,11 +137,14 @@ impl MinecraftInstance {
                         // Aseguramos que instanceDirectory sea una ruta válida
                         // y que no esté vacía
                         if instance.instanceDirectory.is_none() {
-                            instance.instanceDirectory =
-                                Some(directory.to_string_lossy().to_string());
-                        } else {
-                            instance.instanceDirectory =
-                                Some(instance.instanceDirectory.unwrap_or_default());
+                            let native_path_str = directory.to_string_lossy().to_string();
+                            let normalized_to_forward_slash = native_path_str.replace("\\", "/"); // Reemplazar \ con /
+                            instance.instanceDirectory = Some(normalized_to_forward_slash);
+                        }
+                        // Verificamos si la ruta de la instancia es válida
+                        if instance.instanceDirectory.is_none() {
+                            println!("Instance directory is not set or invalid.");
+                            return None;
                         }
                         Some(instance)
                     }

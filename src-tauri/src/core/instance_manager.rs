@@ -15,6 +15,12 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::Emitter;
 
+// Función auxiliar para normalizar rutas
+fn normalize_path(path: &Path) -> String {
+    // Convertir la ruta a una cadena de texto normalizada utilizando separadores nativos del sistema
+    path.to_string_lossy().to_string()
+}
+
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
     let config_manager = get_config_manager()
@@ -155,12 +161,12 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
                 let mut instance: MinecraftInstance =
                     from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
 
-                // Normalizamos las rutas usando Path
-                instance.instanceDirectory = Some(instance_path.to_string_lossy().to_string());
+                // Normalizar la ruta del directorio de la instancia
+                instance.instanceDirectory = Some(normalize_path(&instance_path));
 
-                // Usamos Path::join para construir rutas de manera segura entre plataformas
+                // Normalizar la ruta de Minecraft
                 let minecraft_path = instance_path.join("minecraft");
-                instance.minecraftPath = minecraft_path.to_string_lossy().to_string();
+                instance.minecraftPath = normalize_path(&minecraft_path);
 
                 // Manejamos los errores al guardar
                 if let Err(e) = instance.save() {
@@ -204,23 +210,24 @@ pub async fn create_local_instance(
     let DEFAULT_VANILLA_ICON = "/images/default_instances/default_vanilla.webp";
 
     // If is vanilla, set the icon to the default vanilla icon
-
     if !is_forge {
         instance.bannerUrl = Some(DEFAULT_VANILLA_ICON.to_string());
     }
 
-
-
     let instance_dir = instances_dir.join(&instance.instanceName);
-    instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
+    
+    // Normalizar la ruta del directorio de Minecraft
+    let minecraft_path = instance_dir.join("minecraft");
+    instance.minecraftPath = normalize_path(&minecraft_path);
 
     // If the instance directory doesn't exist, create it
     if !instance_dir.exists() {
         fs::create_dir_all(&instance_dir)
             .map_err(|e| format!("Failed to create instance directory: {}", e))?;
     }
-    // Set the instance directory
-    instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
+    
+    // Set the instance directory (normalizado)
+    instance.instanceDirectory = Some(normalize_path(&instance_dir));
 
     // Guardamos la instancia inicialmente
     instance
@@ -341,7 +348,6 @@ pub async fn create_local_instance(
     // Devolvemos inmediatamente una respuesta con el ID de la instancia
     Ok(instance.instanceId)
 }
-
 
 #[tauri::command]
 // Returns bool

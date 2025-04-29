@@ -76,6 +76,9 @@ function App() {
         <Route path="/prelaunch/:instanceId">
           {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
         </Route>
+        <Route>
+          <NotFound />
+        </Route>
       </Switch>
     );
   }

@@ -82,6 +82,7 @@ pub fn main() {
             core::instance_manager::create_local_instance,
             core::instance_manager::search_instances,
             core::instance_manager::remove_instance,
+            core::instance_bootstrap::check_vanilla_integrity,
             core::accounts_manager::get_all_accounts,
             core::accounts_manager::add_offline_account,
             core::accounts_manager::ensure_account_exists,

@@ -13,9 +13,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
 
-    outputs:
-      artifact-path: src-tauri/target/release/bundle # Esto será útil si querés usar artifacts
-
     steps:
       - uses: actions/checkout@v4
 
@@ -69,12 +66,27 @@ jobs:
           owner: ModpackStore
           repo: ModpackStore-Releases
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            src-tauri/target/release/bundle
+            src-tauri/updater/latest.json
+          retention-days: 1
+
   upload:
     name: Upload release artifacts
     needs: build
     runs-on: ubuntu-latest
 
     steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          merge-multiple: true
+
       - name: Remove existing canary release and tag
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
@@ -91,6 +103,6 @@ jobs:
           name: Canary Build canary
           body: Automated canary build for testing
           files: |
-            src-tauri/target/release/bundle/**/*
-            **/latest.json
+            bundle/**/*  # ← viene del artifact
+            latest.json
           fail_on_unmatched_files: false

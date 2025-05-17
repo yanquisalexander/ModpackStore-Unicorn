@@ -10,7 +10,6 @@ use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
-use std::os::windows::process::CommandExt;
 use uuid::Uuid;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -614,11 +613,6 @@ impl GameLauncher for VanillaLauncher {
 
         command.current_dir(&game_dir);
         println!("Command: {:?}", command);
-
-        if cfg!(windows) {
-            // On Windows, use creation flags to avoid console window
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());

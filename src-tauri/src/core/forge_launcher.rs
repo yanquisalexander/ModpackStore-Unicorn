@@ -15,7 +15,6 @@ use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
-use std::os::windows::process::CommandExt;
 use uuid::Uuid;
 
 // Import VanillaLauncher for inheritance
@@ -902,11 +901,6 @@ impl GameLauncher for ForgeLoader {
 
         command.current_dir(&game_dir);
         println!("Command: {:?}", command);
-
-        if cfg!(windows) {
-            // On Windows, use creation flags to avoid console window
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
 
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());

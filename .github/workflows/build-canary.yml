@@ -65,7 +65,6 @@ jobs:
           includeUpdaterJson: true
           owner: ModpackStore
           repo: ModpackStore-Releases
-          args: --debug
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

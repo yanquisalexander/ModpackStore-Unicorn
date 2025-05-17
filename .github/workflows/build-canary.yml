@@ -9,7 +9,10 @@ jobs:
   build-canary:
     permissions:
       contents: write
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -33,21 +36,27 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      # Added Rust installation and caching based on the second example
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          # Adjust the workspaces path if your tauri project is not directly in src-tauri
           workspaces: |
             ./src-tauri -> ./target
 
       - name: Set static canary tag
         id: tag
         run: |
-          echo "tag=canary" >> $env:GITHUB_OUTPUT
+          echo "tag=canary" >> $GITHUB_ENV
+
+      - name: Remove existing canary release and tag (only once)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
+        continue-on-error: true
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
@@ -56,8 +65,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
           GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
         with:
-          tagName: ${{ steps.tag.outputs.tag }}
-          releaseName: "Canary Build ${{ steps.tag.outputs.tag }}"
+          tagName: canary
+          releaseName: "Canary Build canary"
           releaseBody: "Automated canary build for testing"
           releaseDraft: false
           prerelease: false
@@ -65,32 +74,16 @@ jobs:
           owner: ModpackStore
           repo: ModpackStore-Releases
 
-
-
-     # Clean up existing canary release before creating a new one
-
-      - name: Remove existing canary release and tag
-        env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-        run: |
-          gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
-        continue-on-error: true # Ignore if no release exists, proceed with the new one
-
-      - name: Release Canary Build
+      - name: Upload Release Artifacts
         uses: softprops/action-gh-release@v2
+        if: matrix.os == 'ubuntu-latest' # solo una vez para evitar duplicados
         with:
-          # replace these two invalid keys:
           repository: ModpackStore/ModpackStore-Releases
-          token:      ${{ secrets.PUBLIC_REPO_TOKEN }}
-
-          tag_name:   canary
-          name:       Canary Build canary
-          body:       Automated canary build for testing
-
-          # match everything under your tauri bundle + latest.json
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          tag_name: canary
+          name: Canary Build canary
+          body: Automated canary build for testing
           files: |
-            src-tauri/target/release/bundle/**/*
+            src-tauri/target/release/bundle/**/*  # Ajusta si cambia el path
             **/latest.json
-
-          # (optional) don’t error if a glob matches nothing
           fail_on_unmatched_files: false

@@ -5,7 +5,6 @@ use crate::interfaces::game_launcher::GameLauncher;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::collections::{BTreeMap, HashMap};
-use std::os::windows::process::CommandExt;
 use std::path::MAIN_SEPARATOR;
 use std::{
     fs,

@@ -6,13 +6,15 @@ on:
       - main
 
 jobs:
-  build-canary:
-    permissions:
-      contents: write
+  build:
+    name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
+
+    outputs:
+      artifact-path: src-tauri/target/release/bundle # Esto será útil si querés usar artifacts
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -45,25 +48,11 @@ jobs:
           workspaces: |
             ./src-tauri -> ./target
 
-      - name: Set static canary tag
-        id: tag
-        run: |
-          echo "tag=canary" >> $GITHUB_ENV
-
-      - name: Remove existing canary release and tag (only once)
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-        run: |
-          gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
-        continue-on-error: true
-
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
@@ -81,9 +70,21 @@ jobs:
           owner: ModpackStore
           repo: ModpackStore-Releases
 
+  upload:
+    name: Upload release artifacts
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remove existing canary release and tag
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          gh release delete canary --repo ModpackStore/ModpackStore-Releases --cleanup-tag -y || echo "No existing release to delete"
+        continue-on-error: true
+
       - name: Upload Release Artifacts
         uses: softprops/action-gh-release@v2
-        if: matrix.os == 'ubuntu-latest' # solo una vez para evitar duplicados
         with:
           repository: ModpackStore/ModpackStore-Releases
           token: ${{ secrets.PUBLIC_REPO_TOKEN }}
@@ -91,6 +92,6 @@ jobs:
           name: Canary Build canary
           body: Automated canary build for testing
           files: |
-            src-tauri/target/release/bundle/**/*  # Ajusta si cambia el path
+            src-tauri/target/release/bundle/**/*
             **/latest.json
           fail_on_unmatched_files: false

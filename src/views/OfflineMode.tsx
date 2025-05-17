@@ -30,7 +30,7 @@ export const OfflineMode = () => {
             </Alert>
 
 
-            <div className="mt-0">
+            <div className="mt-0 h-full pb-16">
                 <MyInstancesSection offlineMode={true} />
             </div>
         </div>

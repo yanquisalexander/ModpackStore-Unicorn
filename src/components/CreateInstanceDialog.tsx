@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { LucidePlus, Loader2, LucideAnvil } from "lucide-react"
+import { LucidePlus, Loader2, LucideAnvil, LucideTestTubeDiagonal } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 
 import {
@@ -25,6 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { CreeperIcon } from "@/icons/CreeperIcon"
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
 
 
 // Types for Minecraft and Forge versions
@@ -261,6 +262,23 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
                             placeholder="Mi nueva instancia"
                         />
                     </div>
+
+                    {
+                        selectedType === "forge" && (
+                            <Alert
+
+                                className=" bg-blue-900/20 border-blue-700/50 text-blue-300"
+                            >
+                                <LucideTestTubeDiagonal className="h-4 w-4" />
+                                <AlertTitle className="text-blue-300">
+                                    Soporte experimental de Forge
+                                </AlertTitle>
+                                <AlertDescription>
+                                    Las instancias de Forge están en soporte experimental. Si experimentas problemas, por favor reporta el error en nuestro Discord.
+                                </AlertDescription>
+                            </Alert>
+                        )
+                    }
 
                     {/* Instance Type Selection */}
                     <div className="space-y-3">

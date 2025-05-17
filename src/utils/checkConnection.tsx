@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const useCheckConnection = () => {
     const [isConnected, setIsConnected] = useState<boolean>(false);
+    const [hasInternetAccess, setHasInternetAccess] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
     useEffect(() => {
@@ -25,8 +26,21 @@ export const useCheckConnection = () => {
             }
         };
 
+        const checkInternetAccess = async () => {
+            try {
+                console.log("[checkInternetAccess] Checking internet access...");
+                const response = await invoke("check_real_connection");
+                setHasInternetAccess(response as boolean);
+                console.log("[checkInternetAccess] Internet access status:", response);
+            } catch (error) {
+                console.error("[checkInternetAccess] Error checking internet access:", error);
+            }
+        }
+
+
         checkConnection();
+        checkInternetAccess();
     }, []);
 
-    return { isConnected, isLoading };
+    return { isConnected, isLoading, hasInternetAccess };
 }

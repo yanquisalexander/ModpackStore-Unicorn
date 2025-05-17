@@ -46,4 +46,16 @@ releaseChannel:
   description: "Canal de lanzamiento para actualizaciones"
   ui_section: experimental
 
+lastUpdatedAt:
+  type: string
+  default: ""
+  description: "Última fecha de actualización del launcher"
+  ui_section: internal
+
+updatedFrom:
+  type: string
+  default: ""
+  description: "Última versión desde la que se actualizó el launcher"
+  ui_section: internal
+
 # Añadir más configuraciones aquí

@@ -123,7 +123,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         const sections = new Set<string>();
 
         Object.values(schema).forEach(def => {
-            if (def.ui_section) {
+            if (def.ui_section && def.ui_section !== "internal") {
                 sections.add(def.ui_section);
             }
         });

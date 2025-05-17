@@ -1,4 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(non_snake_case)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+#![allow(unused_attributes)]
+#![allow(unused_macros)]
 
 mod config;
 mod core;
@@ -11,8 +17,8 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 use tauri::Wry;
-use tauri_plugin_store::StoreExt;
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_store::StoreExt;
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
@@ -20,7 +26,6 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
 static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
 
 pub fn main() {
-
     let logs_dir = dirs::config_dir()
         .expect("No se pudo obtener el directorio de configuración")
         .join("dev.alexitoo.modpackstore")
@@ -42,17 +47,19 @@ pub fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_drpc::init())
-        .plugin(tauri_plugin_log::Builder::new()
-            .level(log::LevelFilter::Info)
-            .level_for("reqwest", log::LevelFilter::Info)
-            .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
-            .target(tauri_plugin_log::Target::new(
-                tauri_plugin_log::TargetKind::Folder {
-                    path: std::path::PathBuf::from(logs_dir),
-                    file_name: Some(log_file_name),
-                }
-            ))
-            .build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .level_for("reqwest", log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Folder {
+                        path: std::path::PathBuf::from(logs_dir),
+                        file_name: Some(log_file_name),
+                    },
+                ))
+                .build(),
+        )
         .manage(Arc::new(AuthState::new()))
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
@@ -72,6 +79,7 @@ pub fn main() {
             config::get_schema,
             config::set_config,
             core::network_utilities::check_connection,
+            core::network_utilities::check_real_connection,
             core::instance_manager::get_all_instances,
             core::instance_manager::get_instance_by_id,
             core::instance_manager::delete_instance,

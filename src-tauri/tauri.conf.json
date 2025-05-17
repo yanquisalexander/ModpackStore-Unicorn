@@ -10,7 +10,8 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": [
-      "msi"
+      "msi",
+      "appimage"
     ],
     "icon": [
       "icons/32x32.png",
@@ -27,7 +28,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "dev-alexitoo-modpackstore",
-  "version": "0.0.218",
+  "version": "0.0.222",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {

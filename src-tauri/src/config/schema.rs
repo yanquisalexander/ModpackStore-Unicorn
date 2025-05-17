@@ -81,7 +81,13 @@ impl ConfigSchema {
         let mut sections = self
             .definitions
             .iter()
-            .map(|(_, def)| def.ui_section.clone())
+            .filter_map(|(_, def)| {
+                if def.ui_section != "internal" {
+                    Some(def.ui_section.clone())
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
 
         sections.sort();

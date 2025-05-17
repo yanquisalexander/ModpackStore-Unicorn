@@ -7,6 +7,9 @@ import React, {
 } from "react";
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from '@tauri-apps/api/app';
+
 
 
 interface TitleBarState {
@@ -63,8 +66,11 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
         }
         try {
-            await update?.install(); // Instalar la actualización
+            const currentVersion = await getVersion();
+            await invoke("set_config", { key: "lastUpdatedAt", value: new Date().toISOString() });
+            await invoke("set_config", { key: "updatedFrom", value: currentVersion });
 
+            await update?.install(); // Instalar la actualización (This automatically restarts the app)
         } catch (err) {
             console.error("Error al aplicar la actualización:", err);
             setUpdateState("error");

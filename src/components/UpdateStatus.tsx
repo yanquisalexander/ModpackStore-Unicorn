@@ -16,7 +16,6 @@ export const UpdateStatus = () => {
         updateProgress,
         updateVersion,
         updateState,
-        setIsUpdating,
     } = useGlobalContext();
 
     const [visible, setVisible] = useState(false);
@@ -33,12 +32,11 @@ export const UpdateStatus = () => {
         const hideTimeout = setTimeout(() => {
             setVisible(false); // inicia animación
             setTimeout(() => {
-                setIsUpdating(false); // desmonta después de animación
             }, 400);
         }, 6000);
 
         return () => clearTimeout(hideTimeout);
-    }, [isUpdating, updateState, setIsUpdating]);
+    }, [isUpdating, updateState]);
 
     if (!isUpdating) return null;
 

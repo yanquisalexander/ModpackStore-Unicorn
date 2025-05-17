@@ -15,6 +15,7 @@ import { trackEvent } from "@aptabase/web"
 import { useTasksContext } from "@/stores/TasksContext"
 // Import the new component
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions"
+import { InstanceCrashDialog } from "@/components/InstanceCrashDialog"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -52,6 +53,11 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         error: null as string | null,
         instance: null as MinecraftInstance | null,
     });
+    const [errorState, setErrorState] = useState({
+        exitCode: -1,
+        message: "",
+        showModal: false,
+    })
     const [loadingStatus, setLoadingStatus] = useState(DEFAULT_LOADING_STATE);
 
     const IS_FORGE = prelaunchState.instance?.forgeVersion !== undefined && prelaunchState.instance?.forgeVersion !== null;
@@ -60,6 +66,25 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const getRandomMessage = useCallback(() => {
         return RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)];
     }, []);
+
+    useEffect(() => {
+        const handleInstanceCrash = (event: Event) => {
+            const customEvent = event as CustomEvent<{ instanceId: string; message?: string }>;
+            const { instanceId: crashedInstanceId, message } = customEvent.detail;
+            console.log({ crashedInstanceId, message });
+            if (crashedInstanceId === instanceId) {
+                setErrorState({
+                    exitCode: -1,
+                    message: message || "Minecraft se ha cerrado inesperadamente",
+                    showModal: true,
+                });
+            }
+        };
+        document.addEventListener("instance-crash", handleInstanceCrash as EventListener);
+        return () => {
+            document.removeEventListener("instance-crash", handleInstanceCrash as EventListener);
+        };
+    }, [instanceId]);
 
     // Instance loading functions
     const fetchInstanceData = useCallback(async () => {
@@ -165,7 +190,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             return;
         }
 
-        const accountExists = await invoke("ensure_account_exists", { uuid: instance.accountUuid });
+        const accountExists = await invoke<TauriCommandReturns['ensure_account_exists']>("ensure_account_exists", { uuid: instance.accountUuid });
         if (!accountExists) {
             playSound('ERROR_NOTIFICATION');
             toast.error("Cuenta no encontrada", {
@@ -484,6 +509,12 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         onReloadInfo={fetchInstanceData}
                     />
                 )}
+                <InstanceCrashDialog
+                    open={errorState.showModal}
+                    onOpenChange={(open) => setErrorState(prev => ({ ...prev, showModal: open }))}
+                    errorMessage={errorState.message}
+                    exitCode={errorState.exitCode}
+                />
             </div>
         </div>
     );

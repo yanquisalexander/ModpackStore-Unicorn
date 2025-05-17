@@ -5,6 +5,7 @@ import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
 import { useTasksContext } from "@/stores/TasksContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
+import { useCheckConnection } from "@/utils/checkConnection";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen } from "lucide-react";
 import { useEffect, useState } from "react"
@@ -12,7 +13,7 @@ import { useEffect, useState } from "react"
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
-
+    const { hasInternetAccess } = useCheckConnection()
     const { instances: instancesOnContext } = useInstances()
     const { instancesBootstraping } = useTasksContext()
     console.log({ instancesBootstraping })
@@ -44,7 +45,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     }, [])
 
     return (
-        <div className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto">
+        <div className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full">
             <header className="flex flex-col mb-16">
                 <h1 className="tracking-tight inline font-semibold text-2xl bg-gradient-to-b from-teal-200 to-teal-500 bg-clip-text text-transparent">
                     Mis instancias
@@ -65,7 +66,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     />
                 ))}
                 {
-                    !offlineMode && (
+                    (!offlineMode || hasInternetAccess) && (
                         <CreateInstanceDialog onInstanceCreated={fetchInstances} />
                     )
                 }

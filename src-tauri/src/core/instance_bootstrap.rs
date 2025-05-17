@@ -1,10 +1,8 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
-use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::instance_manager::{
-    get_instance_by_id,
-};
+use crate::core::instance_manager::get_instance_by_id;
 use crate::core::java_manager::JavaManager;
+use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{TaskStatus, TasksManager};
 use crate::GLOBAL_APP_HANDLE;
 use serde_json::{json, Value};
@@ -25,8 +23,7 @@ pub struct InstanceBootstrap {
 impl InstanceBootstrap {
     const MOJANG_VERSION_MANIFEST_URL: &'static str =
         "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-    const FORGE_API_BASE_URL: &'static str =
-        "https://mc-versions-api.net/api/forge";
+    const FORGE_API_BASE_URL: &'static str = "https://mc-versions-api.net/api/forge";
     const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hora
 
     pub fn new() -> Self {
@@ -75,157 +72,165 @@ impl InstanceBootstrap {
         }
     }
 
+    // Implementación del método extract_natives
+    fn extract_natives(
+        &self,
+        version_details: &Value,
+        libraries_dir: &Path,
+        natives_dir: &Path,
+        instance: &MinecraftInstance,
+    ) -> Result<(), String> {
+        // Obtener el sistema operativo actual
+        let os = std::env::consts::OS;
+        let os_name = match os {
+            "windows" => "windows",
+            "macos" => "osx",
+            "linux" => "linux",
+            _ => return Err(format!("Sistema operativo no soportado: {}", os)),
+        };
 
+        // Obtener la arquitectura
+        let arch = std::env::consts::ARCH;
+        let arch_name = match arch {
+            "x86_64" => "64",
+            "x86" => "32",
+            "aarch64" => "arm64",
+            _ => return Err(format!("Arquitectura no soportada: {}", arch)),
+        };
 
-// Implementación del método extract_natives
-fn extract_natives(
-    &self,
-    version_details: &Value,
-    libraries_dir: &Path,
-    natives_dir: &Path,
-    instance: &MinecraftInstance,
-) -> Result<(), String> {
-    // Obtener el sistema operativo actual
-    let os = std::env::consts::OS;
-    let os_name = match os {
-        "windows" => "windows",
-        "macos" => "osx",
-        "linux" => "linux",
-        _ => return Err(format!("Sistema operativo no soportado: {}", os)),
-    };
-    
-    // Obtener la arquitectura
-    let arch = std::env::consts::ARCH;
-    let arch_name = match arch {
-        "x86_64" => "64",
-        "x86" => "32",
-        "aarch64" => "arm64",
-        _ => return Err(format!("Arquitectura no soportada: {}", arch)),
-    };
-    
-    // Obtener las bibliotecas del manifiesto de versión
-    let libraries = version_details["libraries"]
-        .as_array()
-        .ok_or_else(|| "No se encontraron bibliotecas en el manifiesto".to_string())?;
-    
-    for library in libraries {
-        // Verificar si la biblioteca tiene nativos
-        if let Some(natives) = library.get("natives") {
-            let os_natives = natives.get(os_name);
-            
-            // Si hay nativos para este sistema operativo
-            if let Some(os_natives_value) = os_natives {
-                // Obtener información sobre la biblioteca
-                let library_info = library["downloads"]["classifiers"]
-                    .get(os_natives_value.as_str().unwrap_or(&format!("{}-{}", os_name, arch_name)))
-                    .or_else(|| library["downloads"]["classifiers"]
-                        .get(&format!("{}-{}", os_name, arch_name)))
-                    .ok_or_else(|| format!("No se encontró información de nativos para la biblioteca"))?;
-                
-                // Obtener la ruta y URL del archivo JAR
-                let path = library_info["path"]
-                    .as_str()
-                    .ok_or_else(|| "No se encontró la ruta del archivo nativo".to_string())?;
-                
-                let library_path = libraries_dir.join(path);
-                
-                // Si el archivo no existe, descargarlo
-                if !library_path.exists() {
-                    let url = library_info["url"]
+        // Obtener las bibliotecas del manifiesto de versión
+        let libraries = version_details["libraries"]
+            .as_array()
+            .ok_or_else(|| "No se encontraron bibliotecas en el manifiesto".to_string())?;
+
+        for library in libraries {
+            // Verificar si la biblioteca tiene nativos
+            if let Some(natives) = library.get("natives") {
+                let os_natives = natives.get(os_name);
+
+                // Si hay nativos para este sistema operativo
+                if let Some(os_natives_value) = os_natives {
+                    // Obtener información sobre la biblioteca
+                    let library_info = library["downloads"]["classifiers"]
+                        .get(
+                            os_natives_value
+                                .as_str()
+                                .unwrap_or(&format!("{}-{}", os_name, arch_name)),
+                        )
+                        .or_else(|| {
+                            library["downloads"]["classifiers"]
+                                .get(&format!("{}-{}", os_name, arch_name))
+                        })
+                        .ok_or_else(|| {
+                            format!("No se encontró información de nativos para la biblioteca")
+                        })?;
+
+                    // Obtener la ruta y URL del archivo JAR
+                    let path = library_info["path"]
                         .as_str()
-                        .ok_or_else(|| "No se encontró la URL del archivo nativo".to_string())?;
-                    
-                    // Crear el directorio padre si no existe
-                    if let Some(parent) = library_path.parent() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Error creando directorio para biblioteca nativa: {}", e))?;
+                        .ok_or_else(|| "No se encontró la ruta del archivo nativo".to_string())?;
+
+                    let library_path = libraries_dir.join(path);
+
+                    // Si el archivo no existe, descargarlo
+                    if !library_path.exists() {
+                        let url = library_info["url"].as_str().ok_or_else(|| {
+                            "No se encontró la URL del archivo nativo".to_string()
+                        })?;
+
+                        // Crear el directorio padre si no existe
+                        if let Some(parent) = library_path.parent() {
+                            fs::create_dir_all(parent).map_err(|e| {
+                                format!("Error creando directorio para biblioteca nativa: {}", e)
+                            })?;
+                        }
+
+                        Self::emit_status(
+                            instance,
+                            "instance-downloading-native-library",
+                            &format!("Descargando biblioteca nativa: {}", path),
+                        );
+
+                        // Descargar el archivo JAR
+                        self.download_file(url, &library_path)
+                            .map_err(|e| format!("Error descargando biblioteca nativa: {}", e))?;
                     }
-                    
+
+                    // Verificar si hay reglas de extracción (exclude)
+                    let exclude_patterns: Vec<String> =
+                        if let Some(extract) = library.get("extract") {
+                            if let Some(exclude) = extract.get("exclude") {
+                                exclude
+                                    .as_array()
+                                    .unwrap_or(&Vec::new())
+                                    .iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            }
+                        } else {
+                            Vec::new()
+                        };
+
+                    // Extraer el archivo JAR al directorio de nativos
                     Self::emit_status(
                         instance,
-                        "instance-downloading-native-library",
-                        &format!("Descargando biblioteca nativa: {}", path),
+                        "instance-extracting-native-library",
+                        &format!("Extrayendo biblioteca nativa: {}", path),
                     );
-                    
-                    // Descargar el archivo JAR
-                    self.download_file(url, &library_path)
-                        .map_err(|e| format!("Error descargando biblioteca nativa: {}", e))?;
-                }
-                
-                // Verificar si hay reglas de extracción (exclude)
-                let exclude_patterns: Vec<String> = if let Some(extract) = library.get("extract") {
-                    if let Some(exclude) = extract.get("exclude") {
-                        exclude
-                            .as_array()
-                            .unwrap_or(&Vec::new())
-                            .iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                };
-                
-                // Extraer el archivo JAR al directorio de nativos
-                Self::emit_status(
-                    instance,
-                    "instance-extracting-native-library",
-                    &format!("Extrayendo biblioteca nativa: {}", path),
-                );
-                
-                // Abrir el archivo JAR
-                let file = fs::File::open(&library_path)
-                    .map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
-                
-                let reader = std::io::BufReader::new(file);
-                let mut archive = zip::ZipArchive::new(reader)
-                    .map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
-                
-                // Extraer cada entrada que no esté excluida
-                for i in 0..archive.len() {
-                    let mut file = archive.by_index(i)
-                        .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
-                    
-                    let file_name = file.name().to_string();
-                    
-                    // Verificar si el archivo está excluido
-                    let should_extract = !exclude_patterns.iter().any(|pattern| {
-                        if pattern.ends_with("*") {
-                            let prefix = &pattern[0..pattern.len() - 1];
-                            file_name.starts_with(prefix)
-                        } else {
-                            file_name == *pattern
+
+                    // Abrir el archivo JAR
+                    let file = fs::File::open(&library_path)
+                        .map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
+
+                    let reader = std::io::BufReader::new(file);
+                    let mut archive = zip::ZipArchive::new(reader)
+                        .map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+
+                    // Extraer cada entrada que no esté excluida
+                    for i in 0..archive.len() {
+                        let mut file = archive
+                            .by_index(i)
+                            .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
+
+                        let file_name = file.name().to_string();
+
+                        // Verificar si el archivo está excluido
+                        let should_extract = !exclude_patterns.iter().any(|pattern| {
+                            if pattern.ends_with("*") {
+                                let prefix = &pattern[0..pattern.len() - 1];
+                                file_name.starts_with(prefix)
+                            } else {
+                                file_name == *pattern
+                            }
+                        });
+
+                        if should_extract && !file.is_dir() {
+                            // Crear la ruta de destino
+                            let output_path = natives_dir.join(file_name);
+
+                            // Crear directorios padres si no existen
+                            if let Some(parent) = output_path.parent() {
+                                fs::create_dir_all(parent).map_err(|e| {
+                                    format!("Error creando directorio para archivo nativo: {}", e)
+                                })?;
+                            }
+
+                            // Extraer el archivo
+                            let mut output_file = fs::File::create(&output_path)
+                                .map_err(|e| format!("Error creando archivo nativo: {}", e))?;
+
+                            std::io::copy(&mut file, &mut output_file)
+                                .map_err(|e| format!("Error escribiendo archivo nativo: {}", e))?;
                         }
-                    });
-                    
-                    if should_extract && !file.is_dir() {
-                        // Crear la ruta de destino
-                        let output_path = natives_dir.join(file_name);
-                        
-                        // Crear directorios padres si no existen
-                        if let Some(parent) = output_path.parent() {
-                            fs::create_dir_all(parent)
-                                .map_err(|e| format!("Error creando directorio para archivo nativo: {}", e))?;
-                        }
-                        
-                        // Extraer el archivo
-                        let mut output_file = fs::File::create(&output_path)
-                            .map_err(|e| format!("Error creando archivo nativo: {}", e))?;
-                        
-                        std::io::copy(&mut file, &mut output_file)
-                            .map_err(|e| format!("Error escribiendo archivo nativo: {}", e))?;
                     }
                 }
             }
         }
-    }
-    
-    Ok(())
-}    
 
-   
+        Ok(())
+    }
 
     pub fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> {
         log::info!("Revalidando assets para: {}", instance.instanceName);
@@ -399,7 +404,10 @@ fn extract_natives(
         Self::emit_status(
             instance,
             "instance-finish-assets-download",
-            &format!("Validación de assets completada para {}", instance.instanceName),
+            &format!(
+                "Validación de assets completada para {}",
+                instance.instanceName
+            ),
         );
         Ok(())
     }
@@ -681,69 +689,68 @@ fn extract_natives(
             }
         }
 
-/* 
-"javaVersion": {"majorVersion": 21},
-*/
-            // Check if correct Java version is installed for this instance
-            let java_version = version_details["javaVersion"]
-                .as_object()
-                .ok_or_else(|| "Java version not found in version details".to_string())?;
-                
-            println!("");
-            println!("");
-            println!("");
+        /*
+        "javaVersion": {"majorVersion": 21},
+        */
+        // Check if correct Java version is installed for this instance
+        let java_version = version_details["javaVersion"]
+            .as_object()
+            .ok_or_else(|| "Java version not found in version details".to_string())?;
 
-            println!("Java Version Details: {:?}", java_version);
-            println!("");
-            println!("");
-            println!("");
+        println!("");
+        println!("");
+        println!("");
 
-            // As string
-            let java_major_version = java_version
+        println!("Java Version Details: {:?}", java_version);
+        println!("");
+        println!("");
+        println!("");
+
+        // As string
+        let java_major_version = java_version
             .get("majorVersion")
             .and_then(|v| v.as_u64()) // Lo tomás como número primero
-            .map(|v| v.to_string())   // Luego lo convertís a String
+            .map(|v| v.to_string()) // Luego lo convertís a String
             .ok_or_else(|| "8".to_string())?; // Valor por defecto si falla
 
-            println!("Java Major Version: {}", java_major_version);
+        println!("Java Major Version: {}", java_major_version);
 
-            let java_manager = JavaManager::new()
-                .map_err(|e| format!("Failed to create JavaManager: {}", e))?;  // Convert error to String
+        let java_manager =
+            JavaManager::new().map_err(|e| format!("Failed to create JavaManager: {}", e))?; // Convert error to String
 
-            let is_version_installed = java_manager.is_version_installed(&java_major_version);
-                
+        let is_version_installed = java_manager.is_version_installed(&java_major_version);
 
-            if !is_version_installed {
-                // Create Tokio runtime for async task execution
-                let java_path = tokio::runtime::Runtime::new()
-                    .expect("Failed to create Tokio runtime")
-                    .block_on(java_manager.get_java_path(&java_major_version))
-                    .map_err(|e| {
-                        format!("Error obtaining Java path for version {}: {}", java_major_version, e)
-                    })?;
+        if !is_version_installed {
+            // Create Tokio runtime for async task execution
+            let java_path = tokio::runtime::Runtime::new()
+                .expect("Failed to create Tokio runtime")
+                .block_on(java_manager.get_java_path(&java_major_version))
+                .map_err(|e| {
+                    format!(
+                        "Error obtaining Java path for version {}: {}",
+                        java_major_version, e
+                    )
+                })?;
 
-                // Update task to indicate Java installation
-                if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                    if let Ok(mut tm) = task_manager.lock() {
-                        tm.update_task(
-                            task_id,
-                            TaskStatus::Running,
-                            50.0,
-                            "Instalando Java",
-                            Some(serde_json::json!({
-                                "instanceName": instance.instanceName.clone(),
-                                "instanceId": instance.instanceId.clone()
-                            })),
-                        );
-                    }
+            // Update task to indicate Java installation
+            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
+                if let Ok(mut tm) = task_manager.lock() {
+                    tm.update_task(
+                        task_id,
+                        TaskStatus::Running,
+                        50.0,
+                        "Instalando Java",
+                        Some(serde_json::json!({
+                            "instanceName": instance.instanceName.clone(),
+                            "instanceId": instance.instanceId.clone()
+                        })),
+                    );
                 }
-               
-                let mut instance_to_modify = instance.clone();
-                instance_to_modify
-                    .set_java_path(java_path);
-                   
             }
 
+            let mut instance_to_modify = instance.clone();
+            instance_to_modify.set_java_path(java_path);
+        }
 
         // Download and validate libraries
         Self::emit_status(
@@ -810,19 +817,21 @@ fn extract_natives(
                 );
             }
         }
-        
+
         Self::emit_status(
             instance,
             "instance-extracting-natives",
             "Extrayendo bibliotecas nativas",
         );
-        
+
         // Extraer bibliotecas nativas
-        if let Err(e) = self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
+        if let Err(e) =
+            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
+        {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
         }
-        
+
         // Update task status - 90%
         if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
             if let Ok(mut tm) = task_manager.lock() {
@@ -838,8 +847,6 @@ fn extract_natives(
                 );
             }
         }
-        
-        
 
         // No emitimos el 100% aquí porque también usamos este método para
         // crear instancias de Forge, y no queremos que se emita el evento
@@ -1464,47 +1471,80 @@ fn extract_natives(
         minecraft_version: &str,
         forge_version: &str,
     ) -> Result<String, String> {
-        // Formato de URL de Forge moderno para versiones actuales
-        let url_format = format!(
-            "https://maven.minecraftforge.net/net/minecraftforge/forge/{}-{}/forge-{}-{}-installer.jar",
-            minecraft_version, forge_version, minecraft_version, forge_version
-        );
+        let base = "https://maven.minecraftforge.net/net/minecraftforge/forge";
 
-        // Verificar si la URL responde correctamente
-        match self.client.head(&url_format).send() {
-            Ok(response) => {
-                if response.status().is_success() {
-                    return Ok(url_format);
-                }
+        let mc_compact = format!("mc{}", minecraft_version.replace('.', ""));
 
-                // Probar formato alternativo para versiones antiguas
-                let legacy_url = format!(
-                    "https://maven.minecraftforge.net/net/minecraftforge/forge/{}.{}/forge-{}.{}-installer.jar",
-                    minecraft_version, forge_version, minecraft_version, forge_version
-                );
+        let mut attempts = vec![
+            // Modern
+            (
+                format!("{minecraft_version}-{forge_version}"),
+                vec![
+                    format!("forge-{minecraft_version}-{forge_version}-installer.jar"),
+                    format!("forge-{minecraft_version}-{forge_version}-universal.jar"),
+                ],
+            ),
+            // Dot-separated
+            (
+                format!("{minecraft_version}.{forge_version}"),
+                vec![
+                    format!("forge-{minecraft_version}.{forge_version}-installer.jar"),
+                    format!("forge-{minecraft_version}.{forge_version}-universal.jar"),
+                ],
+            ),
+            // Only forge version
+            (
+                forge_version.to_string(),
+                vec![
+                    format!("forge-{forge_version}-installer.jar"),
+                    format!("forge-{forge_version}-universal.jar"),
+                ],
+            ),
+            // Legacy style with full forge version
+            (
+                forge_version.to_string(),
+                vec![
+                    format!("forge-{forge_version}-installer.jar"),
+                    format!("forge-{forge_version}-universal.jar"),
+                ],
+            ),
+            // 🧠 Caso especial: -mcXYZ
+            (
+                format!("{minecraft_version}-{forge_version}-{mc_compact}"),
+                vec![
+                    format!("forge-{minecraft_version}-{forge_version}-{mc_compact}-installer.jar"),
+                    format!("forge-{minecraft_version}-{forge_version}-{mc_compact}-universal.jar"),
+                ],
+            ),
+        ];
+
+        for (folder, files) in attempts.drain(..) {
+            for file in files {
+                let url = format!("{}/{}/{}", base, folder, file);
+
+                log::info!("[Forge] Probando URL: {}", url);
 
                 if self
                     .client
-                    .head(&legacy_url)
+                    .head(&url)
                     .send()
                     .map_or(false, |r| r.status().is_success())
                 {
-                    return Ok(legacy_url);
+                    return Ok(url);
                 }
-
-                log::warn!(
-                    "No se encontró URL de instalador válida para Forge {} - {}",
-                    minecraft_version, forge_version
-                );
-
-                Err(format!(
-                    "No se encontró URL de instalador válida para Forge {} - {}",
-                    minecraft_version, forge_version
-                ))
-
             }
-            Err(e) => Err(format!("Error al verificar URL de Forge: {}", e)),
         }
+
+        log::warn!(
+            "No se encontró una URL válida para Forge {} - {}",
+            minecraft_version,
+            forge_version
+        );
+
+        Err(format!(
+            "No se encontró una URL válida para Forge {} - {}",
+            minecraft_version, forge_version
+        ))
     }
 
     fn run_forge_installer(
@@ -1531,26 +1571,59 @@ fn extract_natives(
         fs::write(&install_profile, install_profile_content.to_string())
             .map_err(|e| format!("Error al crear archivo de perfil de instalación: {}", e))?;
 
-        // Preparar comando para ejecutar el instalador
-        let mut install_cmd = Command::new(java_path);
-        install_cmd
-            .arg("-jar")
-            .arg(installer_path)
-            .arg("--installClient")
-            .current_dir(minecraft_dir);
+        // Lista de opciones de instalación para probar secuencialmente
+        let install_options = ["--installClient", "--installDir", "--installServer"];
 
-        // Ejecutar instalador
-        log::info!("Ejecutando instalador Forge con comando: {:?}", install_cmd);
+        let mut success = false;
+        let mut last_error = String::new();
 
-        let output = install_cmd
-            .output()
-            .map_err(|e| format!("Error al ejecutar instalador de Forge: {}", e))?;
+        // Intentar cada opción de instalación hasta que una tenga éxito
+        for &option in &install_options {
+            // Preparar comando para ejecutar el instalador con la opción actual
+            let mut install_cmd = Command::new(&java_path);
+            install_cmd
+                .arg("-jar")
+                .arg(installer_path)
+                .arg(option)
+                .current_dir(minecraft_dir);
 
-        // Verificar resultado
-        if !output.status.success() {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-            log::error!("Error en instalación de Forge: {}", error_msg);
-            return Err(format!("Error en instalación de Forge: {}", error_msg));
+            // Ejecutar instalador con la opción actual
+            log::info!("Ejecutando instalador Forge con comando: {:?}", install_cmd);
+
+            match install_cmd.output() {
+                Ok(output) => {
+                    if output.status.success() {
+                        success = true;
+                        log::info!(
+                            "Instalación de Forge completada con éxito usando {}",
+                            option
+                        );
+                        break;
+                    } else {
+                        let error_msg = String::from_utf8_lossy(&output.stderr);
+                        log::warn!(
+                            "Fallo en instalación de Forge con {}: {}",
+                            option,
+                            error_msg
+                        );
+                        last_error = format!(
+                            "Error en instalación de Forge con {}: {}",
+                            option, error_msg
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Error al ejecutar instalador de Forge con {}: {}",
+                        option,
+                        e
+                    );
+                    last_error = format!(
+                        "Error al ejecutar instalador de Forge con {}: {}",
+                        option, e
+                    );
+                }
+            }
         }
 
         // Limpiar archivo temporal de instalación
@@ -1558,8 +1631,19 @@ fn extract_natives(
             let _ = fs::remove_file(install_profile);
         }
 
-        log::info!("Instalación de Forge completada con éxito");
-        Ok(())
+        // Verificar resultado final
+        if success {
+            Ok(())
+        } else {
+            log::error!(
+                "Todos los métodos de instalación de Forge fallaron. Último error: {}",
+                last_error
+            );
+            Err(format!(
+                "Todos los métodos de instalación de Forge fallaron. Último error: {}",
+                last_error
+            ))
+        }
     }
 
     fn find_java_path(&self) -> Result<String, String> {
@@ -1575,7 +1659,7 @@ fn extract_natives(
             .get_java_dir()
             .ok_or_else(|| "Java path is not set".to_string())?
             .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
+            .join(if cfg!(windows) { "javaw.exe" } else { "java" });
 
         if !java_path.exists() {
             return Err(format!(
@@ -1646,7 +1730,7 @@ fn extract_natives(
     ) -> Result<(), String> {
         // Verificar integridad de la instancia Vanilla
         let instance = instance.ok_or_else(|| "Instance is not provided".to_string())?;
-        
+
         Self::emit_status(
             instance,
             "instance-verifying-vanilla",
@@ -1675,14 +1759,14 @@ fn extract_natives(
         let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
         let minecraft_dir = instance_dir.join("minecraft");
         let versions_dir = minecraft_dir.join("versions");
-        let natives_dir = minecraft_dir.join("natives").join(&instance.minecraftVersion);
+        let natives_dir = minecraft_dir
+            .join("natives")
+            .join(&instance.minecraftVersion);
         let instance_version_dir = versions_dir.join(&instance.minecraftVersion);
-        let instance_version_json_path = instance_version_dir.join(format!(
-            "{}.json",
-            instance.minecraftVersion
-        ));
+        let instance_version_json_path =
+            instance_version_dir.join(format!("{}.json", instance.minecraftVersion));
         let libraries_dir = minecraft_dir.join("libraries");
-        
+
         // Get the version manifest
         let version_manifest_url = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
         let version_manifest: Value = self
@@ -1712,9 +1796,9 @@ fn extract_natives(
             .map_err(|e| format!("Error al parsear los detalles de la versión: {}", e))?;
 
         // Get the libraries from the version details
-        let libraries = version_details["libraries"]
-            .as_array()
-            .ok_or_else(|| "No se encontraron librerías en los detalles de la versión".to_string())?;
+        let libraries = version_details["libraries"].as_array().ok_or_else(|| {
+            "No se encontraron librerías en los detalles de la versión".to_string()
+        })?;
         let total_libraries = libraries.len();
         let mut downloaded_libraries = 0;
         for library in libraries {
@@ -1811,11 +1895,12 @@ fn extract_natives(
         }
 
         // Extraer bibliotecas nativas
-        if let Err(e) = self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
+        if let Err(e) =
+            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
+        {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
         }
-       
 
         // Emit end event
         Self::emit_status(
@@ -1855,13 +1940,11 @@ pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
 
     let bootstrapper = InstanceBootstrap::new();
     // Verificar que la instancia sea válida
-    
+
     // Verificar la integridad de la instancia
     bootstrapper
         .verify_integrity_vanilla(instance.as_ref(), None, None)
         .map_err(|e| format!("Error al verificar la integridad de la instancia: {}", e))?;
-
-
 
     Ok(())
 }

@@ -1,8 +1,8 @@
 use serde_json::Value;
-use std::io::{BufRead, BufReader};
+use std::collections::HashMap;
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
 };
 
@@ -24,356 +24,342 @@ impl VanillaLauncher {
         Self { instance }
     }
 
-    // Helper function to parse and process arguments from the manifest
-    // Modified process_game_arguments method with proper platform-specific handling
-    fn process_game_arguments(
+    // Checks if a rule should apply based on OS, arch, and feature requirements
+    pub fn should_apply_rule(
         &self,
-        manifest_json: &Value,
-        account: &MinecraftAccount,
-        game_dir: &PathBuf,
-        assets_dir: &PathBuf,
-        natives_dir: &PathBuf,
-        minecraft_version: &str,
-        assets_index: &str,
-    ) -> Vec<String> {
-        let mut arguments = Vec::new();
+        rule: &Value,
+        features: Option<&HashMap<String, bool>>,
+    ) -> bool {
+        let action = rule
+            .get("action")
+            .and_then(|a| a.as_str())
+            .unwrap_or("allow");
+        let mut should_apply = action == "allow";
 
-        // Check for new-style arguments (1.13+)
-        if let Some(args_obj) = manifest_json.get("arguments").and_then(|v| v.get("game")) {
-            if let Some(args_array) = args_obj.as_array() {
-                let mut i = 0;
-                while i < args_array.len() {
-                    let arg = &args_array[i];
+        // Check OS rules
+        if let Some(os_obj) = rule.get("os") {
+            let mut os_match = true;
 
-                    // If it's a simple string argument
-                    if let Some(arg_str) = arg.as_str() {
-                        arguments.push(arg_str.to_string());
+            // Check OS name
+            if let Some(os_name) = os_obj.get("name").and_then(|n| n.as_str()) {
+                let is_current_os = match os_name {
+                    "windows" => cfg!(windows),
+                    "osx" => cfg!(target_os = "macos"),
+                    "linux" => cfg!(target_os = "linux"),
+                    _ => false,
+                };
+                if !is_current_os {
+                    os_match = false;
+                }
+            }
+
+            // Check OS architecture
+            if let Some(os_arch) = os_obj.get("arch").and_then(|a| a.as_str()) {
+                let is_current_arch = match os_arch {
+                    "x86" => cfg!(target_arch = "x86"),
+                    "x86_64" => cfg!(target_arch = "x86_64"),
+                    "arm" => cfg!(target_arch = "arm"),
+                    "arm64" => cfg!(target_arch = "aarch64"),
+                    _ => false,
+                };
+                if !is_current_arch {
+                    os_match = false;
+                }
+            }
+
+            if action == "allow" {
+                should_apply = os_match;
+            } else {
+                should_apply = !os_match;
+            }
+        }
+
+        // Check feature rules
+        if let Some(feature_obj) = rule.get("features") {
+            if let Some(features_map) = features {
+                for (feature_name, feature_value) in
+                    feature_obj.as_object().unwrap_or(&serde_json::Map::new())
+                {
+                    if let Some(expected_value) = feature_value.as_bool() {
+                        let actual_value = *features_map.get(feature_name).unwrap_or(&false);
+                        if actual_value != expected_value {
+                            should_apply = action != "allow";
+                            break;
+                        }
                     }
-                    // If it's a complex rule-based argument
-                    else if arg.is_object() {
-                        // Check if rules allow this argument
-                        let should_include = arg
-                            .get("rules")
-                            .and_then(|rules| rules.as_array())
-                            .map(|rules_arr| {
-                                // Process rules to determine if this arg should be included
-                                // For simplicity, we're skipping complex rule evaluation
-                                // In a full implementation, you'd check OS, features, etc.
+                }
+            } else {
+                // If feature rules exist but no features are provided, rule doesn't apply
+                should_apply = action != "allow";
+            }
+        }
 
-                                // Check if any rules explicitly exclude the current OS
-                                let mut include = true;
-                                for rule in rules_arr {
-                                    if let Some(action) =
-                                        rule.get("action").and_then(|a| a.as_str())
-                                    {
-                                        if action == "allow" && rule.get("os").is_some() {
-                                            // Check if this is an OS-specific rule
-                                            if let Some(os_obj) = rule.get("os") {
-                                                if let Some(os_name) =
-                                                    os_obj.get("name").and_then(|n| n.as_str())
-                                                {
-                                                    // Only include if the current OS matches
-                                                    let is_current_os = match os_name {
-                                                        "windows" => cfg!(windows),
-                                                        "osx" => cfg!(target_os = "macos"),
-                                                        "linux" => cfg!(target_os = "linux"),
-                                                        _ => false,
-                                                    };
+        should_apply
+    }
 
-                                                    if !is_current_os {
-                                                        include = false;
-                                                    }
-                                                }
-                                            }
-                                        } else if action == "disallow" && rule.get("os").is_some() {
-                                            // Check if this OS should be excluded
-                                            if let Some(os_obj) = rule.get("os") {
-                                                if let Some(os_name) =
-                                                    os_obj.get("name").and_then(|n| n.as_str())
-                                                {
-                                                    // Exclude if the current OS matches
-                                                    let is_current_os = match os_name {
-                                                        "windows" => cfg!(windows),
-                                                        "osx" => cfg!(target_os = "macos"),
-                                                        "linux" => cfg!(target_os = "linux"),
-                                                        _ => false,
-                                                    };
+    // Process values from a rule or argument
+    fn process_rule_values(
+        &self,
+        value: &Value,
+        placeholder_map: &HashMap<String, String>,
+    ) -> Vec<String> {
+        let mut values = Vec::new();
 
-                                                    if is_current_os {
-                                                        include = false;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                include
-                            })
-                            .unwrap_or(true);
+        if let Some(value_str) = value.as_str() {
+            values.push(self.replace_placeholders(value_str, placeholder_map));
+        } else if let Some(value_arr) = value.as_array() {
+            for v in value_arr {
+                if let Some(v_str) = v.as_str() {
+                    values.push(self.replace_placeholders(v_str, placeholder_map));
+                }
+            }
+        }
+
+        values
+    }
+
+    // Replace placeholders in a string using a map
+    pub fn replace_placeholders(
+        &self,
+        input: &str,
+        placeholders: &HashMap<String, String>,
+    ) -> String {
+        let mut result = input.to_string();
+        for (key, value) in placeholders {
+            result = result.replace(&format!("${{{}}}", key), value);
+        }
+        result
+    }
+
+    // Process arguments (both JVM and game) using the new rule evaluation system
+    pub fn process_arguments(
+        &self,
+        args_obj: &Value,
+        placeholders: &HashMap<String, String>,
+        features: Option<&HashMap<String, bool>>,
+    ) -> Vec<String> {
+        let mut processed_args = Vec::new();
+
+        if let Some(args_array) = args_obj.as_array() {
+            for arg in args_array {
+                // If it's a simple string argument
+                if let Some(arg_str) = arg.as_str() {
+                    processed_args.push(self.replace_placeholders(arg_str, placeholders));
+                }
+                // If it's a complex rule-based argument
+                else if arg.is_object() {
+                    // Check if rules allow this argument
+                    if let Some(rules) = arg.get("rules").and_then(|r| r.as_array()) {
+                        let mut should_include = false;
+
+                        for rule in rules {
+                            if self.should_apply_rule(rule, features) {
+                                should_include = true;
+                                break;
+                            }
+                        }
 
                         if should_include {
                             if let Some(value) = arg.get("value") {
-                                if let Some(value_str) = value.as_str() {
-                                    arguments.push(value_str.to_string());
-                                } else if let Some(value_arr) = value.as_array() {
-                                    for v in value_arr {
-                                        if let Some(v_str) = v.as_str() {
-                                            arguments.push(v_str.to_string());
-                                        }
-                                    }
-                                }
+                                processed_args
+                                    .extend(self.process_rule_values(value, placeholders));
                             }
                         }
                     }
-                    i += 1;
                 }
             }
         }
-        // Legacy-style arguments (pre-1.13)
-        else if let Some(min_args) = manifest_json
-            .get("minecraftArguments")
-            .and_then(|v| v.as_str())
-        {
-            // Split the legacy-style argument string
-            arguments.extend(min_args.split_whitespace().map(|s| s.to_string()));
-        }
-        // Fallback to hardcoded arguments for very old versions
-        else {
-            // Basic arguments that should work with old versions
-            arguments.extend(vec![
-                "--username".to_string(),
-                "${auth_player_name}".to_string(),
-                "--version".to_string(),
-                "${version_name}".to_string(),
-                "--gameDir".to_string(),
-                "${game_directory}".to_string(),
-                "--assetsDir".to_string(),
-                "${assets_root}".to_string(),
-            ]);
-
-            // Additional arguments for slightly newer but still old versions
-            if !assets_index.is_empty() {
-                arguments.extend(vec![
-                    "--assetIndex".to_string(),
-                    "${assets_index_name}".to_string(),
-                ]);
-            }
-
-            arguments.extend(vec![
-                "--uuid".to_string(),
-                "${auth_uuid}".to_string(),
-                "--accessToken".to_string(),
-                "${auth_access_token}".to_string(),
-                "--userType".to_string(),
-                "${user_type}".to_string(),
-            ]);
-        }
-
-        // Replace variables in arguments
-        let mut processed_args = Vec::new();
-        for arg in arguments {
-            let processed = arg
-                .replace("${auth_player_name}", &account.username())
-                .replace("${version_name}", minecraft_version)
-                .replace("${game_directory}", &game_dir.to_string_lossy())
-                .replace("${assets_root}", &assets_dir.to_string_lossy())
-                .replace("${assets_index_name}", assets_index)
-                .replace("${auth_uuid}", &account.uuid())
-                .replace(
-                    "${auth_access_token}",
-                    account.access_token().as_deref().unwrap_or("null"),
-                )
-                .replace(
-                    "${user_type}",
-                    if account.user_type() != "offline" {
-                        "mojang"
-                    } else {
-                        "legacy"
-                    },
-                )
-                .replace("${version_type}", "release")
-                .replace("${natives_directory}", &natives_dir.to_string_lossy())
-                .replace("${launcher_name}", "modpackstore")
-                .replace("${launcher_version}", "1.0.0")
-                .replace("${classpath}", ""); // Classpath is handled separately
-
-            processed_args.push(processed);
-        }
-
-        // Disable demo mode by correcting the flag (it should be a negative flag)
-        if processed_args.contains(&"--demo".to_string()) {
-            // Remove the existing demo flag if it exists
-            let index = processed_args.iter().position(|x| x == "--demo").unwrap();
-            // Remove quick world flag
-
-            processed_args.remove(index);
-            // Check if there's a value after it and remove that too if needed
-            if index < processed_args.len() && processed_args[index] == "true" {
-                processed_args.remove(index);
-            }
-        }
-
-        // Don't add platform-specific arguments here - they should be added to JVM args
-        // based on platform detection in the launch method
 
         processed_args
     }
-}
 
-impl GameLauncher for VanillaLauncher {
-    fn launch(&self) -> Option<Child> {
-        let config_lock = get_config_manager()
-            .lock()
-            .expect("Failed to lock config manager mutex");
+    // Helper function to process game arguments from the manifest
+    pub fn process_game_arguments(
+        &self,
+        manifest_json: &Value,
+        account: &MinecraftAccount,
+        game_dir: &Path,
+        assets_dir: &Path,
+        natives_dir: &Path,
+        minecraft_version: &str,
+        assets_index: &str,
+    ) -> Vec<String> {
+        // Create placeholder map for variable substitution
+        let mut placeholders = HashMap::new();
+        placeholders.insert(
+            "auth_player_name".to_string(),
+            account.username().to_string(),
+        );
+        placeholders.insert("version_name".to_string(), minecraft_version.to_string());
+        placeholders.insert(
+            "game_directory".to_string(),
+            game_dir.to_string_lossy().to_string(),
+        );
+        placeholders.insert(
+            "assets_root".to_string(),
+            assets_dir.to_string_lossy().to_string(),
+        );
+        placeholders.insert("assets_index_name".to_string(), assets_index.to_string());
+        placeholders.insert("auth_uuid".to_string(), account.uuid().to_string());
+        placeholders.insert(
+            "auth_access_token".to_string(),
+            account.access_token().unwrap_or("null").to_string(),
+        );
+        placeholders.insert(
+            "user_type".to_string(),
+            if account.user_type() != "offline" {
+                "mojang"
+            } else {
+                "legacy"
+            }
+            .to_string(),
+        );
+        placeholders.insert("version_type".to_string(), "release".to_string());
+        placeholders.insert(
+            "natives_directory".to_string(),
+            natives_dir.to_string_lossy().to_string(),
+        );
+        placeholders.insert("launcher_name".to_string(), "modpackstore".to_string());
+        placeholders.insert("launcher_version".to_string(), "1.0.0".to_string());
 
-        let config = config_lock
-            .as_ref()
-            .expect("Config manager failed to initialize");
+        // Define QuickPlay features (disabled by default)
+        let mut features = HashMap::new();
+        features.insert("has_custom_resolution".to_string(), false);
+        features.insert("has_quick_plays_support".to_string(), false);
+        features.insert("is_demo_user".to_string(), false);
+        features.insert("is_quick_play_singleplayer".to_string(), false);
+        features.insert("is_quick_play_multiplayer".to_string(), false);
+        features.insert("is_quick_play_realms".to_string(), false);
 
-        let mc_memory = config.get_minecraft_memory().unwrap_or(2048); // Default to 2GB if not set
-        println!("Minecraft memory: {}MB", mc_memory);
-
-        // Get Java path from configuration
-        let default_java_path = config.get_java_dir().unwrap_or_else(|| {
-            println!("Java path is not set");
-            PathBuf::from("default_java_path")
-        });
-
-        // Get Java path from instance or use default
-        let java_path = self
-            .instance
-            .javaPath
-            .as_ref()
-            .map(|path| PathBuf::from(path))
-            .unwrap_or(default_java_path)
-            .join("bin")
-            .join(if cfg!(windows) { "java.exe" } else { "java" });
-
-        println!("Java path: {}", java_path.display());
-
-        let accounts_manager = AccountsManager::new();
-
-        // If instance does not have an account (null), throw an error
-        if self.instance.accountUuid.is_none() {
-            println!("No account found for this instance.");
-            return None;
+        // Check for new-style arguments (1.13+)
+        if let Some(args_obj) = manifest_json.get("arguments").and_then(|v| v.get("game")) {
+            return self.process_arguments(args_obj, &placeholders, Some(&features));
         }
 
-        let account = accounts_manager
-            .get_minecraft_account_by_uuid(
-                self.instance
-                    .accountUuid
-                    .as_ref()
-                    .unwrap_or(&"".to_string()),
-            )
-            .unwrap_or_else(|| {
-                println!(
-                    "Account not found for UUID: {}",
-                    self.instance
-                        .accountUuid
-                        .as_ref()
-                        .unwrap_or(&"".to_string())
-                );
-                MinecraftAccount::new(
-                    "offline".to_string(),
-                    Uuid::new_v4().to_string(),
-                    None,
-                    "offline".to_string(),
-                )
-            });
-
-        println!("Account: {:?}", account);
-
-        // Get game directory
-        // Game Dir is instanceDirectory + "/minecraft"
-        let game_dir = self
-            .instance
-            .instanceDirectory
-            .as_ref()
-            .map(|dir| PathBuf::from(dir).join("minecraft"))
-            .unwrap_or_else(|| PathBuf::from("default_path").join("minecraft"));
-
-        if !game_dir.exists() {
-            fs::create_dir_all(&game_dir).expect("Failed to create game directory");
-        }
-
-        let minecraft_version = self.instance.minecraftVersion.clone();
-
-        let version_dir = game_dir.join("versions").join(&minecraft_version);
-        let client_jar = version_dir.join(format!("{minecraft_version}.jar"));
-        let natives_dir = game_dir.join("natives").join(&minecraft_version);
-        let libraries_dir = game_dir.join("libraries");
-        let assets_dir = game_dir.join("assets");
-        let manifest_file = version_dir.join(format!("{minecraft_version}.json"));
-
-        println!("version_dir: {}", version_dir.display());
-        println!("client_jar: {}", client_jar.display());
-        println!("natives_dir: {}", natives_dir.display());
-        println!("libraries_dir: {}", libraries_dir.display());
-        println!("assets_dir: {}", assets_dir.display());
-        println!("manifest_file: {}", manifest_file.display());
-        println!("game_dir: {}", game_dir.display());
-        println!("java_path: {}", java_path.display());
-
-        // Validate required files and directories
-        for (desc, path) in &[
-            ("Client JAR", &client_jar),
-            ("Natives", &natives_dir),
-            ("Libraries", &libraries_dir),
-            ("Manifest", &manifest_file),
-        ] {
-            if !path.exists() {
-                // Create the directory if it doesn't exist
-                if let Some(parent) = path.parent() {
-                    if !parent.exists() {
-                        fs::create_dir_all(parent).expect(&format!("Failed to create {}", desc));
-                    }
-                }
-            }
-        }
-
-        // Read and parse the JSON manifest
-        let manifest_data = match fs::read_to_string(&manifest_file) {
-            Ok(content) => content,
-            Err(e) => {
-                println!("Failed to read version manifest file: {}", e);
-                return None;
-            }
-        };
-
-        let manifest_json: Value = match serde_json::from_str(&manifest_data) {
-            Ok(json) => json,
-            Err(e) => {
-                println!("Failed to parse version manifest JSON: {}", e);
-                return None;
-            }
-        };
-
-        // Get main class from manifest
-        let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
-            Some(class) => class.to_string(),
-            None => {
-                println!("Main class not found in manifest");
-                return None;
-            }
-        };
-
-        // Get assets index
-        let assets_index = manifest_json
-            .get("assets")
+        // Legacy-style arguments (pre-1.13)
+        if let Some(min_args) = manifest_json
+            .get("minecraftArguments")
             .and_then(|v| v.as_str())
-            .map(String::from)
-            .or_else(|| {
-                manifest_json
-                    .get("assetIndex")?
-                    .get("id")?
-                    .as_str()
-                    .map(String::from)
-            })
-            .unwrap_or_else(|| "legacy".to_string());
+        {
+            return min_args
+                .split_whitespace()
+                .map(|arg| self.replace_placeholders(arg, &placeholders))
+                .collect();
+        }
 
-        // Build classpath
+        // Fallback to hardcoded arguments for very old versions
+        let mut arguments = vec![
+            "--username".to_string(),
+            placeholders["auth_player_name"].clone(),
+            "--version".to_string(),
+            placeholders["version_name"].clone(),
+            "--gameDir".to_string(),
+            placeholders["game_directory"].clone(),
+            "--assetsDir".to_string(),
+            placeholders["assets_root"].clone(),
+        ];
+
+        // Additional arguments for slightly newer but still old versions
+        if !assets_index.is_empty() {
+            arguments.extend(vec![
+                "--assetIndex".to_string(),
+                placeholders["assets_index_name"].clone(),
+            ]);
+        }
+
+        arguments.extend(vec![
+            "--uuid".to_string(),
+            placeholders["auth_uuid"].clone(),
+            "--accessToken".to_string(),
+            placeholders["auth_access_token"].clone(),
+            "--userType".to_string(),
+            placeholders["user_type"].clone(),
+        ]);
+
+        arguments
+    }
+
+    // Process JVM arguments from the manifest
+    pub fn process_jvm_arguments(
+        &self,
+        manifest_json: &Value,
+        natives_dir: &Path,
+        classpath_str: &str,
+        mc_memory: u32,
+    ) -> Vec<String> {
+        // Create placeholder map for variable substitution
+        let mut placeholders = HashMap::new();
+        placeholders.insert(
+            "natives_directory".to_string(),
+            natives_dir.to_string_lossy().to_string(),
+        );
+        placeholders.insert("launcher_name".to_string(), "modpackstore".to_string());
+        placeholders.insert("launcher_version".to_string(), "1.0.0".to_string());
+        placeholders.insert("classpath".to_string(), classpath_str.to_string());
+
+        // Base memory settings that should always be included
+        let mut jvm_args = vec![format!("-Xms512M"), format!("-Xmx{}M", mc_memory)];
+
+        // Check if there are JVM args in the manifest (modern format)
+        if let Some(args_obj) = manifest_json.get("arguments").and_then(|v| v.get("jvm")) {
+            // Process JVM args from manifest
+            let manifest_args = self.process_arguments(args_obj, &placeholders, None);
+
+            // Add all arguments from manifest that aren't already included
+            let filtered_args: Vec<_> = manifest_args
+                .into_iter()
+                .filter(|arg| !jvm_args.contains(arg))
+                .collect();
+            jvm_args.extend(filtered_args);
+        } else {
+            // Legacy format: include all standard arguments
+            jvm_args.extend(vec![
+                format!("-Djava.library.path={}", natives_dir.display()),
+                format!("-Dminecraft.launcher.brand=modpackstore"),
+                format!("-Dminecraft.launcher.version=1.0.0"),
+                format!("-Djna.tmpdir={}", natives_dir.display()),
+                format!(
+                    "-Dorg.lwjgl.system.SharedLibraryExtractPath={}",
+                    natives_dir.display()
+                ),
+                format!("-Dio.netty.native.workdir={}", natives_dir.display()),
+            ]);
+
+            // Add OS-specific arguments for legacy versions
+            if cfg!(target_os = "macos") {
+                jvm_args.push("-XstartOnFirstThread".to_string());
+            }
+
+            if cfg!(windows) {
+                jvm_args.push("-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump".to_string());
+            }
+
+            if cfg!(target_arch = "x86") {
+                jvm_args.push("-Xss1M".to_string());
+            }
+        }
+
+        // Make sure classpath is included
+        if !jvm_args
+            .iter()
+            .any(|arg| arg == "-cp" || arg == "-classpath")
+        {
+            jvm_args.push("-cp".to_string());
+            jvm_args.push(classpath_str.to_string());
+        }
+
+        jvm_args
+    }
+
+    // Build the classpath from the manifest
+    fn build_classpath(
+        &self,
+        manifest_json: &Value,
+        client_jar: &Path,
+        libraries_dir: &Path,
+    ) -> String {
         let mut classpath = vec![client_jar.to_string_lossy().to_string()];
+        let separator = if cfg!(windows) { ";" } else { ":" };
 
         if let Some(libs) = manifest_json.get("libraries").and_then(|v| v.as_array()) {
             for lib in libs {
@@ -382,10 +368,11 @@ impl GameLauncher for VanillaLauncher {
                     .get("rules")
                     .and_then(|rules| rules.as_array())
                     .map(|rules_arr| {
-                        // Simple rule checking - in a full implementation, check OS, etc.
-                        true // Default to including
+                        rules_arr
+                            .iter()
+                            .any(|rule| self.should_apply_rule(rule, None))
                     })
-                    .unwrap_or(true);
+                    .unwrap_or(true); // Default to include if no rules
 
                 if !should_include {
                     continue;
@@ -432,7 +419,171 @@ impl GameLauncher for VanillaLauncher {
             }
         }
 
-        let classpath_str = classpath.join(if cfg!(windows) { ";" } else { ":" });
+        classpath.join(separator)
+    }
+}
+
+impl GameLauncher for VanillaLauncher {
+    fn launch(&self) -> Option<Child> {
+        let config_lock = get_config_manager()
+            .lock()
+            .expect("Failed to lock config manager mutex");
+
+        let config = config_lock
+            .as_ref()
+            .expect("Config manager failed to initialize");
+
+        let mc_memory = config.get_minecraft_memory().unwrap_or(2048); // Default to 2GB if not set
+        println!("Minecraft memory: {}MB", mc_memory);
+
+        // Get Java path from configuration
+        let default_java_path = config.get_java_dir().unwrap_or_else(|| {
+            println!("Java path is not set");
+            PathBuf::from("default_java_path")
+        });
+
+        // Get Java path from instance or use default
+        let java_path = match &self.instance.javaPath {
+            Some(path) => PathBuf::from(path),
+            None => default_java_path,
+        }
+        .join("bin")
+        .join(if cfg!(windows) { "java.exe" } else { "java" });
+
+        println!("Java path: {}", java_path.display());
+
+        let accounts_manager = AccountsManager::new();
+
+        // If instance does not have an account, return None
+        let account_uuid = match &self.instance.accountUuid {
+            Some(uuid) => uuid,
+            None => {
+                println!("No account found for this instance.");
+                return None;
+            }
+        };
+
+        let account = match accounts_manager.get_minecraft_account_by_uuid(account_uuid) {
+            Some(acct) => acct,
+            None => {
+                println!("Account not found for UUID: {}", account_uuid);
+                MinecraftAccount::new(
+                    "offline".to_string(),
+                    Uuid::new_v4().to_string(),
+                    None,
+                    "offline".to_string(),
+                )
+            }
+        };
+
+        println!("Account: {:?}", account);
+
+        // Get game directory
+        let game_dir = match &self.instance.instanceDirectory {
+            Some(dir) => PathBuf::from(dir).join("minecraft"),
+            None => PathBuf::from("default_path").join("minecraft"),
+        };
+
+        if !game_dir.exists() {
+            fs::create_dir_all(&game_dir).expect("Failed to create game directory");
+        }
+
+        let minecraft_version = self.instance.minecraftVersion.clone();
+
+        let version_dir = game_dir.join("versions").join(&minecraft_version);
+        let client_jar = version_dir.join(format!("{}.jar", minecraft_version));
+        let natives_dir = game_dir.join("natives").join(&minecraft_version);
+        let libraries_dir = game_dir.join("libraries");
+        let assets_dir = game_dir.join("assets");
+        let manifest_file = version_dir.join(format!("{}.json", minecraft_version));
+
+        //  Extracted from siglauncher code, maybe we can handle all vanilla and forge in a single way
+
+        /*
+          let modded = !p["inheritsFrom"].is_null();
+         if modded {
+            let mut vanilla_json_content = String::new();
+
+            let mut vanilla_json_file = match File::open(format!(
+                "{}/versions/{}/{}.json",
+                minecraft_dir,
+                game_settings.game_version,
+                p["inheritsFrom"].as_str().unwrap()
+            )) {
+                Ok(ok) => ok,
+                Err(_) => panic!("no!!!"),
+            };
+
+            vanilla_json_file
+                .read_to_string(&mut vanilla_json_content)
+                .unwrap();
+
+            let content = serde_json::from_str(&vanilla_json_content);
+            p = content.unwrap();
+        }
+         */
+
+        // Log paths for debugging
+        log::info!("version_dir: {}", version_dir.display());
+        log::info!("client_jar: {}", client_jar.display());
+        log::info!("natives_dir: {}", natives_dir.display());
+        log::info!("libraries_dir: {}", libraries_dir.display());
+        log::info!("assets_dir: {}", assets_dir.display());
+        log::info!("manifest_file: {}", manifest_file.display());
+        log::info!("game_dir: {}", game_dir.display());
+
+        // Validate required files and directories
+        for (desc, path) in &[
+            ("Client JAR", &client_jar),
+            ("Natives", &natives_dir),
+            ("Libraries", &libraries_dir),
+            ("Manifest", &manifest_file),
+        ] {
+            if !path.exists() {
+                // Create the directory if it doesn't exist
+                if let Some(parent) = path.parent() {
+                    if !parent.exists() {
+                        fs::create_dir_all(parent).expect(&format!("Failed to create {}", desc));
+                    }
+                }
+            }
+        }
+
+        // Read and parse the JSON manifest
+        let manifest_data = match fs::read_to_string(&manifest_file) {
+            Ok(content) => content,
+            Err(e) => {
+                println!("Failed to read version manifest file: {}", e);
+                return None;
+            }
+        };
+
+        let manifest_json: Value = match serde_json::from_str(&manifest_data) {
+            Ok(json) => json,
+            Err(e) => {
+                println!("Failed to parse version manifest JSON: {}", e);
+                return None;
+            }
+        };
+
+        // Get main class from manifest
+        let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
+            Some(class) => class,
+            None => {
+                println!("Main class not found in manifest");
+                return None;
+            }
+        };
+
+        // Get assets index
+        let assets_index = manifest_json
+            .get("assets")
+            .and_then(|v| v.as_str())
+            .or_else(|| manifest_json.get("assetIndex")?.get("id")?.as_str())
+            .unwrap_or("legacy");
+
+        // Build classpath
+        let classpath_str = self.build_classpath(&manifest_json, &client_jar, &libraries_dir);
 
         // Process game arguments from manifest
         let game_args = self.process_game_arguments(
@@ -442,169 +593,24 @@ impl GameLauncher for VanillaLauncher {
             &assets_dir,
             &natives_dir,
             &minecraft_version,
-            &assets_index,
+            assets_index,
         );
 
-        // Get JVM arguments from manifest (newer versions) or use defaults
-        // Improved JVM arguments handling for the launch method
-        // Place this code in your launch() method where JVM args are processed
-
-        // Get JVM arguments from manifest (newer versions) or use defaults
-        let mut jvm_args = vec![
-            "-Xms512M".to_string(),
-            format!("-Xmx{}M", mc_memory),
-            format!("-Djava.library.path={}", natives_dir.display()),
-            format!("-Dminecraft.client.jar={}", client_jar.display()),
-            "-Dminecraft.launcher.brand=modpackstore".to_string(),
-            "-Dminecraft.launcher.version=1.0.0".to_string(),
-        ];
-
-        // Add macOS specific arguments only on macOS
-        if cfg!(target_os = "macos") {
-            jvm_args.push("-XstartOnFirstThread".to_string());
-        }
-
-        // Add custom JVM args from manifest (newer versions)
-        if let Some(args_obj) = manifest_json.get("arguments").and_then(|v| v.get("jvm")) {
-            if let Some(args_array) = args_obj.as_array() {
-                for arg in args_array {
-                    // Handle simple string args
-                    if let Some(arg_str) = arg.as_str() {
-                        let processed = arg_str
-                            .replace("${natives_directory}", &natives_dir.to_string_lossy())
-                            .replace("${launcher_name}", "modpackstore")
-                            .replace("${launcher_version}", "1.0.0")
-                            .replace("${classpath}", &classpath_str);
-
-                        // Only add if not already present (avoid duplicates)
-                        if !jvm_args.contains(&processed) {
-                            jvm_args.push(processed);
-                        }
-                    }
-                    // Handle complex rule-based args
-                    else if arg.is_object() {
-                        // Check if rules allow this argument
-                        let should_include = arg
-                            .get("rules")
-                            .and_then(|rules| rules.as_array())
-                            .map(|rules_arr| {
-                                // Process rules to determine if this arg should be included
-                                let mut include = true;
-
-                                for rule in rules_arr {
-                                    if let Some(action) =
-                                        rule.get("action").and_then(|a| a.as_str())
-                                    {
-                                        if action == "allow" && rule.get("os").is_some() {
-                                            // Check if this is an OS-specific rule
-                                            if let Some(os_obj) = rule.get("os") {
-                                                if let Some(os_name) =
-                                                    os_obj.get("name").and_then(|n| n.as_str())
-                                                {
-                                                    // Only include if the current OS matches
-                                                    let is_current_os = match os_name {
-                                                        "windows" => cfg!(windows),
-                                                        "osx" => cfg!(target_os = "macos"),
-                                                        "linux" => cfg!(target_os = "linux"),
-                                                        _ => false,
-                                                    };
-
-                                                    if !is_current_os {
-                                                        include = false;
-                                                    }
-                                                }
-                                            }
-                                        } else if action == "disallow" && rule.get("os").is_some() {
-                                            // Check if this OS should be excluded
-                                            if let Some(os_obj) = rule.get("os") {
-                                                if let Some(os_name) =
-                                                    os_obj.get("name").and_then(|n| n.as_str())
-                                                {
-                                                    // Exclude if the current OS matches
-                                                    let is_current_os = match os_name {
-                                                        "windows" => cfg!(windows),
-                                                        "osx" => cfg!(target_os = "macos"),
-                                                        "linux" => cfg!(target_os = "linux"),
-                                                        _ => false,
-                                                    };
-
-                                                    if is_current_os {
-                                                        include = false;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                include
-                            })
-                            .unwrap_or(true);
-
-                        if should_include {
-                            if let Some(value) = arg.get("value") {
-                                if let Some(value_str) = value.as_str() {
-                                    let processed = value_str
-                                        .replace(
-                                            "${natives_directory}",
-                                            &natives_dir.to_string_lossy(),
-                                        )
-                                        .replace("${launcher_name}", "modpackstore")
-                                        .replace("${launcher_version}", "1.0.0")
-                                        .replace("${classpath}", &classpath_str);
-
-                                    if !jvm_args.contains(&processed) {
-                                        jvm_args.push(processed);
-                                    }
-                                } else if let Some(value_arr) = value.as_array() {
-                                    for v in value_arr {
-                                        if let Some(v_str) = v.as_str() {
-                                            let processed = v_str
-                                                .replace(
-                                                    "${natives_directory}",
-                                                    &natives_dir.to_string_lossy(),
-                                                )
-                                                .replace("${launcher_name}", "modpackstore")
-                                                .replace("${launcher_version}", "1.0.0")
-                                                .replace("${classpath}", &classpath_str);
-
-                                            if !jvm_args.contains(&processed) {
-                                                jvm_args.push(processed);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Make sure classpath is included
-        if !jvm_args
-            .iter()
-            .any(|arg| arg == "-cp" || arg == "-classpath")
-        {
-            jvm_args.push("-cp".to_string());
-            jvm_args.push(classpath_str);
-        }
+        // Process JVM arguments from manifest
+        let jvm_args =
+            self.process_jvm_arguments(&manifest_json, &natives_dir, &classpath_str, mc_memory);
 
         // Build command
-        let mut command = Command::new(java_path);
+        let mut command = Command::new(&java_path);
 
         // Add JVM arguments
-        for arg in jvm_args {
-            command.arg(arg);
-        }
+        command.args(&jvm_args);
 
         // Add main class
-        command.arg(&main_class);
+        command.arg(main_class);
 
         // Add game arguments
-        for arg in game_args {
-            command.arg(arg);
-        }
+        command.args(&game_args);
 
         command.current_dir(&game_dir);
         println!("Command: {:?}", command);
@@ -618,17 +624,15 @@ impl GameLauncher for VanillaLauncher {
         command.stderr(Stdio::piped());
 
         // Execute command
-        let child = match command.spawn() {
+        match command.spawn() {
             Ok(child) => {
                 println!("Spawned child process: {:?}", child.id());
-                child
+                Some(child)
             }
             Err(e) => {
                 println!("Failed to spawn Minecraft process: {}", e);
-                return None;
+                None
             }
-        };
-
-        Some(child)
+        }
     }
 }

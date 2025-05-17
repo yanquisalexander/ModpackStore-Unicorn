@@ -148,6 +148,15 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                         instanceId: id,
                         message: message || "Minecraft se ha cerrado inesperadamente"
                     });
+
+                    document.dispatchEvent(
+                        new CustomEvent("instance-crash", {
+                            detail: {
+                                instanceId: id,
+                                message: message || "Minecraft se ha cerrado inesperadamente"
+                            }
+                        })
+                    );
                 }
 
                 // Opcional: quitar la instancia después de un tiempo

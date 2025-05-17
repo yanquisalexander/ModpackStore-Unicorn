@@ -1,5 +1,5 @@
 // src-tauri/src/minecraft_instance.rs
-use crate::core::minecraft_launcher::InstanceLauncher;
+use crate::core::instance_launcher::InstanceLauncher;
 use crate::core::tasks_manager::{TaskInfo, TaskStatus, TasksManager};
 use crate::utils::config_manager::ConfigManager;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,6 @@ pub struct MinecraftInstance {
     pub instanceDirectory: Option<String>,
     pub forgeVersion: Option<String>,
     pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
-
 }
 
 impl MinecraftInstance {
@@ -107,8 +106,10 @@ impl MinecraftInstance {
                                     // Make sure instanceDirectory is set
                                     if instance.instanceDirectory.is_none() {
                                         let native_path_str = path.to_string_lossy().to_string();
-                                        let normalized_to_forward_slash = native_path_str.replace("\\", "/"); // Reemplazar \ con /
-                                        instance.instanceDirectory = Some(normalized_to_forward_slash);
+                                        let normalized_to_forward_slash =
+                                            native_path_str.replace("\\", "/"); // Reemplazar \ con /
+                                        instance.instanceDirectory =
+                                            Some(normalized_to_forward_slash);
                                     }
                                     println!("Found instance: {}", instance.instanceName);
                                     return Some(instance);

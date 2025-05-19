@@ -66,6 +66,9 @@ pub fn main() {
             // Focus the main window
             main_window.set_focus().unwrap();
 
+            log::info!("Starting Modpack Store...");
+            log::info!("Running on: {}, {}", std::env::consts::OS, std::env::consts::ARCH);
+
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());

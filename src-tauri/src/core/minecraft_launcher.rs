@@ -14,8 +14,6 @@ use std::{
 };
 use uuid::Uuid;
 
-const CREATE_NO_WINDOW: u32 = 0x08000000;
-
 pub struct MinecraftLauncher {
     instance: MinecraftInstance,
 }
@@ -441,54 +439,84 @@ impl MinecraftLauncher {
         let version_dir = game_dir.join("versions").join(minecraft_version);
         let manifest_file = version_dir.join(format!("{}.json", minecraft_version));
 
-        log::info!("Loading version manifest from {}", manifest_file.display());
+        log::info!(
+            "Trying to load version manifest from {}",
+            manifest_file.display()
+        );
 
-        // Read modded manifest file
+        // Leer archivo de manifiesto
         let manifest_data = match fs::read_to_string(&manifest_file) {
             Ok(content) => content,
             Err(e) => {
-                println!("Failed to read version manifest file: {}", e);
-                return None;
+                log::error!("Failed to read version manifest file: {}", e);
+
+                // Si es una versión de Forge, podría tener otra estructura de carpetas
+                if let Some(forge_version) = &self.instance.forgeVersion {
+                    let forge_id = format!("{}-{}", minecraft_version, forge_version);
+                    let alt_version_dir = game_dir.join("versions").join(&forge_id);
+                    let alt_manifest_file = alt_version_dir.join(format!("{}.json", forge_id));
+
+                    log::info!(
+                        "Trying alternative Forge manifest: {}",
+                        alt_manifest_file.display()
+                    );
+
+                    match fs::read_to_string(&alt_manifest_file) {
+                        Ok(content) => content,
+                        Err(e2) => {
+                            log::error!("Failed to read alternative Forge manifest: {}", e2);
+                            return None;
+                        }
+                    }
+                } else {
+                    return None;
+                }
             }
         };
 
         let mut manifest_json: Value = match serde_json::from_str(&manifest_data) {
             Ok(json) => json,
             Err(e) => {
-                println!("Failed to parse version manifest JSON: {}", e);
+                log::error!("Failed to parse version manifest JSON: {}", e);
                 return None;
             }
         };
 
-        // Check if this is a modded instance that inherits from vanilla
+        // Verificar si es una instancia modded que hereda de vanilla
         if let Some(inherits_from) = manifest_json.get("inheritsFrom").and_then(|v| v.as_str()) {
-            println!("Found modded instance inheriting from {}", inherits_from);
+            log::info!("Found modded instance inheriting from {}", inherits_from);
 
-            // Load vanilla manifest
+            // Cargar manifiesto vanilla
             let vanilla_version_dir = game_dir.join("versions").join(inherits_from);
             let vanilla_manifest_file = vanilla_version_dir.join(format!("{}.json", inherits_from));
+
+            log::info!(
+                "Loading vanilla manifest from {}",
+                vanilla_manifest_file.display()
+            );
 
             let vanilla_manifest_data = match fs::read_to_string(&vanilla_manifest_file) {
                 Ok(content) => content,
                 Err(e) => {
-                    println!("Failed to read vanilla manifest file: {}", e);
-                    return Some(manifest_json); // Return modded manifest only if vanilla can't be found
+                    log::error!("Failed to read vanilla manifest file: {}", e);
+                    return Some(manifest_json); // Devolver solo el manifiesto de forge si no se encuentra vanilla
                 }
             };
 
             let vanilla_manifest: Value = match serde_json::from_str(&vanilla_manifest_data) {
                 Ok(json) => json,
                 Err(e) => {
-                    println!("Failed to parse vanilla manifest JSON: {}", e);
-                    return Some(manifest_json); // Return modded manifest only if vanilla can't be parsed
+                    log::error!("Failed to parse vanilla manifest JSON: {}", e);
+                    return Some(manifest_json); // Devolver solo el manifiesto de forge si no se puede parsear
                 }
             };
 
-            // Merge manifests
+            // Combinar manifiestos
+            log::info!("Merging Forge and Vanilla manifests");
             return Some(self.merge_manifests(vanilla_manifest, manifest_json));
         }
 
-        // Return the original manifest if it's not modded or doesn't inherit
+        // Devolver el manifiesto original si no es modded o no hereda
         Some(manifest_json)
     }
 

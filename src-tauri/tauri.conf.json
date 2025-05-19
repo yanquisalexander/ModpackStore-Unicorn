@@ -24,10 +24,15 @@
       "wix": {
         "dialogImagePath": "./resources/installer_bg.bmp"
       }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
     }
   },
   "productName": "Modpack Store",
-  "mainBinaryName": "dev-alexitoo-modpackstore",
+  "mainBinaryName": "ModpackStore",
   "version": "0.0.222",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {

@@ -350,7 +350,7 @@ impl MinecraftLauncher {
         jvm_args
     }
 
-    // Build the classpath from the manifest, removing duplicates robustly
+        // Build the classpath from the manifest, removing duplicates robustly
     fn build_classpath(
         &self,
         manifest_json: &Value,
@@ -358,11 +358,11 @@ impl MinecraftLauncher {
         libraries_dir: &Path,
     ) -> String {
         let mut entries = Vec::new();
-        // Incluir el JAR del cliente
+        // 1) Incluir el JAR del cliente
         let client_path = client_jar.to_string_lossy().to_string();
         entries.push(client_path.clone());
 
-        // Para evitar duplicados
+        // 2) Para evitar duplicados
         let mut seen: HashSet<String> = HashSet::new();
         seen.insert(client_path);
 
@@ -376,8 +376,6 @@ impl MinecraftLauncher {
                 if seen.insert(s.clone()) {
                     entries.push(s);
                 }
-            } else {
-                log::warn!("Library path does not exist: {}", path.display());
             }
         };
 
@@ -394,134 +392,38 @@ impl MinecraftLauncher {
                     continue;
                 }
 
-                // Artifact genérico
+                // 2.1) Artifact genérico
                 if let Some(path_val) = lib
                     .get("downloads")
                     .and_then(|d| d.get("artifact"))
                     .and_then(|a| a.get("path"))
                     .and_then(Value::as_str)
                 {
-                    // Usar Path::join en lugar de manipular cadenas con separadores
-                    let jar_path_parts: Vec<&str> = path_val.split('/').collect();
-                    let mut jar = libraries_dir.to_path_buf();
-                    for part in jar_path_parts {
-                        jar = jar.join(part);
-                    }
+                    let jar =
+                        libraries_dir.join(path_val.replace('/', &MAIN_SEPARATOR.to_string()));
                     add_if_new(&jar);
                 }
 
-                // Classifiers nativos
+                // 2.2) Classifiers nativos
                 if let Some(classifiers) = lib
                     .get("downloads")
                     .and_then(|d| d.get("classifiers"))
                     .and_then(Value::as_object)
                 {
-                    // Elegir classifier según OS Y ARQUITECTURA
+                    // Elegir classifier según OS
                     let os_classifier = if cfg!(windows) {
-                        if cfg!(target_arch = "x86_64") {
-                            "natives-windows-64"
-                        } else {
-                            "natives-windows"
-                        }
+                        "natives-windows"
                     } else if cfg!(target_os = "linux") {
-                        if cfg!(target_arch = "x86_64") {
-                            "natives-linux-64"
-                        } else {
-                            "natives-linux"
-                        }
-                    } else if cfg!(target_os = "macos") {
-                        if cfg!(target_arch = "aarch64") {
-                            "natives-macos-arm64"
-                        } else {
-                            "natives-macos"
-                        }
+                        "natives-linux"
                     } else {
-                        // Fallback
-                        "natives-unknown"
+                        // macOS
+                        "natives-macos"
                     };
-
-                    // Intentar con el classifier específico primero
-                    let mut found_classifier = false;
                     if let Some(info) = classifiers.get(os_classifier) {
                         if let Some(path_val) = info.get("path").and_then(Value::as_str) {
-                            // Usar Path::join en lugar de manipular cadenas
-                            let path_parts: Vec<&str> = path_val.split('/').collect();
-                            let mut native_jar = libraries_dir.to_path_buf();
-                            for part in path_parts {
-                                native_jar = native_jar.join(part);
-                            }
-                            if native_jar.exists() {
-                                add_if_new(&native_jar);
-                                found_classifier = true;
-                            } else {
-                                log::warn!("Native library not found: {}", native_jar.display());
-                            }
-                        }
-                    }
-
-                    // Si no se encontró el classifier específico, intentar con el genérico
-                    if !found_classifier {
-                        let generic_classifier = if cfg!(windows) {
-                            "natives-windows"
-                        } else if cfg!(target_os = "linux") {
-                            "natives-linux"
-                        } else {
-                            "natives-macos"
-                        };
-
-                        if os_classifier != generic_classifier {
-                            if let Some(info) = classifiers.get(generic_classifier) {
-                                if let Some(path_val) = info.get("path").and_then(Value::as_str) {
-                                    let path_parts: Vec<&str> = path_val.split('/').collect();
-                                    let mut native_jar = libraries_dir.to_path_buf();
-                                    for part in path_parts {
-                                        native_jar = native_jar.join(part);
-                                    }
-                                    add_if_new(&native_jar);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Caso especial para versiones antiguas de Forge (sin downloads)
-                if lib.get("downloads").is_none() && lib.get("name").is_some() {
-                    if let Some(name) = lib.get("name").and_then(Value::as_str) {
-                        let parts: Vec<&str> = name.split(':').collect();
-                        if parts.len() >= 3 {
-                            let group = parts[0].replace('.', &MAIN_SEPARATOR.to_string());
-                            let artifact = parts[1];
-                            let version = parts[2];
-
-                            // Construir ruta manualmente para compatibilidad con Forge antiguo
-                            let mut path = libraries_dir.to_path_buf();
-                            for part in group.split(MAIN_SEPARATOR) {
-                                path = path.join(part);
-                            }
-                            path = path.join(artifact).join(version);
-
-                            // Comprobar clasificador nativo si existe
-                            let classifier = if parts.len() >= 4 {
-                                Some(parts[3])
-                            } else {
-                                None
-                            };
-
-                            let filename = if let Some(classifier) = classifier {
-                                format!("{}-{}-{}.jar", artifact, version, classifier)
-                            } else {
-                                format!("{}-{}.jar", artifact, version)
-                            };
-
-                            let jar_path = path.join(filename);
-                            if jar_path.exists() {
-                                add_if_new(&jar_path);
-                            } else {
-                                log::warn!(
-                                    "Library not found from name pattern: {}",
-                                    jar_path.display()
-                                );
-                            }
+                            let native_jar = libraries_dir
+                                .join(path_val.replace('/', &MAIN_SEPARATOR.to_string()));
+                            add_if_new(&native_jar);
                         }
                     }
                 }
@@ -1067,7 +969,6 @@ impl GameLauncher for MinecraftLauncher {
         // Add game arguments
         command.args(&game_args);
 
-        command.current_dir(&game_dir);
         log::info!("Launching Minecraft with command: {:?}", command);
         log::info!("Arguments: {:?}", command.get_args());
 

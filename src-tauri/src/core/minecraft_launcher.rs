@@ -835,11 +835,11 @@ impl GameLauncher for MinecraftLauncher {
             .expect("Config manager failed to initialize");
 
         let mc_memory = config.get_minecraft_memory().unwrap_or(2048); // Default to 2GB if not set
-        println!("Minecraft memory: {}MB", mc_memory);
+        log::info!("Minecraft memory: {}MB", mc_memory);
 
         // Get Java path from configuration
         let default_java_path = config.get_java_dir().unwrap_or_else(|| {
-            println!("Java path is not set");
+            log::info!("Java path is not set");
             PathBuf::from("default_java_path")
         });
 
@@ -851,7 +851,7 @@ impl GameLauncher for MinecraftLauncher {
         .join("bin")
         .join(if cfg!(windows) { "javaw.exe" } else { "java" });
 
-        println!("Java path: {}", java_path.display());
+        log::info!("Java path: {}", java_path.display());
 
         let accounts_manager = AccountsManager::new();
 
@@ -859,7 +859,7 @@ impl GameLauncher for MinecraftLauncher {
         let account_uuid = match &self.instance.accountUuid {
             Some(uuid) => uuid,
             None => {
-                println!("No account found for this instance.");
+                log::info!("No account found for this instance.");
                 return None;
             }
         };
@@ -867,7 +867,7 @@ impl GameLauncher for MinecraftLauncher {
         let account = match accounts_manager.get_minecraft_account_by_uuid(account_uuid) {
             Some(acct) => acct,
             None => {
-                println!("Account not found for UUID: {}", account_uuid);
+                log::info!("Account not found for UUID: {}", account_uuid);
                 MinecraftAccount::new(
                     "offline".to_string(),
                     Uuid::new_v4().to_string(),
@@ -877,7 +877,7 @@ impl GameLauncher for MinecraftLauncher {
             }
         };
 
-        println!("Account: {:?}", account);
+        log::info!("Account: {:?}", account);
 
         // Get game directory
         let game_dir = match &self.instance.instanceDirectory {
@@ -895,25 +895,97 @@ impl GameLauncher for MinecraftLauncher {
         // Check if this is a Forge instance
         let is_forge = self.instance.forgeVersion.is_some();
         if is_forge {
-            println!("Detected Forge version: {:?}", self.instance.forgeVersion);
-            // If Forge version is set, use it
-            minecraft_version = self.instance.forgeVersion.clone().unwrap();
+            log::info!("Detected Forge version: {:?}", self.instance.forgeVersion);
+            
+            // If Forge version is set, extract it from launcher_profiles.json in minecraft folder
+            let launcher_profiles_path = game_dir.join("launcher_profiles.json");
+            if launcher_profiles_path.exists() {
+                log::info!("Found launcher_profiles.json at {}", launcher_profiles_path.display());
+                
+                // Asumimos que el archivo existe y es válido
+                let profiles_content = fs::read_to_string(&launcher_profiles_path)
+                    .expect("Failed to read launcher_profiles.json");
+                
+                let profiles_json: serde_json::Value = serde_json::from_str(&profiles_content)
+                    .expect("Failed to parse launcher_profiles.json");
+                
+                let profiles = profiles_json.get("profiles")
+                    .and_then(|p| p.as_object())
+                    .expect("No profiles found in launcher_profiles.json");
+                
+                let forge_version = self.instance.forgeVersion.as_ref().unwrap();
+                let mut found_version = None;
+                
+                for (_, profile) in profiles {
+                    if let Some(last_version_id) = profile.get("lastVersionId").and_then(|v| v.as_str()) {
+                        log::info!("Found profile with version: {}", last_version_id);
+                        
+                        // Check if this version matches expected format
+                        if last_version_id.contains(&vanilla_mc_version) && 
+                           last_version_id.contains("forge") && 
+                           last_version_id.contains(forge_version) {
+                            found_version = Some(last_version_id.to_string());
+                            log::info!("Found matching Forge version: {}", last_version_id);
+                            break;
+                        }
+                    }
+                }
+                
+                // If we found a matching version in profiles, use it
+                if let Some(version) = found_version {
+                    minecraft_version = version;
+                    log::info!("Using Forge version from launcher_profiles.json: {}", minecraft_version);
+                } else {
+                    log::info!("No matching Forge profile found in launcher_profiles.json");
+                }
+            } else {
+                log::info!("launcher_profiles.json not found at {}", launcher_profiles_path.display());
+            }
+
+            // If we couldn't extract from launcher_profiles.json, try the default approach
+            if minecraft_version == self.instance.minecraftVersion {
+                let possible_forge_versions = vec![
+                    format!("{}-forge", self.instance.forgeVersion.clone().unwrap()),
+                    format!(
+                        "{}-forge-{}",
+                        vanilla_mc_version,
+                        self.instance.forgeVersion.clone().unwrap()
+                    ),
+                ];
+
+                // Check if the Forge version is in the versions directory
+                for forge_version in &possible_forge_versions {
+                    let forge_manifest_file = game_dir.join("versions").join(forge_version).join(format!("{}.json", forge_version));
+                    log::info!("Checking for Forge version manifest at {}", forge_manifest_file.display());
+                    if forge_manifest_file.exists() {
+                        log::info!("Found Forge version: {}", forge_version);
+                        minecraft_version = forge_version.clone();
+                        break;
+                    }
+                }
+                // If Forge version is not found, use the default Minecraft version as fallback
+                if minecraft_version == self.instance.minecraftVersion {
+                    log::info!("Using default Minecraft version: {}", vanilla_mc_version);
+                } else {
+                    log::info!("Using Forge version: {}", minecraft_version);
+                }
+            }
         }
 
         let natives_dir = game_dir.join("natives").join(&vanilla_mc_version);
         let libraries_dir = game_dir.join("libraries");
         let assets_dir = game_dir.join("assets");
 
-        println!("Launching Minecraft with the following directories:");
-        println!("Libraries directory: {}", libraries_dir.display());
-        println!("Assets directory: {}", assets_dir.display());
-        println!("Game directory: {}", game_dir.display());
+        log::info!("Launching Minecraft with the following directories:");
+        log::info!("Libraries directory: {}", libraries_dir.display());
+        log::info!("Assets directory: {}", assets_dir.display());
+        log::info!("Game directory: {}", game_dir.display());
 
         // Load and possibly merge manifests
         let manifest_json = match self.load_merged_manifest(&game_dir, &minecraft_version) {
             Some(json) => json,
             None => {
-                println!("Failed to load or merge manifests");
+                log::info!("Failed to load or merge manifests");
                 return None;
             }
         };
@@ -927,11 +999,11 @@ impl GameLauncher for MinecraftLauncher {
         );
 
         // Log paths for debugging
-        println!("client_jar: {}", client_jar.display());
-        println!("natives_dir: {}", natives_dir.display());
-        println!("libraries_dir: {}", libraries_dir.display());
-        println!("assets_dir: {}", assets_dir.display());
-        println!("game_dir: {}", game_dir.display());
+        log::info!("client_jar: {}", client_jar.display());
+        log::info!("natives_dir: {}", natives_dir.display());
+        log::info!("libraries_dir: {}", libraries_dir.display());
+        log::info!("assets_dir: {}", assets_dir.display());
+        log::info!("game_dir: {}", game_dir.display());
 
         // Validate required files and directories
         for (desc, path) in &[
@@ -953,7 +1025,7 @@ impl GameLauncher for MinecraftLauncher {
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
             Some(class) => class,
             None => {
-                println!("Main class not found in manifest");
+                log::info!("Main class not found in manifest");
                 return None;
             }
         };
@@ -1005,11 +1077,11 @@ impl GameLauncher for MinecraftLauncher {
         // Execute command
         match command.spawn() {
             Ok(child) => {
-                println!("Spawned child process: {:?}", child.id());
+                log::info!("Spawned child process: {:?}", child.id());
                 Some(child)
             }
             Err(e) => {
-                println!("Failed to spawn Minecraft process: {}", e);
+                log::info!("Failed to spawn Minecraft process: {}", e);
                 None
             }
         }

@@ -3,6 +3,7 @@
 
 // --- Standard Library Imports ---
 use log::{error, info};
+use serde_json::json;
 use std::io::{BufRead, BufReader, Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
@@ -41,13 +42,43 @@ pub struct InstanceLauncher {
     instance: MinecraftInstance, // The configuration of the instance to launch
 }
 
+#[derive(Debug)]
+enum OfficialExitCode {
+    Success,          // 0
+    GenericError,     // 1
+    JavaNotFound,     // 2
+    BadJvmArgs,       // 3
+    InvalidSession,   // 4
+    AccessDenied,     // 5
+    OutOfMemory,      // 137
+    TerminatedByUser, // 143
+    Unmapped(i32),    // cualquier otro
+}
+
+impl From<i32> for OfficialExitCode {
+    fn from(code: i32) -> Self {
+        match code {
+            0 => OfficialExitCode::Success,
+            1 => OfficialExitCode::GenericError,
+            2 => OfficialExitCode::JavaNotFound,
+            3 => OfficialExitCode::BadJvmArgs,
+            4 => OfficialExitCode::InvalidSession,
+            5 => OfficialExitCode::AccessDenied,
+            137 => OfficialExitCode::OutOfMemory,
+            143 => OfficialExitCode::TerminatedByUser,
+            other => OfficialExitCode::Unmapped(other),
+        }
+    }
+}
+
+#[derive(Debug)]
 enum PossibleErrorCode {
     IncompatibleJavaVersion,
     MissingLibraries,
     CorruptedMod,
-    UnknownError,
     OutOfMemory,
     TerminatedByUser,
+    UnknownError,
 }
 
 impl PossibleErrorCode {
@@ -150,172 +181,79 @@ impl InstanceLauncher {
     fn monitor_process(instance: MinecraftInstance, mut child: Child) {
         let instance_id = instance.instanceId.clone();
         let instance_name = instance.instanceName.clone();
-
-        // Create a launcher instance specifically for emitting events from the monitor thread.
         let emitter_launcher = InstanceLauncher::new(instance);
 
-        // Use Arc and Mutex to share the error code between threads
-        let detected_error = Arc::new(Mutex::new(None::<PossibleErrorCode>));
-
-        // Spawn the monitoring thread
+        // Ejecutamos en un hilo para no bloquear
         thread::spawn(move || {
-            println!("[Monitor: {}] Started monitoring process.", instance_id);
+            log::info!("[Monitor: {}] Started monitoring process.", instance_id);
 
-            // Set up stdout redirection if stdout is available
-            if let Some(stdout) = child.stdout.take() {
-                let instance_id_clone = instance_id.clone();
-                let detected_error_clone = Arc::clone(&detected_error);
-                thread::spawn(move || {
-                    let reader = BufReader::new(stdout);
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            log::info!("[Minecraft: {}] {}", instance_id_clone, line);
-                            // Check for specific error messages
-                            let mut error = detected_error_clone.lock().unwrap();
-                            if line.contains("Unsupported major.minor version")
-                                || line.contains("UnsupportedClassVersionError")
-                            {
-                                *error = Some(PossibleErrorCode::IncompatibleJavaVersion);
-                            } else if line.contains("Could not find or load main class") {
-                                *error = Some(PossibleErrorCode::MissingLibraries);
-                            } else if line.contains("Exception in thread") && line.contains("mod") {
-                                *error = Some(PossibleErrorCode::CorruptedMod);
-                            } else if line.contains("java.lang.OutOfMemoryError") {
-                                *error = Some(PossibleErrorCode::OutOfMemory);
-                            } else if line.contains("Exception") || line.contains("Error") {
-                                // Capturar cualquier excepción genérica como UnknownError
-                                if error.is_none() {
-                                    *error = Some(PossibleErrorCode::UnknownError);
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+            // Espera a que termine y captura stdout, stderr, status
+            match child.wait_with_output() {
+                Ok(output) => {
+                    let exit_code = output.status.code().unwrap_or(-1);
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
 
-            // Set up stderr redirection if stderr is available
-            if let Some(stderr) = child.stderr.take() {
-                let instance_id_clone = instance_id.clone();
-                let detected_error_clone = Arc::clone(&detected_error);
-                thread::spawn(move || {
-                    let reader = BufReader::new(stderr);
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            log::error!("[Minecraft: {}] {}", instance_id_clone, line);
-                            // Check for specific error messages
-                            let mut error = detected_error_clone.lock().unwrap();
-                            if line.contains("Unsupported major.minor version")
-                                || line.contains("UnsupportedClassVersionError")
-                            {
-                                *error = Some(PossibleErrorCode::IncompatibleJavaVersion);
-                            } else if line.contains("Could not find or load main class") {
-                                *error = Some(PossibleErrorCode::MissingLibraries);
-                            } else if line.contains("Exception in thread") && line.contains("mod") {
-                                *error = Some(PossibleErrorCode::CorruptedMod);
-                            } else if line.contains("java.lang.OutOfMemoryError") {
-                                *error = Some(PossibleErrorCode::OutOfMemory);
-                            } else if line.contains("Exception") || line.contains("Error") {
-                                // Capturar cualquier excepción genérica como UnknownError
-                                if error.is_none() {
-                                    *error = Some(PossibleErrorCode::UnknownError);
-                                }
-                            }
-                        }
-                    }
-                });
-            }
+                    // Loguear todo el output en el backend
+                    log::info!("[Minecraft:{} stdout]\n{}", instance_id, stdout);
+                    log::error!("[Minecraft:{} stderr]\n{}", instance_id, stderr);
 
-            // Esperar un poco para dar tiempo a los hilos de análisis de logs a detectar errores
-            // antes de proceder con la terminación del proceso
-            match child.wait() {
-                Ok(exit_status) => {
-                    // Process exited normally (or with an error code)
-                    let message = format!(
-                        "Minecraft instance '{}' exited with status: {}",
-                        instance_name, exit_status
-                    );
-
-                    log::info!("[Monitor: {}] {}", instance_id, message);
-
-                    // Esperar un poco para dar tiempo a los hilos a procesar las últimas líneas del log
-                    // Esto es importante porque los errores a menudo aparecen justo antes de que el proceso termine
-                    thread::sleep(std::time::Duration::from_millis(1000));
-
-                    // Evaluar el código de error basado en el código de salida
-                    let exit_code = exit_status.code().unwrap_or(-1);
-
-                    // Si no se detectó un error específico en los logs pero hay un código de salida no cero,
-                    // establecer un error predeterminado basado en el código
-                    if exit_code != 0 {
-                        let mut error_guard = detected_error.lock().unwrap();
-                        if error_guard.is_none() {
-                            *error_guard = match exit_code {
-                                1 => Some(PossibleErrorCode::UnknownError),
-                                137 => Some(PossibleErrorCode::OutOfMemory), // Código común para OOM en Linux
-                                143 => Some(PossibleErrorCode::TerminatedByUser), // SIGTERM
-                                _ => Some(PossibleErrorCode::UnknownError),
-                            };
-                        }
-                    }
-
-                    // Get the detected error, if any, as a string
-                    let possible_error_code = {
-                        let error_guard = detected_error.lock().unwrap();
-                        match *error_guard {
-                            // Explicitly convert each enum variant to a string
-                            Some(PossibleErrorCode::IncompatibleJavaVersion) => {
-                                "INCOMPATIBLE_JAVA_VERSION".to_string()
-                            }
-                            Some(PossibleErrorCode::MissingLibraries) => {
-                                "MISSING_LIBRARIES".to_string()
-                            }
-                            Some(PossibleErrorCode::CorruptedMod) => "CORRUPTED_MOD".to_string(),
-                            Some(PossibleErrorCode::OutOfMemory) => "OUT_OF_MEMORY".to_string(),
-                            Some(PossibleErrorCode::TerminatedByUser) => {
-                                "TERMINATED_BY_USER".to_string()
-                            }
-                            Some(PossibleErrorCode::UnknownError) => "UNKNOWN_ERROR".to_string(),
-                            None => {
-                                // Si no hay error detectado y el código de salida es 0, todo está bien
-                                if exit_code == 0 {
-                                    "SUCCESS".to_string()
-                                } else {
-                                    format!("ERROR_CODE_{}", exit_code)
-                                }
-                            }
-                        }
+                    // Detectar un PossibleErrorCode según el contenido de stderr
+                    let detected = if stderr.contains("UnsupportedClassVersionError") {
+                        PossibleErrorCode::IncompatibleJavaVersion
+                    } else if stderr.contains("Could not find or load main class") {
+                        PossibleErrorCode::MissingLibraries
+                    } else if stderr.contains("Exception in thread") && stderr.contains("mod") {
+                        PossibleErrorCode::CorruptedMod
+                    } else if stderr.contains("OutOfMemoryError") {
+                        PossibleErrorCode::OutOfMemory
+                    } else if exit_code == 143 {
+                        PossibleErrorCode::TerminatedByUser
+                    } else {
+                        PossibleErrorCode::UnknownError
                     };
 
+                    // Mapear el exit_code al enum oficial
+                    let official: OfficialExitCode = exit_code.into();
+
+                    // Construir y emitir el evento con TODO el detalle
+                    let message = format!(
+                        "Minecraft instance '{}' exited ({:?})",
+                        instance_name, official
+                    );
                     emitter_launcher.emit_status(
                         "instance-exited",
                         &message,
-                        Some(serde_json::json!({
-                            "instanceName": instance_name,
-                            "exitCode": exit_status.code(),
-                            "possibleErrorCode": possible_error_code
+                        Some(json!({
+                            "instanceName":     instance_name,
+                            "exitCode":         exit_code,
+                            "officialExitCode": format!("{:?}", official),
+                            "detectedError":    format!("{:?}", detected),
+                            "stdout":           stdout.trim_end(),
+                            "stderr":           stderr.trim_end(),
                         })),
                     );
                 }
-                Err(e) => {
-                    // Failed to wait for the process (less common)
-                    let error_message = format!(
+                Err(err) => {
+                    // Error al esperar el proceso
+                    let error_msg = format!(
                         "Failed to wait for Minecraft instance '{}' process: {}",
-                        instance_name, e
+                        instance_name, err
                     );
-                    log::error!("[Monitor: {}] {}", instance_id, error_message);
-                    // Emit both error and exited events as the process state is uncertain but terminated.
-                    emitter_launcher.emit_error(&error_message, None);
+                    log::error!("[Monitor: {}] {}", instance_id, error_msg);
+                    emitter_launcher.emit_error(&error_msg, None);
                     emitter_launcher.emit_status(
                         "instance-exited",
                         "Minecraft process ended unexpectedly.",
-                        Some(serde_json::json!({
-                            "instanceName": instance_name,
-                            "error": error_message,
-                            "possibleErrorCode": "PROCESS_ERROR"
+                        Some(json!({
+                            "instanceName":     instance_name,
+                            "possibleErrorCode":"PROCESS_ERROR",
+                            "error":            error_msg,
                         })),
                     );
                 }
             }
+
             log::info!("[Monitor: {}] Finished monitoring.", instance_id);
         });
     }

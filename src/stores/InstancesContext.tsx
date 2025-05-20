@@ -146,14 +146,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     playSound("ERROR_NOTIFICATION")
                     trackEvent("instance_crash", {
                         instanceId: id,
-                        message: message || "Minecraft se ha cerrado inesperadamente"
+                        message: message || "Minecraft se ha cerrado inesperadamente",
+                        exitCode,
+                        data,
                     });
 
                     document.dispatchEvent(
                         new CustomEvent("instance-crash", {
                             detail: {
                                 instanceId: id,
-                                message: message || "Minecraft se ha cerrado inesperadamente"
+                                message: message || "Minecraft se ha cerrado inesperadamente",
+                                data,
+                                exitCode,
                             }
                         })
                     );

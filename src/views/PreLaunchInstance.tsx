@@ -57,6 +57,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         exitCode: -1,
         message: "",
         showModal: false,
+        data: null,
     })
     const [loadingStatus, setLoadingStatus] = useState(DEFAULT_LOADING_STATE);
 
@@ -69,14 +70,15 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     useEffect(() => {
         const handleInstanceCrash = (event: Event) => {
-            const customEvent = event as CustomEvent<{ instanceId: string; message?: string }>;
-            const { instanceId: crashedInstanceId, message } = customEvent.detail;
-            console.log({ crashedInstanceId, message });
+            const customEvent = event as CustomEvent<{ instanceId: string; message?: string, data?: any; exitCode: number }>;
+            const { instanceId: crashedInstanceId, message, data, exitCode } = customEvent.detail;
+            console.log({ crashedInstanceId, message, data, exitCode });
             if (crashedInstanceId === instanceId) {
                 setErrorState({
-                    exitCode: -1,
+                    exitCode,
                     message: message || "Minecraft se ha cerrado inesperadamente",
                     showModal: true,
+                    data,
                 });
             }
         };
@@ -513,6 +515,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                     open={errorState.showModal}
                     onOpenChange={(open) => setErrorState(prev => ({ ...prev, showModal: open }))}
                     errorMessage={errorState.message}
+                    data={errorState.data}
                     exitCode={errorState.exitCode}
                 />
             </div>

@@ -10,6 +10,7 @@ interface CrashDialogProps {
     onOpenChange: (open: boolean) => void;
     exitCode: number;
     errorMessage: string;
+    data: any;
     onViewCrashReport?: () => void;
     onSendCrashReport?: () => void;
 }
@@ -19,11 +20,13 @@ export const InstanceCrashDialog = ({
     onOpenChange,
     exitCode,
     errorMessage,
+    data,
     onViewCrashReport,
     onSendCrashReport,
 }: CrashDialogProps) => {
     const [copied, setCopied] = useState(false);
 
+    console.log(data)
     useEffect(() => {
         if (copied) {
             const timeout = setTimeout(() => setCopied(false), 2000);
@@ -48,6 +51,23 @@ export const InstanceCrashDialog = ({
                         An unexpected issue occurred and the game has crashed.
                         We're sorry for
                         the inconvenience.
+                        <br />
+                        {
+                            data.detectedError && (
+                                <code className="text-red-500 text-sm">
+                                    {data.detectedError}
+                                </code>
+                            )
+                        }
+
+                        {
+                            data.stderr && (
+                                <code className="block bg-neutral-800 text-sm p-2 rounded mt-2">
+                                    {data.stderr}
+                                </code>
+                            )
+                        }
+
                     </DialogDescription>
                 </DialogHeader>
 

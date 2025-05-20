@@ -14,9 +14,9 @@ use std::thread; // Crucial for asynchronous operations // For thread-safe share
 // Core components
 use crate::core::forge_launcher::ForgeLoader; // Forge launch logic
 use crate::core::instance_bootstrap::InstanceBootstrap;
+use crate::core::minecraft::MinecraftLauncher; // Minecraft launcher logic
 use crate::core::minecraft_account::MinecraftAccount; // If needed for validation
 use crate::core::minecraft_instance::MinecraftInstance; // Instance definition
-use crate::core::minecraft_launcher::MinecraftLauncher; // Minecraft launcher logic
 use crate::core::network_utilities; // Network utilities for checking internet connection
 use crate::core::vanilla_launcher::VanillaLauncher; // Vanilla launch logic
 use crate::interfaces::game_launcher::GameLauncher; // Generic launch trait/logic // Asset revalidation logic

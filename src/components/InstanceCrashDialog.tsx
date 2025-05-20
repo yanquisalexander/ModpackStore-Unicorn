@@ -53,7 +53,7 @@ export const InstanceCrashDialog = ({
                         the inconvenience.
                         <br />
                         {
-                            data.detectedError && (
+                            data?.detectedError && (
                                 <code className="text-red-500 text-sm">
                                     {data.detectedError}
                                 </code>
@@ -61,7 +61,7 @@ export const InstanceCrashDialog = ({
                         }
 
                         {
-                            data.stderr && (
+                            data?.stderr && (
                                 <code className="block bg-neutral-800 text-sm p-2 rounded mt-2">
                                     {data.stderr}
                                 </code>

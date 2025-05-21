@@ -274,7 +274,9 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
                                     Soporte experimental de Forge
                                 </AlertTitle>
                                 <AlertDescription>
-                                    Las instancias de Forge están en soporte experimental. Si experimentas problemas, por favor reporta el error en nuestro Discord.
+                                    <p>
+                                        Las instancias de Forge inferiores a <strong className="inline-block">1.12.2</strong> están en soporte experimental. Si experimentas problemas, por favor reporta el error en nuestro Discord.
+                                    </p>
                                 </AlertDescription>
                             </Alert>
                         )

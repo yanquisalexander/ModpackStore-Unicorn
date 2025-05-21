@@ -146,21 +146,19 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             console.log("Appearance data:", appearanceData);
 
             if (!appearanceData) {
-                throw new Error("No appearance data found");
+                console.warn("No appearance data found, using default");
+                setAppearance(defaultAppearance);
+                console.log("Default appearance:", defaultAppearance);
+                return;
             }
 
-            info(`[PreLaunch] Appearance data loaded for instance ${instanceId}`);
 
-            // Merge profundo: appearanceData sobrescribe defaultAppearance
             const mergedAppearance = merge(defaultAppearance, appearanceData);
 
 
             setAppearance(mergedAppearance);
         } catch (err) {
-            console.error("Error fetching appearance:", err);
-            setAppearance(getDefaultAppeareance({
-                logoUrl: "/images/mc_logo.svg",
-            }));
+
         }
     }, [instanceId, prelaunchState.instance]);
 

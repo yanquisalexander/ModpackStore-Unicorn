@@ -4,27 +4,31 @@ export function BackgroundVideo({ videoUrls }: { videoUrls: string | string[] })
     const videoRef = useRef<HTMLVideoElement>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
 
+    // Aseguramos que siempre trabajamos con un array
+    const videos = Array.isArray(videoUrls) ? videoUrls : [videoUrls];
+    const isSingleVideo = videos.length === 1;
+
     useEffect(() => {
         const video = videoRef.current;
-        if (!video) return;
+        if (!video || isSingleVideo) return;
 
         const handleEnded = () => {
-            setCurrentIndex((prevIndex) =>
-                (prevIndex + 1) % videoUrls.length // esto hace loop infinito
-            );
+            setCurrentIndex((prevIndex) => (prevIndex + 1) % videos.length);
         };
 
         video.addEventListener("ended", handleEnded);
         return () => video.removeEventListener("ended", handleEnded);
-    }, [videoUrls]);
+    }, [videos, isSingleVideo]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (video) {
-            video.src = videoUrls[currentIndex];
-            video.play();
+            video.src = videos[currentIndex];
+            video.play().catch(error => {
+                console.warn("Video autoplay failed:", error);
+            });
         }
-    }, [currentIndex, videoUrls]);
+    }, [currentIndex, videos]);
 
     return (
         <video
@@ -32,6 +36,8 @@ export function BackgroundVideo({ videoUrls }: { videoUrls: string | string[] })
             className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
             autoPlay
             muted
+            playsInline
+            loop={isSingleVideo}
         />
     );
 }

@@ -316,6 +316,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     modpackId={modpackId}
                                     modpackName={modpackData.name!}
                                     localInstances={localInstancesOfModpack}
+                                    isPasswordProtected={modpackData.isPasswordProtected}
                                 />
                             </div>
                         </motion.div>

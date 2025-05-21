@@ -14,6 +14,7 @@ export interface ModpackDataOverview {
     updatedAt?: Date;
     creatorUser?: CreatorUser;
     publisher?: Publisher;
+    isPasswordProtected?: boolean;
 }
 
 export interface CreatorUser {

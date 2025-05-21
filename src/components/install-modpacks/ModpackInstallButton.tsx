@@ -5,21 +5,36 @@ import { LucideDownload, LucideRefreshCw } from "lucide-react"
 import { InstallOptionsDialog } from "./InstallOptionsDialog"
 import { UpdateInstanceDialog } from "./UpdateInstanceDialog"
 import { CreateInstanceDialog } from "./CreateInstanceDialog"
+import { PasswordDialog } from "./ModpackPasswordDialog"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
-
-
 
 interface InstallButtonProps {
     modpackId: string;
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
+    isPasswordProtected?: boolean;
 }
 
-export const InstallButton = ({ modpackId, modpackName, localInstances }: InstallButtonProps) => {
+export const InstallButton = ({
+    modpackId,
+    modpackName,
+    localInstances,
+    isPasswordProtected = false
+}: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false)
+    const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState<boolean>(false)
     const [isInstalling, setIsInstalling] = useState<boolean>(false)
+    const [passwordError, setPasswordError] = useState<string | undefined>(undefined)
+
+    // Para almacenar temporalmente la acción pendiente que requiere contraseña
+    const [pendingAction, setPendingAction] = useState<{
+        type: 'update' | 'create';
+        instanceId?: string;
+        instanceName?: string;
+        password?: string;
+    } | null>(null)
 
     const hasLocalInstances = localInstances.length > 0
 
@@ -27,18 +42,81 @@ export const InstallButton = ({ modpackId, modpackName, localInstances }: Instal
         if (hasLocalInstances) {
             setIsInstallOptionsOpen(true)
         } else {
-            setIsCreateDialogOpen(true)
+            if (isPasswordProtected) {
+                setPendingAction({ type: 'create' })
+                setIsPasswordDialogOpen(true)
+            } else {
+                setIsCreateDialogOpen(true)
+            }
         }
     }
 
     const handleUpdateExisting = () => {
         setIsInstallOptionsOpen(false)
-        setIsUpdateDialogOpen(true)
+        if (isPasswordProtected) {
+            setPendingAction({ type: 'update' })
+            setIsPasswordDialogOpen(true)
+        } else {
+            setIsUpdateDialogOpen(true)
+        }
     }
 
     const handleInstallNew = () => {
         setIsInstallOptionsOpen(false)
-        setIsCreateDialogOpen(true)
+        if (isPasswordProtected) {
+            setPendingAction({ type: 'create' })
+            setIsPasswordDialogOpen(true)
+        } else {
+            setIsCreateDialogOpen(true)
+        }
+    }
+
+    const verifyPassword = async (password: string): Promise<boolean> => {
+        try {
+            const isValid = await invoke("verify_modpack_password", {
+                modpackId,
+                password
+            }) as boolean
+
+            return isValid
+        } catch (err) {
+            console.error("Error al verificar la contraseña:", err)
+            return false
+        }
+    }
+
+    const handleConfirmPassword = async (password: string) => {
+        setPasswordError(undefined)
+        setIsInstalling(true)
+
+        try {
+            const isValid = await verifyPassword(password)
+
+            if (!isValid) {
+                setPasswordError("La contraseña no es válida")
+                setIsInstalling(false)
+                return
+            }
+
+            // Contraseña válida, proceder con la acción pendiente
+            setPendingAction({
+                ...pendingAction!,
+                password
+            });
+
+            if (pendingAction?.type === 'update') {
+                setIsPasswordDialogOpen(false)
+                setIsUpdateDialogOpen(true)
+            } else if (pendingAction?.type === 'create') {
+                setIsPasswordDialogOpen(false)
+                setIsCreateDialogOpen(true)
+            }
+        } catch (err) {
+            console.error("Error al procesar la contraseña:", err)
+            setPasswordError("Ocurrió un error al verificar la contraseña")
+        } finally {
+            setIsInstalling(false)
+        }
     }
 
     const handleConfirmUpdate = async (instanceId: string) => {
@@ -46,10 +124,11 @@ export const InstallButton = ({ modpackId, modpackName, localInstances }: Instal
         try {
             await invoke("update_instance", {
                 instanceId,
-                modpackId
+                modpackId,
+                password: isPasswordProtected ? pendingAction?.password : undefined
             })
-            // Mostrar mensaje de éxito o redireccionar
             console.log(`Instancia ${instanceId} actualizada exitosamente`)
+            setPendingAction(null)
         } catch (err) {
             console.error("Error al actualizar la instancia:", err)
             // Mostrar mensaje de error
@@ -64,10 +143,11 @@ export const InstallButton = ({ modpackId, modpackName, localInstances }: Instal
         try {
             await invoke("create_instance", {
                 instanceName,
-                modpackId
+                modpackId,
+                password: isPasswordProtected ? pendingAction?.password : undefined
             })
-            // Mostrar mensaje de éxito o redireccionar
             console.log(`Nueva instancia creada: ${instanceName}`)
+            setPendingAction(null)
         } catch (err) {
             console.error("Error al crear la instancia:", err)
             // Mostrar mensaje de error
@@ -123,6 +203,19 @@ export const InstallButton = ({ modpackId, modpackName, localInstances }: Instal
                 modpackId={modpackId}
                 modpackName={modpackName}
                 onConfirmCreate={handleConfirmCreate}
+            />
+
+            <PasswordDialog
+                isOpen={isPasswordDialogOpen}
+                onClose={() => {
+                    setIsPasswordDialogOpen(false)
+                    setPendingAction(null)
+                    setPasswordError(undefined)
+                }}
+                modpackName={modpackName}
+                onConfirm={handleConfirmPassword}
+                isLoading={isInstalling}
+                error={passwordError}
             />
         </>
     )

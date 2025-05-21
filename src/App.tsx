@@ -39,11 +39,6 @@ function App() {
   useEffect(() => {
     const connectionToastId = "connection-check";
 
-    if (connectionLoading) {
-      toast.loading("Verificando conexión...", { id: connectionToastId });
-      return;
-    }
-
     // Solo mostrar toast si no se ha mostrado antes o si el estado cambió
     if (!hasShownConnectionToast) {
       if (!isConnected) {

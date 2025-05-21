@@ -13,9 +13,14 @@ import { setActivity } from "tauri-plugin-drpc"
 import { playSound, SOUNDS } from "@/utils/sounds"
 import { trackEvent } from "@aptabase/web"
 import { useTasksContext } from "@/stores/TasksContext"
+import { merge } from 'lodash-es';
 // Import the new component
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions"
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog"
+import {
+    info
+} from "@tauri-apps/plugin-log"
+import { BackgroundVideo } from "@/components/LauncherBackgroundVideo"
 
 // Constants
 const DEFAULT_LOADING_STATE = {
@@ -41,6 +46,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const isInstanceBootstraping = instancesBootstraping.includes(instanceId)
     const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
     const isPlaying = currentInstanceRunning?.status === "running";
+    const [showConfig, setShowConfig] = useState(false);
 
     // Refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -132,8 +138,24 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
 
     const loadAppearance = useCallback(async () => {
         try {
+            const defaultAppearance = getDefaultAppeareance({
+                logoUrl: "/images/mc_logo.svg",
+            });
+
             const appearanceData = await invoke("get_prelaunch_appearance", { instanceId }) as PreLaunchAppearance;
-            setAppearance(appearanceData);
+            console.log("Appearance data:", appearanceData);
+
+            if (!appearanceData) {
+                throw new Error("No appearance data found");
+            }
+
+            info(`[PreLaunch] Appearance data loaded for instance ${instanceId}`);
+
+            // Merge profundo: appearanceData sobrescribe defaultAppearance
+            const mergedAppearance = merge(defaultAppearance, appearanceData);
+
+
+            setAppearance(mergedAppearance);
         } catch (err) {
             console.error("Error fetching appearance:", err);
             setAppearance(getDefaultAppeareance({
@@ -291,6 +313,16 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     useEffect(() => {
         setTitleBarState(prev => ({ ...prev, canGoBack: true }));
 
+        const searchParams = new URLSearchParams(window.location.search);
+        const showConfig = searchParams.get("showSettings") === "true";
+        if (showConfig) {
+            setShowConfig(true);
+            const newUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState({}, "", newUrl);
+        } else {
+            setShowConfig(false);
+        }
+
         // Cleanup function
         return () => {
             if (messageIntervalRef.current) {
@@ -367,19 +399,9 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 alt="Background"
             />
         ) : appearance?.background?.videoUrl ? (
-            <video
-                className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
-                autoPlay
-                loop
-                muted
-            >
-                {Array.isArray(appearance.background.videoUrl)
-                    ? appearance.background.videoUrl.map((url, index) => (
-                        <source key={index} src={url} type="video/mp4" />
-                    ))
-                    : <source src={appearance.background.videoUrl} type="video/mp4" />
-                }
-            </video>
+            <BackgroundVideo
+                videoUrls={appearance.background.videoUrl}
+            />
         ) : null
     );
 
@@ -509,6 +531,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                         instanceId={instanceId}
                         isForge={IS_FORGE}
                         onReloadInfo={fetchInstanceData}
+                        defaultShowEditInfo={showConfig}
                     />
                 )}
                 <InstanceCrashDialog

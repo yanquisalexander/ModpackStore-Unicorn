@@ -7,11 +7,13 @@ import { EditInstanceInfo } from "@/components/EditInstanceInfo";
 const PreLaunchQuickActions = ({
     instanceId,
     isForge = false,
-    onReloadInfo
+    onReloadInfo,
+    defaultShowEditInfo = false,
 }: {
     instanceId: string;
     isForge?: boolean;
     onReloadInfo: () => void;
+    defaultShowEditInfo?: boolean;
 }) => {
     const [quickActionsOpen, setQuickActionsOpen] = useState(false);
     const quickActionsRef = useRef<HTMLDivElement>(null);
@@ -112,6 +114,7 @@ const PreLaunchQuickActions = ({
                         <EditInstanceInfo
                             instanceId={instanceId}
                             onUpdate={onReloadInfo}
+                            defaultShowEditInfo={defaultShowEditInfo}
                         />
 
                         {isForge && (

@@ -25,10 +25,16 @@ pub fn check_real_connection() -> bool {
     // This is used internally, for example at the moment of
     // downloading assets (This uses official Minecraft Servers)
 
-    let response = reqwest::blocking::get("https://www.google.com");
-    if let Ok(resp) = response {
-        if resp.status().is_success() {
-            return true;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build();
+
+    if let Ok(client) = client {
+        let response = client.get("https://www.google.com").send();
+        if let Ok(resp) = response {
+            if resp.status().is_success() {
+                return true;
+            }
         }
     }
     false

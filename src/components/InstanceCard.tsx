@@ -21,6 +21,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { invoke } from "@tauri-apps/api/core"
+import { navigate } from "wouter/use-browser-location"
 
 //                            onDelete={() => openDeleteDialog(instance)}
 
@@ -30,17 +31,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
 
 
-    const handleContextAction = (action: string) => {
-        playSound("ERROR_NOTIFICATION")
-        toast("Acción no implementada", {
-            description: `La acción "${action}" no está implementada en este momento.`,
-            duration: 3000,
-            action: {
-                label: "Cerrar",
-                onClick: () => toast.dismiss(),
-            },
-        })
-    }
+
 
     const handleDeleteInstance = async () => {
         try {
@@ -55,6 +46,27 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
         } finally {
             setShowDeleteAlert(false)
         }
+    }
+
+    const handleOpenSettings = () => {
+        navigate(`/prelaunch/${instance.instanceId}?showSettings=true`)
+        setIsOpen(false)
+    }
+
+    const handleContextAction = (action: string) => {
+        if (action === "settings") {
+            handleOpenSettings()
+            return
+        }
+        playSound("ERROR_NOTIFICATION")
+        toast("Acción no implementada", {
+            description: `La acción "${action}" no está implementada en este momento.`,
+            duration: 3000,
+            action: {
+                label: "Cerrar",
+                onClick: () => toast.dismiss(),
+            },
+        })
     }
 
     return (

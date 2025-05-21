@@ -101,7 +101,8 @@ pub fn get_instance_by_id(instance_id: String) -> Result<Option<MinecraftInstanc
 
     let instances_dir = config.get_instances_dir();
 
-    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+    let instances: Vec<MinecraftInstance> =
+        get_instances(instances_dir.to_str().unwrap_or_default())?;
     Ok(instances.into_iter().find(|i| i.instanceId == instance_id))
 }
 

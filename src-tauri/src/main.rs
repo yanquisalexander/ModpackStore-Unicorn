@@ -67,7 +67,11 @@ pub fn main() {
             main_window.set_focus().unwrap();
 
             log::info!("Starting Modpack Store...");
-            log::info!("Running on: {}, {}", std::env::consts::OS, std::env::consts::ARCH);
+            log::info!(
+                "Running on: {}, {}",
+                std::env::consts::OS,
+                std::env::consts::ARCH
+            );
 
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
@@ -104,6 +108,7 @@ pub fn main() {
             core::auth::logout,
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
+            core::prelaunch_appearance::get_prelaunch_appearance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

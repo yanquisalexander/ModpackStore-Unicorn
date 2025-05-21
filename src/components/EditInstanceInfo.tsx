@@ -27,10 +27,11 @@ import {
 interface EditInstanceInfoProps {
     instanceId: string;
     onUpdate?: () => void;
+    defaultShowEditInfo?: boolean;
 }
 
-export const EditInstanceInfo = ({ instanceId, onUpdate }: EditInstanceInfoProps) => {
-    const [open, setOpen] = useState(false);
+export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: EditInstanceInfoProps) => {
+    const [open, setOpen] = useState(defaultShowEditInfo || false);
     const [isLoading, setIsLoading] = useState(false);
     const [instance, setInstance] = useState<TauriCommandReturns['get_instance_by_id'] | null>(null);
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);

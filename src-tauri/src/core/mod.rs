@@ -12,5 +12,6 @@ pub mod minecraft_instance;
 pub mod minecraft_launcher;
 pub mod models;
 pub mod network_utilities;
+pub mod prelaunch_appearance;
 pub mod tasks_manager;
 pub mod vanilla_launcher;

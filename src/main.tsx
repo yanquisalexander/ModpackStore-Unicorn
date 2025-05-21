@@ -38,6 +38,7 @@ startDiscordRpc("943184136976334879").catch((err) => {
 })
 
 
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <GlobalContextProvider>
     <AuthProvider>

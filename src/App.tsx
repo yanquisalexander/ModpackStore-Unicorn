@@ -34,6 +34,7 @@ function App() {
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useCheckConnection();
   const [hasShownConnectionToast, setHasShownConnectionToast] = useState(false);
 
+
   // Optimizado: Control de notificaciones de conexión con estado para evitar notificaciones duplicadas
   useEffect(() => {
     const connectionToastId = "connection-check";

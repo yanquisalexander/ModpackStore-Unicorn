@@ -3,7 +3,7 @@ import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
 import { getDefaultAppeareance } from "@/utils/prelaunch"
 import { invoke } from "@tauri-apps/api/core"
 import { LucideGamepad2, LucideLoaderCircle, LucideUnplug } from "lucide-react"
-import { CSSProperties, useEffect, useState, useCallback, useRef } from "react"
+import { CSSProperties, useEffect, useState, useCallback, useRef, memo } from "react"
 import { toast } from "sonner"
 import { navigate } from "wouter/use-browser-location"
 import { useInstances } from "@/stores/InstancesContext"
@@ -37,6 +37,144 @@ const RANDOM_MESSAGES = [
     "Seguro que te va a encantar...",
     "Preparando todo para ti...",
 ];
+
+// Memoized Background Component
+const Background = memo(({ imageUrl, videoUrl }) => {
+    if (imageUrl) {
+        return (
+            <img
+                className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
+                src={imageUrl}
+                alt="Background"
+            />
+        );
+    } else if (videoUrl) {
+        return (
+            <BackgroundVideo
+                key={"background-video"}
+                videoUrls={videoUrl}
+            />
+        );
+    }
+    return null;
+});
+
+// Memoized Logo Component
+const Logo = memo(({ logo }) => {
+    if (!logo?.url) return null;
+
+    const logoHasCustomPosition = logo?.position &&
+        Object.values(logo.position).some(value => value != null);
+
+    return (
+        <img
+            src={logo.url}
+            alt="Logo"
+            style={{
+                top: logo.position?.top,
+                left: logo.position?.left,
+                transform: logo.position?.transform,
+                animationDelay: logo.fadeInDelay,
+                animationDuration: logo.fadeInDuration,
+                height: logo.height,
+            }}
+            className={`absolute z-10 animate-fade-in duration-500 ease-in-out ${logoHasCustomPosition ? "fixed" : ""}`}
+        />
+    );
+});
+
+// Memoized Loading Indicator Component
+const LoadingIndicator = memo(({ isLoading, message }) => {
+    if (!isLoading) return null;
+
+    return (
+        <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center">
+            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
+            {message}
+        </div>
+    );
+});
+
+// Memoized Footer Component with Play Button
+const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping, onPlay }) => {
+    const hasCustomPosition = appearance?.playButton?.position &&
+        Object.values(appearance.playButton.position).some(value => value != null);
+
+    return (
+        <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
+            <div className="flex flex-col items-center justify-center space-y-4">
+                <button
+                    style={{
+                        "--bg-color": appearance?.playButton?.backgroundColor,
+                        "--hover-color": appearance?.playButton?.hoverColor,
+                        "--text-color": appearance?.playButton?.textColor,
+                        "--border-color": appearance?.playButton?.borderColor,
+                        top: appearance?.playButton?.position?.top,
+                        left: appearance?.playButton?.position?.left,
+                        right: appearance?.playButton?.position?.right,
+                        bottom: appearance?.playButton?.position?.bottom,
+                        transform: appearance?.playButton?.position?.transform,
+                    } as CSSProperties}
+                    id="play-button"
+                    onClick={onPlay}
+                    disabled={isLoading || isPlaying || isInstanceBootstraping}
+                    className={`
+                    ${hasCustomPosition ? "fixed" : ""}
+                    cursor-pointer
+                    active:scale-95 transition
+                    px-4 py-2
+                    font-minecraft-ten
+                    not-disabled:mc-play-btn
+                    disabled:border-3
+                    tracking-wide
+                    text-shadow-[0_3px_0_rgba(0,0,0,0.25)]
+                    items-center flex gap-x-2
+                    disabled:bg-neutral-800 disabled:cursor-not-allowed
+                    bg-[var(--bg-color)]
+                    hover:bg-[var(--hover-color)]
+                    active:bg-[var(--hover-color)]
+                    text-[var(--text-color)]
+                    border-[var(--border-color)]
+                    `}
+                >
+                    {isInstanceBootstraping ? (
+                        <>
+                            <LucideLoaderCircle className="size-6 animate-spin-clockwise animate-iteration-count-infinite animate-duration-[1500ms]" />
+                            <span className="text-sm">Instalando...</span>
+                        </>
+                    ) : (
+                        <>
+                            <LucideGamepad2 className="size-6" />
+                            <span className="text-sm">
+                                {isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
+                            </span>
+                        </>
+                    )}
+                </button>
+
+                {/* Footer content */}
+                <div className="flex items-center justify-center space-x-2">
+                    {
+                        appearance?.logo?.url ? null : (
+                            <img
+                                src={appearance?.logo?.url || "/images/mc_logo.svg"}
+                                className="h-8 w-8"
+                                alt="Logo"
+                            />
+                        )
+                    }
+                    {
+                        appearance?.footerText ? (
+                            <span className="text-sm text-center">
+                                {appearance.footerText}
+                            </span>
+                        ) : null
+                    }
+                </div>
+            </div>
+        </footer>
+    );
+});
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     // Context and state
@@ -152,13 +290,11 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 return;
             }
 
-
             const mergedAppearance = merge(defaultAppearance, appearanceData);
-
 
             setAppearance(mergedAppearance);
         } catch (err) {
-
+            // Handle error
         }
     }, [instanceId, prelaunchState.instance]);
 
@@ -235,13 +371,13 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
             startMessageInterval();
         } catch (error) {
             console.error("Error launching instance:", error);
-            playSound('ERROR_NOTIFICATION'); // Añadido sonido de error
+            playSound('ERROR_NOTIFICATION');
             toast.error("Error al iniciar la instancia", {
                 description: "No se pudo iniciar la instancia. Intenta nuevamente más tarde.",
                 dismissible: true,
             });
         }
-    }, [instanceId, loadingStatus.isLoading, isPlaying, prelaunchState.instance, startMessageInterval]);
+    }, [instanceId, loadingStatus.isLoading, isPlaying, prelaunchState.instance, startMessageInterval, isInstanceBootstraping]);
 
     // Discord RPC handling
     const updateDiscordRPC = useCallback(() => {
@@ -380,133 +516,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         );
     };
 
-    const renderLoadingIndicator = () => (
-        loadingStatus.isLoading && (
-            <div className="flex gap-x-2 absolute animate-fade-in-down animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center">
-                <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
-                {loadingStatus.message}
-            </div>
-        )
-    );
-
-    const renderBackground = () => (
-        appearance?.background?.imageUrl ? (
-            <img
-                className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
-                src={appearance.background.imageUrl}
-                alt="Background"
-            />
-        ) : appearance?.background?.videoUrl ? (
-            <BackgroundVideo
-                videoUrls={appearance.background.videoUrl}
-            />
-        ) : null
-    );
-
-    const renderLogo = () => {
-        if (!appearance?.logo?.url) return null;
-
-        const logoHasCustomPosition = appearance?.logo?.position &&
-            Object.values(appearance.logo.position).some(value => value != null);
-
-        return (
-            <img
-                src={appearance.logo.url}
-                alt="Logo"
-                style={{
-                    top: appearance.logo.position?.top,
-                    left: appearance.logo.position?.left,
-                    transform: appearance.logo.position?.transform,
-                    animationDelay: appearance.logo.fadeInDelay,
-                    animationDuration: appearance.logo.fadeInDuration,
-                    height: appearance.logo.height,
-                }}
-                className={`absolute z-10 animate-fade-in duration-500 ease-in-out ${logoHasCustomPosition ? "fixed" : ""}`}
-            />
-        );
-    };
-
-    const renderFooter = () => {
-        const hasCustomPosition = appearance?.playButton?.position &&
-            Object.values(appearance.playButton.position).some(value => value != null);
-
-        return (
-            <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
-                <div className="flex flex-col items-center justify-center space-y-4">
-                    <button
-                        style={{
-                            "--bg-color": appearance?.playButton?.backgroundColor,
-                            "--hover-color": appearance?.playButton?.hoverColor,
-                            "--text-color": appearance?.playButton?.textColor,
-                            "--border-color": appearance?.playButton?.borderColor,
-                            top: appearance?.playButton?.position?.top,
-                            left: appearance?.playButton?.position?.left,
-                            right: appearance?.playButton?.position?.right,
-                            bottom: appearance?.playButton?.position?.bottom,
-                            transform: appearance?.playButton?.position?.transform,
-                        } as CSSProperties}
-                        id="play-button"
-                        onClick={handlePlayButtonClick}
-                        disabled={loadingStatus.isLoading || isPlaying || isInstanceBootstraping}
-                        className={`
-                        ${hasCustomPosition ? "fixed" : ""}
-                        cursor-pointer
-                        active:scale-95 transition
-                        px-4 py-2
-                        font-minecraft-ten
-                        not-disabled:mc-play-btn
-                        disabled:border-3
-                        tracking-wide
-                        text-shadow-[0_3px_0_rgba(0,0,0,0.25)]
-                        items-center flex gap-x-2
-                        disabled:bg-neutral-800 disabled:cursor-not-allowed
-                        bg-[var(--bg-color)]
-                        hover:bg-[var(--hover-color)]
-                        active:bg-[var(--hover-color)]
-                        text-[var(--text-color)]
-                        border-[var(--border-color)]
-                        `}
-                    >
-                        {isInstanceBootstraping ? (
-                            <>
-                                <LucideLoaderCircle className="size-6 animate-spin-clockwise animate-iteration-count-infinite animate-duration-[1500ms]" />
-                                <span className="text-sm">Instalando...</span>
-                            </>
-                        ) : (
-                            <>
-                                <LucideGamepad2 className="size-6" />
-                                <span className="text-sm">
-                                    {isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
-                                </span>
-                            </>
-                        )}
-                    </button>
-
-                    {/* Footer content */}
-                    <div className="flex items-center justify-center space-x-2">
-                        {
-                            appearance?.logo?.url ? null : (
-                                <img
-                                    src={appearance?.logo?.url || "/images/mc_logo.svg"}
-                                    className="h-8 w-8"
-                                    alt="Logo"
-                                />
-                            )
-                        }
-                        {
-                            appearance?.footerText ? (
-                                <span className="text-sm text-center">
-                                    {appearance.footerText}
-                                </span>
-                            ) : null
-                        }
-
-                    </div>
-                </div>
-            </footer>
-        );
-    };
-
     // Loading and error handling
     if (prelaunchState.isLoading) {
         return renderLoading();
@@ -520,10 +529,24 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     return (
         <div className="absolute inset-0">
             <div className="relative h-full w-full overflow-hidden">
-                {renderLoadingIndicator()}
-                {renderBackground()}
-                {renderLogo()}
-                {renderFooter()}
+                {/* Memoized components that won't re-render unnecessarily */}
+                <Background
+                    imageUrl={appearance?.background?.imageUrl}
+                    videoUrl={appearance?.background?.videoUrl}
+                />
+                <LoadingIndicator
+                    isLoading={loadingStatus.isLoading}
+                    message={loadingStatus.message}
+                />
+                <Logo logo={appearance?.logo} />
+                <Footer
+                    appearance={appearance}
+                    isLoading={loadingStatus.isLoading}
+                    isPlaying={isPlaying}
+                    isInstanceBootstraping={isInstanceBootstraping}
+                    onPlay={handlePlayButtonClick}
+                />
+
                 {prelaunchState.instance && (
                     <PreLaunchQuickActions
                         instanceId={instanceId}

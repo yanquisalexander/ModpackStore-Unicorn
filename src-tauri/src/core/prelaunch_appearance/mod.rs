@@ -15,6 +15,10 @@ pub struct LogoPosition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub left: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transform: Option<String>,
 
     // Captura campos desconocidos
@@ -45,6 +49,26 @@ pub struct Logo {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PlayButtonPosition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayButton {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -56,6 +80,8 @@ pub struct PlayButton {
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub border_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<PlayButtonPosition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fade_in_duration: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,7 +97,23 @@ pub struct PlayButton {
 #[serde(rename_all = "camelCase")]
 pub struct Background {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub video_url: Option<Vec<String>>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Audio {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume: Option<f32>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -117,13 +159,49 @@ pub struct NewsStyle {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Entry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct News {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<NewsPosition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<NewsStyle>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entries: Option<Vec<String>>,
+    pub entries: Option<Vec<Entry>>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FooterStyle {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_radius: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<String>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -145,7 +223,13 @@ pub struct PreLaunchAppearance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<Background>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<Audio>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub news: Option<News>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footer_style: Option<FooterStyle>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footer_text: Option<String>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -204,10 +288,17 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
 
             if let Some(play_button) = &data.play_button {
                 log_unknown_fields("play_button", &play_button.unknown_fields);
+                if let Some(position) = &play_button.position {
+                    log_unknown_fields("play_button.position", &position.unknown_fields);
+                }
             }
 
             if let Some(background) = &data.background {
                 log_unknown_fields("background", &background.unknown_fields);
+            }
+
+            if let Some(audio) = &data.audio {
+                log_unknown_fields("audio", &audio.unknown_fields);
             }
 
             if let Some(news) = &data.news {
@@ -218,6 +309,15 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
                 if let Some(style) = &news.style {
                     log_unknown_fields("news.style", &style.unknown_fields);
                 }
+                if let Some(entries) = &news.entries {
+                    for (i, entry) in entries.iter().enumerate() {
+                        log_unknown_fields(&format!("news.entries[{}]", i), &entry.unknown_fields);
+                    }
+                }
+            }
+
+            if let Some(footer_style) = &data.footer_style {
+                log_unknown_fields("footer_style", &footer_style.unknown_fields);
             }
 
             Some(data)

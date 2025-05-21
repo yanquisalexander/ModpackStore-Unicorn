@@ -208,14 +208,17 @@ pub async fn create_local_instance(
     let is_forge = instance.forgeVersion.is_some();
 
     let DEFAULT_VANILLA_ICON = "/images/default_instances/default_vanilla.webp";
+    let DEFAULT_FORGE_ICON = "/images/default_instances/default_forge.webp";
 
     // If is vanilla, set the icon to the default vanilla icon
-    if !is_forge {
+    if is_forge {
+        instance.bannerUrl = Some(DEFAULT_FORGE_ICON.to_string());
+    } else {
         instance.bannerUrl = Some(DEFAULT_VANILLA_ICON.to_string());
     }
 
     let instance_dir = instances_dir.join(&instance.instanceName);
-    
+
     // Normalizar la ruta del directorio de Minecraft
     let minecraft_path = instance_dir.join("minecraft");
     instance.minecraftPath = normalize_path(&minecraft_path);
@@ -225,7 +228,7 @@ pub async fn create_local_instance(
         fs::create_dir_all(&instance_dir)
             .map_err(|e| format!("Failed to create instance directory: {}", e))?;
     }
-    
+
     // Set the instance directory (normalizado)
     instance.instanceDirectory = Some(normalize_path(&instance_dir));
 
@@ -376,20 +379,17 @@ pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
     // Delete the instance directory asynchronously
     if let Some(directory) = instance_directory {
         // Usar spawn_blocking para operaciones de I/O intensivas
-        let result = tokio::task::spawn_blocking(move || {
-            std::fs::remove_dir_all(&directory)
-        }).await
-        .map_err(|e| format!("Task join error: {}", e))?
-        .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
+        let result = tokio::task::spawn_blocking(move || std::fs::remove_dir_all(&directory))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
+            .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
     }
 
     Ok(true)
 }
 
 #[tauri::command]
-pub async fn search_instances(
-    query: String
-) -> Result<Vec<MinecraftInstance>, String> {
+pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, String> {
     let config_manager = get_config_manager()
         .lock()
         .map_err(|_| "Failed to lock config manager mutex".to_string())?;
@@ -397,18 +397,18 @@ pub async fn search_instances(
     let config = config_manager.as_ref().map_err(|e| e.clone())?;
 
     let instances_dir = config.get_instances_dir();
-    
+
     // Obtener la ruta segura como str
     let dir_path = instances_dir
         .to_str()
         .ok_or_else(|| "Invalid instances directory path".to_string())?;
-    
+
     // Convertir la consulta a minúsculas para hacer la búsqueda case-insensitive
     let query_lowercase = query.to_lowercase();
-    
+
     // Buscar instancias
     let instances = get_instances(dir_path)?;
-    
+
     // Filtrar instancias de manera más flexible
     let filtered_instances: Vec<MinecraftInstance> = if query.is_empty() {
         // Si la consulta está vacía, devolver todas las instancias
@@ -421,7 +421,6 @@ pub async fn search_instances(
                 instance.instanceName.to_lowercase().contains(&query_lowercase) ||
                 // Buscar en version
                 instance.minecraftVersion.to_lowercase().contains(&query_lowercase)
-                
             })
             .collect()
     };

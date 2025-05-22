@@ -42,7 +42,7 @@ export const InstanceCrashDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="bg-neutral-900 text-white border-none max-w-md">
+            <DialogContent className="bg-neutral-900 text-white border-none max-w-max sm:max-w-[600px] w-full">
                 <DialogHeader className="text-center">
 
                     <DialogTitle className="text-sm font-normal text-center">ERROR</DialogTitle>
@@ -62,7 +62,7 @@ export const InstanceCrashDialog = ({
 
                         {
                             data?.stderr && (
-                                <code className="block bg-neutral-800 text-sm p-2 rounded mt-2">
+                                <code className="block text-left !font-mono bg-neutral-800 text-sm p-2 rounded mt-2 max-w-[60ch] mx-auto overflow-x-auto max-h-[20rem]">
                                     {data.stderr}
                                 </code>
                             )

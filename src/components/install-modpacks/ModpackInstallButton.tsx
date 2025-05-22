@@ -33,7 +33,6 @@ export const InstallButton = ({
         type: 'update' | 'create';
         instanceId?: string;
         instanceName?: string;
-        password?: string;
     } | null>(null)
 
     const hasLocalInstances = localInstances.length > 0
@@ -42,118 +41,134 @@ export const InstallButton = ({
         if (hasLocalInstances) {
             setIsInstallOptionsOpen(true)
         } else {
-            if (isPasswordProtected) {
-                setPendingAction({ type: 'create' })
-                setIsPasswordDialogOpen(true)
-            } else {
-                setIsCreateDialogOpen(true)
-            }
+            setIsCreateDialogOpen(true)
         }
     }
 
     const handleUpdateExisting = () => {
         setIsInstallOptionsOpen(false)
-        if (isPasswordProtected) {
-            setPendingAction({ type: 'update' })
-            setIsPasswordDialogOpen(true)
-        } else {
-            setIsUpdateDialogOpen(true)
-        }
+        setIsUpdateDialogOpen(true)
     }
 
     const handleInstallNew = () => {
         setIsInstallOptionsOpen(false)
-        if (isPasswordProtected) {
-            setPendingAction({ type: 'create' })
-            setIsPasswordDialogOpen(true)
-        } else {
-            setIsCreateDialogOpen(true)
-        }
-    }
-
-    const verifyPassword = async (password: string): Promise<boolean> => {
-        try {
-            const isValid = await invoke("verify_modpack_password", {
-                modpackId,
-                password
-            }) as boolean
-
-            return isValid
-        } catch (err) {
-            console.error("Error al verificar la contraseña:", err)
-            return false
-        }
+        setIsCreateDialogOpen(true)
     }
 
     const handleConfirmPassword = async (password: string) => {
-        setPasswordError(undefined)
-        setIsInstalling(true)
+        setPasswordError(undefined);
 
-        try {
-            const isValid = await verifyPassword(password)
-
-            if (!isValid) {
-                setPasswordError("La contraseña no es válida")
-                setIsInstalling(false)
-                return
-            }
-
-            // Contraseña válida, proceder con la acción pendiente
-            setPendingAction({
-                ...pendingAction!,
-                password
-            });
-
-            if (pendingAction?.type === 'update') {
-                setIsPasswordDialogOpen(false)
-                setIsUpdateDialogOpen(true)
-            } else if (pendingAction?.type === 'create') {
-                setIsPasswordDialogOpen(false)
-                setIsCreateDialogOpen(true)
-            }
-        } catch (err) {
-            console.error("Error al procesar la contraseña:", err)
-            setPasswordError("Ocurrió un error al verificar la contraseña")
-        } finally {
-            setIsInstalling(false)
+        // Ejecutar la acción pendiente con la contraseña proporcionada
+        if (pendingAction?.type === 'update' && pendingAction.instanceId) {
+            setIsPasswordDialogOpen(false);
+            await executeUpdate(pendingAction.instanceId, password);
+        } else if (pendingAction?.type === 'create' && pendingAction.instanceName) {
+            setIsPasswordDialogOpen(false);
+            await executeCreate(pendingAction.instanceName, password);
         }
     }
 
     const handleConfirmUpdate = async (instanceId: string) => {
-        setIsInstalling(true)
+        // Si el modpack está protegido, solicitar contraseña antes de actualizar
+        if (isPasswordProtected) {
+            setPendingAction({
+                type: 'update',
+                instanceId
+            });
+            setIsUpdateDialogOpen(false);
+            setIsPasswordDialogOpen(true);
+            return;
+        }
+
+        // Si no está protegido, proceder directamente con la actualización
+        await executeUpdate(instanceId);
+    }
+
+    const executeUpdate = async (instanceId: string, password?: string) => {
+        setIsInstalling(true);
         try {
             await invoke("update_instance", {
                 instanceId,
                 modpackId,
-                password: isPasswordProtected ? pendingAction?.password : undefined
-            })
-            console.log(`Instancia ${instanceId} actualizada exitosamente`)
-            setPendingAction(null)
+                password
+            });
+            console.log(`Instancia ${instanceId} actualizada exitosamente`);
         } catch (err) {
-            console.error("Error al actualizar la instancia:", err)
-            // Mostrar mensaje de error
+            console.error("Error al actualizar la instancia:", err);
+
+            // Verificar si el error es de contraseña inválida
+            const errorObj = err as any;
+            if (errorObj?.code === "invalid_password") {
+                // Si fue un error de contraseña y teníamos una acción pendiente, 
+                // mostrar diálogo de contraseña nuevamente con error
+                if (pendingAction?.type === 'update') {
+                    setPasswordError("La contraseña no es válida");
+                    setIsPasswordDialogOpen(true);
+                    setIsInstalling(false);
+                    return;
+                }
+            }
+
+            // Otros errores
+            // Aquí puedes mostrar un mensaje de error genérico
         } finally {
-            setIsInstalling(false)
-            setIsUpdateDialogOpen(false)
+            if (!isPasswordDialogOpen) {
+                setIsInstalling(false);
+                setIsUpdateDialogOpen(false);
+                setPendingAction(null);
+            }
         }
     }
 
     const handleConfirmCreate = async (instanceName: string) => {
-        setIsInstalling(true)
+        // Si el modpack está protegido, solicitar contraseña antes de crear
+        if (isPasswordProtected) {
+            setPendingAction({
+                type: 'create',
+                instanceName
+            });
+            setIsCreateDialogOpen(false);
+            setIsPasswordDialogOpen(true);
+            return;
+        }
+
+        // Si no está protegido, proceder directamente con la creación
+        await executeCreate(instanceName);
+    }
+
+    const executeCreate = async (instanceName: string, password?: string) => {
+        setIsInstalling(true);
         try {
             await invoke("create_instance", {
                 instanceName,
                 modpackId,
-                password: isPasswordProtected ? pendingAction?.password : undefined
-            })
-            console.log(`Nueva instancia creada: ${instanceName}`)
-            setPendingAction(null)
+                password
+            });
+            console.log(`Nueva instancia creada: ${instanceName}`);
         } catch (err) {
-            console.error("Error al crear la instancia:", err)
-            // Mostrar mensaje de error
+            console.error("Error al crear la instancia:", err);
+
+            // Verificar si el error es de contraseña inválida
+            const errorObj = err as any;
+            if (errorObj?.code === "invalid_password") {
+                // Si fue un error de contraseña y teníamos una acción pendiente, 
+                // mostrar diálogo de contraseña nuevamente con error
+                if (pendingAction?.type === 'create') {
+                    setPasswordError("La contraseña no es válida");
+                    setIsPasswordDialogOpen(true);
+                    setIsInstalling(false);
+                    return;
+                }
+            }
+
+            // Otros errores
+            // Aquí puedes mostrar un mensaje de error genérico
         } finally {
-            setIsInstalling(false)
-            setIsCreateDialogOpen(false)
+            if (!isPasswordDialogOpen) {
+                setIsInstalling(false);
+                setIsCreateDialogOpen(false);
+                setPendingAction(null);
+            }
         }
     }
 

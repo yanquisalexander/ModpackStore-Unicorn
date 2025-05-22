@@ -43,9 +43,15 @@ export const PasswordDialog = ({
         }
     }
 
+    // Limpiar el campo de contraseña cuando se cierra el diálogo
+    const handleClose = () => {
+        setPassword("");
+        onClose();
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => {
-            if (!open) onClose();
+            if (!open) handleClose();
         }}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
@@ -70,6 +76,7 @@ export const PasswordDialog = ({
                             autoComplete="off"
                             autoFocus
                             className={error ? "border-red-500" : ""}
+                            disabled={isLoading}
                         />
                         {error && (
                             <p className="text-sm text-red-500">{error}</p>
@@ -79,7 +86,7 @@ export const PasswordDialog = ({
                 <DialogFooter>
                     <Button
                         variant="secondary"
-                        onClick={onClose}
+                        onClick={handleClose}
                         disabled={isLoading}
                     >
                         Cancelar
@@ -89,7 +96,7 @@ export const PasswordDialog = ({
                         disabled={!password.trim() || isLoading}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
-                        {isLoading ? "Verificando..." : "Confirmar"}
+                        {isLoading ? "Procesando..." : "Continuar"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

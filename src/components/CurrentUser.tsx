@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
+import { useCheckConnection } from "@/utils/checkConnection";
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
+    const { isConnected } = useCheckConnection();
     const { openConfigDialog } = useConfigDialog();
     const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
     const [openMenu, setOpenMenu] = useState(false);
@@ -33,7 +35,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const handleReloadApp = () => {
         closeMenu();
-        showReloadDialog(); // Llamar a la función desde el contexto
+        showReloadDialog({ fromOffline: !isConnected });
     };
 
     const handleLogout = () => {
@@ -70,7 +72,21 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     if (!isAuthenticated) return null;
 
-    const isPublisher = session?.publisher?.id !== undefined;
+    /* publisherMemberships: [
+  {
+    "createdAt": "2025-05-25T01:49:47.057Z",
+    "id": 2,
+    "permissions": {},
+    "publisherId": "ccbe46fd-2848-4224-b29e-11df619ce999",
+    "role": "super_admin",
+    "updatedAt": "2025-05-25T01:49:47.057Z",
+    "userId": "654c7a18-6a30-48e2-a7ec-c396af0641cd"
+  }
+] */
+
+
+
+    const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
 
     return (
         <div className="relative" ref={containerRef}>

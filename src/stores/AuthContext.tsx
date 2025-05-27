@@ -13,7 +13,15 @@ interface UserSession {
   email: string;
   avatarUrl?: string;
   roles: string[];
-  publisher: any;
+  publisherMemberships: null | {
+
+    createdAt: string;
+    id: number;
+    permissions: Record<string, unknown>;
+    publisherId: string;
+    role: string;
+    updatedAt: string;
+  }[];
 }
 
 // Auth steps para mostrar el estado actual del proceso de autenticación

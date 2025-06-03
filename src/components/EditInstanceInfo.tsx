@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { LucidePencil, LucideSave, LucideUser } from "lucide-react";
+import { LucideCpu, LucidePencil, LucideSave, LucideUser } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -23,6 +23,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 interface EditInstanceInfoProps {
     instanceId: string;
@@ -147,6 +148,19 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                     </DialogDescription>
                 </DialogHeader>
 
+                <Alert
+
+                    className=" bg-blue-900/20 border-blue-700/50 text-blue-300"
+                >
+                    <LucideCpu className="h-4 w-4" />
+
+                    <AlertDescription>
+                        <p className="text-white">
+                            Los ajustes de rendimiento y recursos (Como RAM, CPU, etc.) se aplican globalmente a todas las instancias desde la configuración de la aplicación.
+                        </p>
+                    </AlertDescription>
+                </Alert>
+
                 {isLoading && !formData.instanceName ? (
                     <div className="flex items-center justify-center py-8">
                         <div className="flex flex-col items-center gap-2">
@@ -203,6 +217,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                                 Selecciona la cuenta que se usará para iniciar esta instancia.
                             </p>
                         </div>
+
 
 
 

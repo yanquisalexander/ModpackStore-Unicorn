@@ -21,6 +21,7 @@ import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
+import { CreatorsLayout } from "./components/creators/CreatorsLayout";
 
 // Componente de carga para unificar la presentación
 const LoadingScreen = () => (
@@ -126,10 +127,8 @@ function App() {
           </Route>
           <Route path="/mc-accounts" component={AccountsSection} />
 
-          {session?.publisher?.id && (
-            <Route path="/creators">
-              <div>Contenido exclusivo para creadores</div>
-            </Route>
+          {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
+            <CreatorsLayout />
           )}
           <Route component={NotFound} />
         </Switch>

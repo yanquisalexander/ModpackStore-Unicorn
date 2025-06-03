@@ -1,6 +1,5 @@
 pub mod accounts_manager;
 pub mod auth;
-pub mod forge_launcher;
 pub mod instance_bootstrap;
 pub mod instance_launcher;
 pub mod instance_manager;
@@ -14,4 +13,3 @@ pub mod models;
 pub mod network_utilities;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
-pub mod vanilla_launcher;

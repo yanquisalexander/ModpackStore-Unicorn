@@ -289,22 +289,27 @@ pub async fn create_local_instance(
         // Iniciar el bootstrap de la instancia
         let mut bootstrap = InstanceBootstrap::new();
 
-        // Determinar si es una instancia vanilla o forge
-        let result = if instance_clone.forgeVersion.is_some() {
-            // Si tiene forge version, usar el método para instancias forge
-            bootstrap.bootstrap_forge_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        } else {
-            // Si no tiene forge version, usar el método para instancias vanilla
-            bootstrap.bootstrap_vanilla_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        };
+        // Crear un runtime de Tokio para ejecutar las funciones async
+        let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+
+        let result = runtime.block_on(async {
+            // Determinar si es una instancia vanilla o forge
+            if instance_clone.forgeVersion.is_some() {
+                // Si tiene forge version, usar el método para instancias forge
+                bootstrap.bootstrap_forge_instance(
+                    &instance_clone,
+                    Some(task_id_clone.clone()),
+                    Some(Arc::clone(&task_manager_clone)),
+                ).await // Added await
+            } else {
+                // Si no tiene forge version, usar el método para instancias vanilla
+                bootstrap.bootstrap_vanilla_instance(
+                    &instance_clone,
+                    Some(task_id_clone.clone()),
+                    Some(Arc::clone(&task_manager_clone)),
+                ).await // Added await
+            }
+        });
 
         match result {
             Ok(_) => {

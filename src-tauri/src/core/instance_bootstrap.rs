@@ -11,11 +11,13 @@ use std::io::{self, Result as IoResult};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering}; // Added
+use tokio::sync::Semaphore; // Added
 use tauri::Emitter;
 use tauri_plugin_http::reqwest;
 
 pub struct InstanceBootstrap {
-    client: reqwest::blocking::Client,
+    client: reqwest::Client,
     // Cache para metadatos de versiones
     version_manifest_cache: Option<(Value, u64)>, // (datos, timestamp)
 }
@@ -25,10 +27,24 @@ impl InstanceBootstrap {
         "https://launchermeta.mojang.com/mc/game/version_manifest.json";
     const FORGE_API_BASE_URL: &'static str = "https://mc-versions-api.net/api/forge";
     const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hora
+    const VERSION_JSON_CACHE_DIR_NAME: &'static str = "version_manifests";
+    const VERSION_JSON_CACHE_EXPIRY_MS: u64 = 3_600_000; // 1 hora, same as other for now
+
+    fn get_cached_version_json_path(&self, version: &str) -> Result<PathBuf, String> {
+        let base_dir = dirs::config_dir()
+            .or_else(dirs::cache_dir) // Fallback to cache_dir if config_dir is None
+            .ok_or_else(|| "No se pudo determinar el directorio de configuración o caché.".to_string())?;
+
+        // TODO: Consider making "dev.alexitoo.modpackstore" a shared constant or part of a config struct
+        let app_cache_dir = base_dir.join("dev.alexitoo.modpackstore").join("cache");
+        let version_manifests_dir = app_cache_dir.join(Self::VERSION_JSON_CACHE_DIR_NAME);
+
+        Ok(version_manifests_dir.join(format!("{}.json", version)))
+    }
 
     pub fn new() -> Self {
         Self {
-            client: reqwest::blocking::Client::new(),
+            client: reqwest::Client::new(),
             version_manifest_cache: None,
         }
     }
@@ -73,7 +89,7 @@ impl InstanceBootstrap {
     }
 
     // Implementación del método extract_natives
-    fn extract_natives(
+    async fn extract_natives( // Made async
         &self,
         version_details: &Value,
         libraries_dir: &Path,
@@ -152,7 +168,8 @@ impl InstanceBootstrap {
                         );
 
                         // Descargar el archivo JAR
-                        self.download_file(url, &library_path)
+                        Self::download_file(&self.client, url, &library_path) // Pass client
+                            .await // Add await
                             .map_err(|e| format!("Error descargando biblioteca nativa: {}", e))?;
                     }
 
@@ -232,7 +249,7 @@ impl InstanceBootstrap {
         Ok(())
     }
 
-    pub fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> {
+    pub async fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> { // Made async
         log::info!("Revalidando assets para: {}", instance.instanceName);
 
         // Verificar si la versión de Minecraft está disponible
@@ -257,6 +274,7 @@ impl InstanceBootstrap {
         // Obtener detalles de la versión
         let version_details = self
             .get_version_details(&instance.minecraftVersion)
+            .await // Added await
             .map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::Other,
@@ -300,7 +318,8 @@ impl InstanceBootstrap {
                 "Descargando índice de assets para la versión {}",
                 instance.minecraftVersion
             );
-            self.download_file(assets_index_url, &assets_index_file)
+            Self::download_file(&self.client, assets_index_url, &assets_index_file) // Pass client
+                .await // Added await
                 .map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::Other,
@@ -330,15 +349,19 @@ impl InstanceBootstrap {
             })?;
 
         let total_assets = objects.len();
-        let mut processed_assets = 0;
-        let mut missing_assets = 0;
+        let mut missing_assets_info: Vec<(String, String, PathBuf, String)> = Vec::new(); // hash, url, target_path, asset_name
+        let mut validated_assets_count = 0;
 
         log::info!("Validando {} assets...", total_assets);
+        Self::emit_status(
+            instance,
+            "instance-validating-assets",
+            &format!("Validando {} assets...", total_assets),
+        );
 
-        // Procesar cada asset
+        // Primera pasada: recolectar información de assets faltantes y validar existentes
         for (asset_name, asset_info) in objects {
-            processed_assets += 1;
-
+            validated_assets_count += 1;
             let hash = asset_info
                 .get("hash")
                 .and_then(|v| v.as_str())
@@ -350,109 +373,286 @@ impl InstanceBootstrap {
                 })?;
 
             let hash_prefix = &hash[0..2];
-            let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
+            let asset_file_path = assets_objects_dir.join(hash_prefix).join(hash);
 
-            // Informar progreso
+            if validated_assets_count % 100 == 0 || validated_assets_count == total_assets { // Emit progress periodically
+                Self::emit_status(
+                    instance,
+                    "instance-validating-assets-progress",
+                    &format!(
+                        "Validando assets: {}/{} ({:.1}%)",
+                        validated_assets_count,
+                        total_assets,
+                        (validated_assets_count as f64 * 100.0 / total_assets as f64)
+                    ),
+                );
+            }
 
-            log::info!(
-                "Validando assets: {}/{} ({:.1}%)",
-                processed_assets,
-                total_assets,
-                (processed_assets as f64 * 100.0 / total_assets as f64)
-            );
-            Self::emit_status(
-                instance,
-                "instance-downloading-assets",
-                &format!(
-                    "Validando assets: {}/{} ({:.1}%)",
-                    processed_assets,
-                    total_assets,
-                    (processed_assets as f64 * 100.0 / total_assets as f64)
-                ),
-            );
-
-            if !asset_file.exists() {
-                missing_assets += 1;
+            if !asset_file_path.exists() {
                 let asset_url = format!(
                     "https://resources.download.minecraft.net/{}/{}",
                     hash_prefix, hash
                 );
-                let target_dir = assets_objects_dir.join(hash_prefix);
-
-                if !target_dir.exists() {
-                    fs::create_dir_all(&target_dir)?;
-                }
-
-                self.download_file(&asset_url, &asset_file).map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("Error al descargar asset {}: {}", asset_name, e),
-                    )
-                })?;
+                missing_assets_info.push((hash.to_string(), asset_url, asset_file_path.clone(), asset_name.to_string()));
             }
         }
 
-        if missing_assets > 0 {
-            log::info!("Se han descargado {} assets faltantes.", missing_assets);
+        let total_missing_assets = missing_assets_info.len();
+        if total_missing_assets > 0 {
+            log::info!("{} assets faltantes. Procediendo a descargar.", total_missing_assets);
+            Self::emit_status(
+                instance,
+                "instance-downloading-assets-start",
+                &format!("Preparando para descargar {} assets faltantes.", total_missing_assets),
+            );
+
+            let concurrent_downloads = 8; // Configurable limit
+            let semaphore = Arc::new(Semaphore::new(concurrent_downloads));
+            let downloaded_assets_count = Arc::new(AtomicUsize::new(0));
+            let mut download_handles = Vec::new();
+
+            let client = Arc::new(self.client.clone()); // Clone client to be shared among tasks
+
+            for (hash, asset_url, asset_file_path, asset_name) in missing_assets_info {
+                let sem_clone = Arc::clone(&semaphore);
+                let count_clone = Arc::clone(&downloaded_assets_count);
+                let client_clone = Arc::clone(&client);
+                let instance_clone = instance.clone(); // Clone instance data for emit_status
+                let target_path_clone = asset_file_path.clone(); // Clone path for the task
+
+                download_handles.push(tokio::spawn(async move {
+                    let _permit = sem_clone.acquire_owned().await.expect("Failed to acquire semaphore permit");
+
+                    // Create parent directory if it doesn't exist
+                    if let Some(parent_dir) = target_path_clone.parent() {
+                        if !parent_dir.exists() {
+                            if let Err(e) = fs::create_dir_all(parent_dir) {
+                                let error_msg = format!("Error creando directorio para asset {}: {}", asset_name, e);
+                                log::error!("{}", error_msg);
+                                return Err(error_msg);
+                            }
+                        }
+                    }
+
+                    match InstanceBootstrap::download_file(&client_clone, &asset_url, &target_path_clone).await {
+                        Ok(_) => {
+                            let current_count = count_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                            let progress_percentage = (current_count as f64 * 100.0) / total_missing_assets as f64;
+                            let status_message = format!(
+                                "Descargado asset {} de {}: {} ({:.1}%)",
+                                current_count, total_missing_assets, asset_name, progress_percentage
+                            );
+                            log::info!("{}", status_message);
+                            InstanceBootstrap::emit_status(
+                                &instance_clone,
+                                "instance-asset-downloaded",
+                                &status_message,
+                            );
+                            Ok(())
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Error descargando asset {}: {}", asset_name, e);
+                            log::error!("{}", error_msg);
+                            Err(error_msg)
+                        }
+                    }
+                }));
+            }
+
+            let results = futures::future::join_all(download_handles).await;
+            let mut failed_downloads = 0;
+            for result in results {
+                match result {
+                    Ok(Ok(_)) => { /* Asset downloaded successfully */ }
+                    Ok(Err(e)) => {
+                        log::error!("Una tarea de descarga falló: {}", e);
+                        failed_downloads += 1;
+                    }
+                    Err(e) => { // JoinError
+                        log::error!("Error en JoinHandle de descarga: {}", e);
+                        failed_downloads += 1;
+                    }
+                }
+            }
+
+            if failed_downloads > 0 {
+                log::error!("{} assets no pudieron ser descargados.", failed_downloads);
+                 Self::emit_status(
+                    instance,
+                    "instance-finish-assets-download-errors",
+                    &format!("Falló la descarga de {} assets para {}. Revisa los logs.", failed_downloads, instance.instanceName),
+                );
+                return Err(io::Error::new(io::ErrorKind::Other, format!("Fallaron {} descargas de assets", failed_downloads)));
+            } else {
+                log::info!("Todos los {} assets faltantes han sido descargados.", total_missing_assets);
+                 Self::emit_status(
+                    instance,
+                    "instance-finish-assets-download-success",
+                    &format!("Todos los assets para {} están validados y descargados.", instance.instanceName),
+                );
+            }
+
         } else {
-            log::info!("Todos los assets están validados.");
+            log::info!("Todos los assets están validados y presentes.");
+            Self::emit_status(
+                instance,
+                "instance-finish-assets-download-success", // Use success even if no downloads needed
+                &format!("Todos los assets para {} están validados.", instance.instanceName),
+            );
         }
 
-        log::info!("Asset revalidation completed");
-
-        // Emitir evento de finalización
-        Self::emit_status(
-            instance,
-            "instance-finish-assets-download",
-            &format!(
-                "Validación de assets completada para {}",
-                instance.instanceName
-            ),
-        );
+        log::info!("Revalidación de assets completada.");
         Ok(())
     }
 
     // Método para obtener detalles de la versión
-    fn get_version_details(&mut self, version: &str) -> Result<Value, String> {
-        // Obtener el manifiesto de versiones
+    async fn get_version_details(&mut self, version: &str) -> Result<Value, String> {
+        log::info!("[Cache] Verificando manifiesto cacheado para la versión {}", version);
+
+        let cache_file_path = match self.get_cached_version_json_path(version) {
+            Ok(path) => path,
+            Err(e) => {
+                log::warn!("[Cache] Error al obtener la ruta del archivo cacheado para {}: {}. Se procederá con la descarga.", version, e);
+                // Fallback to network fetch without trying to read from cache if path generation fails
+                return self.fetch_and_cache_version_details(version).await;
+            }
+        };
+
+        if cache_file_path.exists() {
+            match fs::metadata(&cache_file_path) {
+                Ok(metadata) => {
+                    match metadata.modified() {
+                        Ok(modified_time) => {
+                            let current_time = std::time::SystemTime::now();
+                            if let Ok(duration_since_epoch) = current_time.duration_since(std::time::UNIX_EPOCH) {
+                                if let Ok(modified_duration_since_epoch) = modified_time.duration_since(std::time::UNIX_EPOCH) {
+                                    let age_ms = duration_since_epoch.as_millis() - modified_duration_since_epoch.as_millis();
+                                    if age_ms < Self::VERSION_JSON_CACHE_EXPIRY_MS as u128 {
+                                        log::info!("[Cache] Intentando usar manifiesto cacheado para la versión {}.", version);
+                                        match fs::read_to_string(&cache_file_path) {
+                                            Ok(content) => {
+                                                match serde_json::from_str::<Value>(&content) {
+                                                    Ok(json_value) => {
+                                                        log::info!("[Cache] Usando manifiesto cacheado para la versión {}.", version);
+                                                        return Ok(json_value);
+                                                    }
+                                                    Err(e) => {
+                                                        log::warn!("[Cache] Manifiesto cacheado para {} corrupto/ilegible (JSON parse error): {}. Se procederá con la descarga.", version, e);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                log::warn!("[Cache] Error al leer manifiesto cacheado para {}: {}. Se procederá con la descarga.", version, e);
+                                            }
+                                        }
+                                    } else {
+                                        log::info!("[Cache] Manifiesto cacheado para {} expirado.", version);
+                                    }
+                                } else {
+                                     log::warn!("[Cache] Error al obtener duración de modificación para {}. Se procederá con la descarga.", version);
+                                }
+                            } else {
+                                log::warn!("[Cache] Error al obtener duración actual para {}. Se procederá con la descarga.", version);
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("[Cache] Error al obtener tiempo de modificación para {}: {}. Se procederá con la descarga.", version, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("[Cache] Error al obtener metadatos del archivo cacheado para {}: {}. Se procederá con la descarga.", version, e);
+                }
+            }
+        } else {
+            log::info!("[Cache] No se encontró manifiesto cacheado para la versión {}.", version);
+        }
+
+        // Si el caché no es válido, está corrupto o no existe, descargar y luego cachear.
+        self.fetch_and_cache_version_details(version).await
+    }
+
+    async fn fetch_and_cache_version_details(&mut self, version: &str) -> Result<Value, String> {
+        log::info!("[Cache] Descargando manifiesto para la versión {} desde la red.", version);
+
         let version_manifest = self
-            .get_version_manifest()
-            .map_err(|e| format!("Error fetching version manifest: {}", e))?;
+            .get_version_manifest() // This uses its own in-memory cache, not file-based for the main manifest
+            .await
+            .map_err(|e| format!("Error fetching main version manifest: {}", e))?;
 
         let versions_node = version_manifest["versions"]
             .as_array()
-            .ok_or_else(|| "Invalid version manifest format".to_string())?;
+            .ok_or_else(|| "Invalid version manifest format (versions array)".to_string())?;
 
-        // Buscar la versión específica
         let version_info = versions_node
             .iter()
             .find(|v| v["id"].as_str() == Some(version))
-            .ok_or_else(|| format!("Version {} not found in manifest", version))?;
+            .ok_or_else(|| format!("Version {} not found in main manifest", version))?;
 
         let version_url = version_info["url"]
             .as_str()
-            .ok_or_else(|| "Invalid version info format".to_string())?;
+            .ok_or_else(|| "Invalid version info format (URL)".to_string())?;
 
-        // Descargar detalles de la versión
-        self.client
+        let version_json_data = self.client
             .get(version_url)
             .send()
-            .map_err(|e| format!("Error fetching version details: {}", e))?
+            .await
+            .map_err(|e| format!("Error fetching version details for {}: {}", version, e))?
             .json::<Value>()
-            .map_err(|e| format!("Error parsing version details: {}", e))
+            .await
+            .map_err(|e| format!("Error parsing version details JSON for {}: {}", version, e))?;
+
+        // Cache the fetched data
+        match self.get_cached_version_json_path(version) {
+            Ok(cache_file_path) => {
+                if let Some(cache_dir_path) = cache_file_path.parent() {
+                    if let Err(e) = fs::create_dir_all(&cache_dir_path) {
+                        log::warn!("[Cache] Error al crear directorio de caché para {}: {}. No se guardará en caché.", version, e);
+                        return Ok(version_json_data); // Return data even if caching fails
+                    }
+                }
+
+                match serde_json::to_string_pretty(&version_json_data) {
+                    Ok(json_string) => {
+                        let temp_file_path = cache_file_path.with_extension("json.tmp");
+                        match fs::write(&temp_file_path, &json_string) {
+                            Ok(_) => {
+                                if let Err(e) = fs::rename(&temp_file_path, &cache_file_path) {
+                                    log::warn!("[Cache] Error al renombrar archivo temporal de caché para {}: {}.", version, e);
+                                    // Attempt to clean up temp file if rename fails
+                                    let _ = fs::remove_file(&temp_file_path);
+                                } else {
+                                    log::info!("[Cache] Manifiesto para la versión {} cacheado exitosamente.", version);
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("[Cache] Error al escribir archivo temporal de caché para {}: {}.", version, e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("[Cache] Error al serializar JSON para caché para {}: {}.", version, e);
+                    }
+                }
+            }
+            Err(e) => {
+                 log::warn!("[Cache] Error al obtener ruta de caché para {}, no se guardará en caché: {}", version, e);
+            }
+        }
+        Ok(version_json_data)
     }
 
     // Método para descargar archivos
-    fn download_file(&self, url: &str, destination: &Path) -> Result<(), String> {
+    async fn download_file(client: &reqwest::Client, url: &str, destination: &Path) -> Result<(), String> {
         // Asegurarse de que el directorio padre existe
         if let Some(parent) = destination.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("Error creating directory: {}", e))?;
         }
 
-        let mut response = self
-            .client
+        let response = client
             .get(url)
             .send()
+            .await
             .map_err(|e| format!("Download error: {}", e))?;
 
         if !response.status().is_success() {
@@ -462,18 +662,23 @@ impl InstanceBootstrap {
             ));
         }
 
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Error reading response bytes: {}", e))?;
+
         let mut file =
             fs::File::create(destination).map_err(|e| format!("Error creating file: {}", e))?;
 
-        response
-            .copy_to(&mut file)
+        use std::io::Write; // Import Write trait for write_all
+        file.write_all(&bytes)
             .map_err(|e| format!("Error writing file: {}", e))?;
 
         Ok(())
     }
 
     // Implementaciones auxiliares
-    fn get_version_manifest(&mut self) -> Result<Value, reqwest::Error> {
+    async fn get_version_manifest(&mut self) -> Result<Value, reqwest::Error> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -490,8 +695,10 @@ impl InstanceBootstrap {
         let manifest = self
             .client
             .get(Self::MOJANG_VERSION_MANIFEST_URL)
-            .send()?
-            .json::<Value>()?;
+            .send()
+            .await?
+            .json::<Value>()
+            .await?;
 
         // Actualizar caché
         self.version_manifest_cache = Some((manifest.clone(), current_time));
@@ -503,7 +710,7 @@ impl InstanceBootstrap {
     // como bootstrap_vanilla_instance y bootstrap_forge_instance,
     // pero son bastante extensos para este contexto
 
-    pub fn bootstrap_vanilla_instance(
+    pub async fn bootstrap_vanilla_instance( // Made async
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
@@ -587,6 +794,7 @@ impl InstanceBootstrap {
         );
         let version_details = self
             .get_version_details(&instance.minecraftVersion)
+            .await // Added await
             .map_err(|e| format!("Error fetching version details: {}", e))?;
 
         // Download version JSON
@@ -594,6 +802,7 @@ impl InstanceBootstrap {
         if !version_json_path.exists() {
             let version_manifest = self
                 .get_version_manifest()
+                .await // Added await
                 .map_err(|e| format!("Error fetching version manifest: {}", e))?;
 
             let versions = version_manifest["versions"]
@@ -636,7 +845,8 @@ impl InstanceBootstrap {
                 &format!("Descargando JSON de versión: {}", instance.minecraftVersion),
             );
 
-            self.download_file(version_url, &version_json_path)
+            Self::download_file(&self.client, version_url, &version_json_path) // Pass client
+                .await // Added await
                 .map_err(|e| format!("Error downloading version JSON: {}", e))?;
         }
 
@@ -669,7 +879,8 @@ impl InstanceBootstrap {
                 &format!("Descargando cliente: {}", instance.minecraftVersion),
             );
 
-            self.download_file(client_url, &client_jar_path)
+            Self::download_file(&self.client, client_url, &client_jar_path) // Pass client
+                .await // Added await
                 .map_err(|e| format!("Error downloading client jar: {}", e))?;
         }
 
@@ -758,7 +969,8 @@ impl InstanceBootstrap {
             "instance-downloading-libraries",
             "Descargando librerías",
         );
-        self.download_libraries(&version_details, &libraries_dir, instance)
+        self.download_libraries(&version_details, &libraries_dir, instance) // This will be made async later
+            .await // Add await for now, will adjust download_libraries next
             .map_err(|e| format!("Error downloading libraries: {}", e))?;
 
         // Update task status - 60%
@@ -779,7 +991,8 @@ impl InstanceBootstrap {
 
         // Validate assets
         Self::emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets(instance)
+        self.revalidate_assets(instance) // This will be made async later
+            .await // Add await for now, will adjust revalidate_assets later
             .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
@@ -826,7 +1039,8 @@ impl InstanceBootstrap {
 
         // Extraer bibliotecas nativas
         if let Err(e) =
-            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
+            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance) // This will be made async later
+                .await // Add await for now
         {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
@@ -865,332 +1079,363 @@ impl InstanceBootstrap {
         Ok(())
     }
 
-    fn download_forge_libraries(
+    async fn download_forge_libraries( // Made async
         &self,
         version_details: &Value,
         libraries_dir: &Path,
         instance: &MinecraftInstance,
     ) -> Result<(), String> {
-        // Verificar que tengamos la sección de librerías
-        let libraries = version_details["libraries"].as_array().ok_or_else(|| {
+        let all_rules_libraries = version_details["libraries"].as_array().ok_or_else(|| {
             "Lista de librerías no encontrada en detalles de versión Forge".to_string()
         })?;
 
-        let total_libraries = libraries.len();
-        let mut downloaded_libraries = 0;
+        struct MissingForgeLibraryInfo {
+            primary_url: String,
+            fallback_url: Option<String>, // For Maven Central fallback
+            target_path: PathBuf,
+            name: String, // For logging/display
+        }
+        let mut missing_libraries_to_download: Vec<MissingForgeLibraryInfo> = Vec::new();
 
-        Self::emit_status(
-            instance,
-            "instance-downloading-forge-libraries",
-            &format!(
-                "Descargando librerías de Forge: 0/{} (0.0%)",
-                total_libraries
-            ),
-        );
-
-        for library in libraries {
-            // Verificar reglas de exclusión/inclusión para esta librería
+        for library in all_rules_libraries {
+            // Rule application logic (similar to download_libraries)
             if let Some(rules) = library.get("rules") {
                 let mut allowed = false;
-
                 for rule in rules.as_array().unwrap_or(&Vec::new()) {
                     let action = rule["action"].as_str().unwrap_or("disallow");
-
-                    // Manejar reglas específicas de SO
-                    if let Some(os) = rule.get("os") {
-                        let os_name = os["name"].as_str().unwrap_or("");
-                        let current_os = if cfg!(target_os = "windows") {
-                            "windows"
-                        } else if cfg!(target_os = "macos") {
-                            "osx"
-                        } else {
-                            "linux"
-                        };
-
-                        if os_name == current_os {
-                            allowed = action == "allow";
-                        }
-                    } else {
-                        // Sin SO especificado, aplicar a todos
-                        allowed = action == "allow";
-                    }
+                    if let Some(os_rule) = rule.get("os") {
+                        let os_name = os_rule["name"].as_str().unwrap_or("");
+                        let current_os_str = if cfg!(target_os = "windows") { "windows" }
+                                           else if cfg!(target_os = "macos") { "osx" }
+                                           else { "linux" };
+                        if os_name == current_os_str { allowed = action == "allow"; }
+                    } else { allowed = action == "allow"; }
                 }
-
-                if !allowed {
-                    continue; // Saltar esta librería
-                }
+                if !allowed { continue; }
             }
 
-            // Manejo de librerías con formato Maven (común en Forge)
-            let name = library["name"].as_str().unwrap_or("");
+            let lib_name_display = library.get("name").and_then(|n| n.as_str()).unwrap_or("Desconocido").to_string();
 
-            // Si la librería tiene información de descarga directa
             if let Some(downloads) = library.get("downloads") {
-                // Descargar artefacto principal
+                // Handle artifact
                 if let Some(artifact) = downloads.get("artifact") {
-                    let path = artifact["path"]
-                        .as_str()
-                        .ok_or_else(|| "Ruta de artefacto no encontrada".to_string())?;
-                    let url = artifact["url"]
-                        .as_str()
-                        .ok_or_else(|| "URL de artefacto no encontrada".to_string())?;
-
-                    let target_path = libraries_dir.join(path);
-
-                    // Crear directorios padre si es necesario
-                    if let Some(parent) = target_path.parent() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Error al crear directorio: {}", e))?;
-                    }
-
-                    // Descargar si el archivo no existe
+                    let path_str = artifact["path"].as_str().ok_or_else(|| format!("Librería {} path de artefacto no encontrado", lib_name_display))?;
+                    let url = artifact["url"].as_str().ok_or_else(|| format!("Librería {} URL de artefacto no encontrado", lib_name_display))?;
+                    let target_path = libraries_dir.join(path_str);
                     if !target_path.exists() {
-                        self.download_file(url, &target_path)
-                            .map_err(|e| format!("Error al descargar librería: {}", e))?;
+                        missing_libraries_to_download.push(MissingForgeLibraryInfo {
+                            primary_url: url.to_string(),
+                            fallback_url: None,
+                            target_path,
+                            name: lib_name_display.clone(),
+                        });
                     }
                 }
-
-                // Descargar librerías nativas (classifiers)
+                // Handle classifiers (natives)
                 if let Some(classifiers) = downloads.get("classifiers") {
-                    let current_os = if cfg!(target_os = "windows") {
-                        "natives-windows"
-                    } else if cfg!(target_os = "macos") {
-                        "natives-osx"
-                    } else {
-                        "natives-linux"
-                    };
-
-                    if let Some(native) = classifiers.get(current_os) {
-                        let url = native["url"]
-                            .as_str()
-                            .ok_or_else(|| "URL de librería nativa no encontrada".to_string())?;
-                        let path = native["path"]
-                            .as_str()
-                            .ok_or_else(|| "Ruta de librería nativa no encontrada".to_string())?;
-
-                        let target_path = libraries_dir.join(path);
-
-                        // Crear directorios padre si es necesario
-                        if let Some(parent) = target_path.parent() {
-                            fs::create_dir_all(parent)
-                                .map_err(|e| format!("Error al crear directorio: {}", e))?;
-                        }
-
-                        // Descargar si el archivo no existe
+                    let current_os_key = if cfg!(target_os = "windows") { "natives-windows" }
+                                      else if cfg!(target_os = "macos") { "natives-osx" }
+                                      else { "natives-linux" };
+                    if let Some(native) = classifiers.get(current_os_key) {
+                        let path_str = native["path"].as_str().ok_or_else(|| format!("Nativo {} path no encontrado para {}", current_os_key, lib_name_display))?;
+                        let url = native["url"].as_str().ok_or_else(|| format!("Nativo {} URL no encontrado para {}", current_os_key, lib_name_display))?;
+                        let target_path = libraries_dir.join(path_str);
+                        let native_name = format!("{} ({})", lib_name_display, current_os_key);
                         if !target_path.exists() {
-                            self.download_file(url, &target_path).map_err(|e| {
-                                format!("Error al descargar librería nativa: {}", e)
-                            })?;
+                            missing_libraries_to_download.push(MissingForgeLibraryInfo {
+                                primary_url: url.to_string(),
+                                fallback_url: None,
+                                target_path,
+                                name: native_name,
+                            });
                         }
                     }
                 }
-            }
-            // Para librerías sin información de descarga directa, usar formato Maven
-            else if !name.is_empty() {
-                // Parsear el nombre en formato Maven: groupId:artifactId:version[:classifier]
-                let parts: Vec<&str> = name.split(':').collect();
+            } else if let Some(name_str) = library.get("name").and_then(|n| n.as_str()) {
+                // Maven coordinate based download
+                let parts: Vec<&str> = name_str.split(':').collect();
                 if parts.len() >= 3 {
                     let group_id = parts[0];
                     let artifact_id = parts[1];
                     let version = parts[2];
-                    let classifier = if parts.len() > 3 {
-                        Some(parts[3])
-                    } else {
-                        None
-                    };
-
-                    // Convertir la especificación de grupo en path
+                    let classifier = if parts.len() > 3 { Some(parts[3]) } else { None };
                     let group_path = group_id.replace('.', "/");
-
-                    // Construir la ruta al archivo JAR
-                    let jar_name = if let Some(classifier) = classifier {
-                        format!("{}-{}-{}.jar", artifact_id, version, classifier)
-                    } else {
-                        format!("{}-{}.jar", artifact_id, version)
-                    };
-
-                    let relative_path =
-                        format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
+                    let jar_name = if let Some(cls) = classifier { format!("{}-{}-{}.jar", artifact_id, version, cls) }
+                                   else { format!("{}-{}.jar", artifact_id, version) };
+                    let relative_path = format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
                     let target_path = libraries_dir.join(&relative_path);
 
-                    // Crear directorios padre si es necesario
-                    if let Some(parent) = target_path.parent() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Error al crear directorio: {}", e))?;
-                    }
-
-                    // Construir la URL para la descarga
-                    // Probar primero con el repositorio de Forge
-                    let repo_url = library["url"]
-                        .as_str()
-                        .unwrap_or("https://maven.minecraftforge.net/");
-                    let download_url = format!("{}{}", repo_url, relative_path);
-
-                    // Descargar si el archivo no existe
                     if !target_path.exists() {
-                        if let Err(e) = self.download_file(&download_url, &target_path) {
-                            // Si falla con el repositorio de Forge, intentar con el de Maven Central
-                            let maven_url =
-                                format!("https://repo1.maven.org/maven2/{}", relative_path);
-                            self.download_file(&maven_url, &target_path).map_err(|e| {
-                                format!(
-                                    "Error al descargar librería desde múltiples repositorios: {}",
-                                    e
-                                )
-                            })?;
-                        }
+                        let primary_repo_url = library.get("url").and_then(|u| u.as_str()).unwrap_or("https://maven.minecraftforge.net/");
+                        let primary_url = format!("{}{}", primary_repo_url, relative_path);
+                        let fallback_url = Some(format!("https://repo1.maven.org/maven2/{}", relative_path));
+                        missing_libraries_to_download.push(MissingForgeLibraryInfo {
+                            primary_url,
+                            fallback_url,
+                            target_path,
+                            name: name_str.to_string(),
+                        });
                     }
+                } else {
+                     log::warn!("Formato de nombre Maven inválido para librería: {}", name_str);
                 }
-            }
-
-            downloaded_libraries += 1;
-
-            // Actualizar progreso cada 5 librerías o en la última
-            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-                Self::emit_status(
-                    instance,
-                    "instance-downloading-forge-libraries",
-                    &format!(
-                        "Descargando librerías de Forge: {}/{} ({:.1}%)",
-                        downloaded_libraries, total_libraries, progress
-                    ),
-                );
+            } else {
+                 log::warn!("Librería sin información de descarga o nombre Maven: {:?}", library);
             }
         }
 
-        Ok(())
+        let total_missing_libraries = missing_libraries_to_download.len();
+        if total_missing_libraries == 0 {
+            log::info!("Todas las librerías Forge requeridas están presentes.");
+            Self::emit_status(instance, "instance-forge-libraries-validated", "Todas las librerías Forge validadas.");
+            return Ok(());
+        }
+
+        log::info!("Se descargarán {} librerías Forge faltantes.", total_missing_libraries);
+        Self::emit_status(
+            instance,
+            "instance-downloading-forge-libraries-start",
+            &format!("Preparando para descargar {} librerías Forge.", total_missing_libraries),
+        );
+
+        let concurrent_downloads = 8;
+        let semaphore = Arc::new(Semaphore::new(concurrent_downloads));
+        let downloaded_count = Arc::new(AtomicUsize::new(0));
+        let mut download_handles = Vec::new();
+        let client = Arc::new(self.client.clone());
+
+        for lib_info in missing_libraries_to_download {
+            let sem_clone = Arc::clone(&semaphore);
+            let count_clone = Arc::clone(&downloaded_count);
+            let client_clone = Arc::clone(&client);
+            let instance_clone = instance.clone();
+
+            download_handles.push(tokio::spawn(async move {
+                let _permit = sem_clone.acquire_owned().await.expect("Failed to acquire semaphore permit for Forge library download");
+
+                if let Some(parent_dir) = lib_info.target_path.parent() {
+                    if !parent_dir.exists() {
+                        if let Err(e) = fs::create_dir_all(parent_dir) {
+                            let error_msg = format!("Error creando directorio para librería Forge {}: {}", lib_info.name, e);
+                            log::error!("{}", error_msg);
+                            return Err(error_msg);
+                        }
+                    }
+                }
+
+                let mut download_result = InstanceBootstrap::download_file(&client_clone, &lib_info.primary_url, &lib_info.target_path).await;
+
+                if download_result.is_err() {
+                    if let Some(fallback) = &lib_info.fallback_url {
+                        log::warn!("Fallo al descargar {} desde la URL primaria, intentando con fallback: {}", lib_info.name, fallback);
+                        download_result = InstanceBootstrap::download_file(&client_clone, fallback, &lib_info.target_path).await;
+                    }
+                }
+
+                match download_result {
+                    Ok(_) => {
+                        let current_downloaded_count = count_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                        let progress = (current_downloaded_count as f64 * 100.0) / total_missing_libraries as f64;
+                        let msg = format!(
+                            "Descargada librería Forge {} de {}: {} ({:.1}%)",
+                            current_downloaded_count, total_missing_libraries, lib_info.name, progress
+                        );
+                        log::info!("{}", msg);
+                        InstanceBootstrap::emit_status(&instance_clone, "instance-forge-library-downloaded", &msg);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Error descargando librería Forge {}: {}", lib_info.name, e);
+                        log::error!("{}", error_msg);
+                        Err(error_msg)
+                    }
+                }
+            }));
+        }
+
+        let results = futures::future::join_all(download_handles).await;
+        let mut failed_downloads_count = 0;
+        for result in results {
+             if let Err(join_err) = result {
+                log::error!("Error en JoinHandle de descarga de librería Forge: {}", join_err);
+                failed_downloads_count +=1;
+            } else if let Ok(Err(_)) = result { // Error already logged in task
+                failed_downloads_count += 1;
+            }
+        }
+
+        if failed_downloads_count > 0 {
+            let final_error_msg = format!("Falló la descarga de {} librerías Forge.", failed_downloads_count);
+            log::error!("{}", &final_error_msg);
+            Self::emit_status(instance, "instance-forge-libraries-download-failed", &final_error_msg);
+            Err(final_error_msg)
+        } else {
+            log::info!("Todas las librerías Forge requeridas han sido descargadas.");
+            Self::emit_status(instance, "instance-forge-libraries-download-success", "Todas las librerías Forge descargadas.");
+            Ok(())
+        }
     }
 
-    fn download_libraries(
+    async fn download_libraries( // Made async
         &self,
         version_details: &Value,
         libraries_dir: &Path,
         instance: &MinecraftInstance,
     ) -> Result<(), String> {
-        let libraries = version_details["libraries"]
+        let all_rules_libraries = version_details["libraries"]
             .as_array()
             .ok_or_else(|| "Libraries list not found in version details".to_string())?;
 
-        let total_libraries = libraries.len();
-        let mut downloaded_libraries = 0;
+        struct MissingLibraryInfo {
+            url: String,
+            target_path: PathBuf,
+            name: String, // For logging/display
+        }
+        let mut missing_libraries_to_download: Vec<MissingLibraryInfo> = Vec::new();
 
-        for library in libraries {
+        for library in all_rules_libraries {
             // Check if we should skip this library based on rules
             if let Some(rules) = library.get("rules") {
                 let mut allowed = false;
-
                 for rule in rules.as_array().unwrap_or(&Vec::new()) {
                     let action = rule["action"].as_str().unwrap_or("disallow");
-
-                    // Handle OS-specific rules
-                    if let Some(os) = rule.get("os") {
-                        let os_name = os["name"].as_str().unwrap_or("");
-                        let current_os = if cfg!(target_os = "windows") {
-                            "windows"
-                        } else if cfg!(target_os = "macos") {
-                            "osx"
-                        } else {
-                            "linux"
-                        };
-
-                        if os_name == current_os {
-                            allowed = action == "allow";
-                        }
-                    } else {
-                        // No OS specified, apply to all
-                        allowed = action == "allow";
-                    }
+                    if let Some(os_rule) = rule.get("os") {
+                        let os_name = os_rule["name"].as_str().unwrap_or("");
+                        let current_os_str = if cfg!(target_os = "windows") { "windows" }
+                                           else if cfg!(target_os = "macos") { "osx" }
+                                           else { "linux" };
+                        if os_name == current_os_str { allowed = action == "allow"; }
+                    } else { allowed = action == "allow"; } // No OS specified, rule applies
                 }
-
-                if !allowed {
-                    continue; // Skip this library
-                }
+                if !allowed { continue; }
             }
 
-            // Get library info
-            let downloads = library
-                .get("downloads")
-                .ok_or_else(|| "Library downloads info not found".to_string())?;
+            let downloads = library.get("downloads").ok_or_else(|| format!("Library {:?} downloads info not found", library.get("name")))?;
 
             // Handle artifact
             if let Some(artifact) = downloads.get("artifact") {
-                let path = artifact["path"]
-                    .as_str()
-                    .ok_or_else(|| "Library artifact path not found".to_string())?;
-                let url = artifact["url"]
-                    .as_str()
-                    .ok_or_else(|| "Library artifact URL not found".to_string())?;
+                let path_str = artifact["path"].as_str().ok_or_else(|| format!("Library {:?} artifact path not found", library.get("name")))?;
+                let url = artifact["url"].as_str().ok_or_else(|| format!("Library {:?} artifact URL not found", library.get("name")))?;
+                let target_path = libraries_dir.join(path_str);
+                let lib_name = library.get("name").and_then(|n| n.as_str()).unwrap_or(path_str).to_string();
 
-                let target_path = libraries_dir.join(path);
-
-                // Create parent directories if needed
-                if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Error creating directory: {}", e))?;
-                }
-
-                // Download if file doesn't exist
                 if !target_path.exists() {
-                    self.download_file(url, &target_path)
-                        .map_err(|e| format!("Error downloading library: {}", e))?;
+                    missing_libraries_to_download.push(MissingLibraryInfo {
+                        url: url.to_string(),
+                        target_path,
+                        name: lib_name,
+                    });
                 }
             }
 
             // Handle native libraries (classifiers)
             if let Some(classifiers) = downloads.get("classifiers") {
-                let current_os = if cfg!(target_os = "windows") {
-                    "natives-windows"
-                } else if cfg!(target_os = "macos") {
-                    "natives-osx"
-                } else {
-                    "natives-linux"
-                };
+                let current_os_key = if cfg!(target_os = "windows") { "natives-windows" }
+                                  else if cfg!(target_os = "macos") { "natives-osx" }
+                                  else { "natives-linux" };
 
-                if let Some(native) = classifiers.get(current_os) {
-                    let url = native["url"]
-                        .as_str()
-                        .ok_or_else(|| "Native library URL not found".to_string())?;
-                    let path = native["path"]
-                        .as_str()
-                        .ok_or_else(|| "Native library path not found".to_string())?;
+                if let Some(native) = classifiers.get(current_os_key) {
+                    let path_str = native["path"].as_str().ok_or_else(|| format!("Native library {} path not found", current_os_key))?;
+                    let url = native["url"].as_str().ok_or_else(|| format!("Native library {} URL not found", current_os_key))?;
+                    let target_path = libraries_dir.join(path_str);
+                    let lib_name = format!("{} ({})", library.get("name").and_then(|n| n.as_str()).unwrap_or(path_str), current_os_key);
 
-                    let target_path = libraries_dir.join(path);
-
-                    // Create parent directories if needed
-                    if let Some(parent) = target_path.parent() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| format!("Error creating directory: {}", e))?;
-                    }
-
-                    // Download if file doesn't exist
                     if !target_path.exists() {
-                        self.download_file(url, &target_path)
-                            .map_err(|e| format!("Error downloading native library: {}", e))?;
+                         missing_libraries_to_download.push(MissingLibraryInfo {
+                            url: url.to_string(),
+                            target_path,
+                            name: lib_name,
+                        });
                     }
                 }
             }
+        }
 
-            downloaded_libraries += 1;
+        let total_missing_libraries = missing_libraries_to_download.len();
+        if total_missing_libraries == 0 {
+            log::info!("Todas las librerías requeridas están presentes.");
+            Self::emit_status(instance, "instance-libraries-validated", "Todas las librerías validadas.");
+            return Ok(());
+        }
 
-            // Update progress every 5 libraries or on last library
-            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-                Self::emit_status(
-                    instance,
-                    "instance-downloading-libraries",
-                    &format!(
-                        "Descargando librerías: {}/{} ({:.1}%)",
-                        downloaded_libraries, total_libraries, progress
-                    ),
-                );
+        log::info!("Se descargarán {} librerías faltantes.", total_missing_libraries);
+        Self::emit_status(
+            instance,
+            "instance-downloading-libraries-start",
+            &format!("Preparando para descargar {} librerías.", total_missing_libraries),
+        );
+
+        let concurrent_downloads = 8;
+        let semaphore = Arc::new(Semaphore::new(concurrent_downloads));
+        let downloaded_count = Arc::new(AtomicUsize::new(0));
+        let mut download_handles = Vec::new();
+        let client = Arc::new(self.client.clone());
+
+        for lib_info in missing_libraries_to_download {
+            let sem_clone = Arc::clone(&semaphore);
+            let count_clone = Arc::clone(&downloaded_count);
+            let client_clone = Arc::clone(&client);
+            let instance_clone = instance.clone();
+
+            download_handles.push(tokio::spawn(async move {
+                let _permit = sem_clone.acquire_owned().await.expect("Failed to acquire semaphore permit for library download");
+
+                if let Some(parent_dir) = lib_info.target_path.parent() {
+                    if !parent_dir.exists() {
+                        if let Err(e) = fs::create_dir_all(parent_dir) {
+                            let error_msg = format!("Error creando directorio para librería {}: {}", lib_info.name, e);
+                            log::error!("{}", error_msg);
+                            return Err(error_msg);
+                        }
+                    }
+                }
+
+                match InstanceBootstrap::download_file(&client_clone, &lib_info.url, &lib_info.target_path).await {
+                    Ok(_) => {
+                        let current_downloaded_count = count_clone.fetch_add(1, Ordering::SeqCst) + 1;
+                        let progress = (current_downloaded_count as f64 * 100.0) / total_missing_libraries as f64;
+                        let msg = format!(
+                            "Descargada librería {} de {}: {} ({:.1}%)",
+                            current_downloaded_count, total_missing_libraries, lib_info.name, progress
+                        );
+                        log::info!("{}", msg);
+                        InstanceBootstrap::emit_status(&instance_clone, "instance-library-downloaded", &msg);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Error descargando librería {}: {}", lib_info.name, e);
+                        log::error!("{}", error_msg);
+                        Err(error_msg)
+                    }
+                }
+            }));
+        }
+
+        let results = futures::future::join_all(download_handles).await;
+        let mut failed_downloads_count = 0;
+        for result in results {
+            if let Err(join_err) = result { // JoinError
+                log::error!("Error en JoinHandle de descarga de librería: {}", join_err);
+                failed_downloads_count +=1;
+            } else if let Ok(Err(download_err)) = result { // Our Err(String) from the task
+                 // Error already logged in task
+                failed_downloads_count += 1;
             }
         }
 
-        Ok(())
+        if failed_downloads_count > 0 {
+            let final_error_msg = format!("Falló la descarga de {} librerías.", failed_downloads_count);
+            log::error!("{}", &final_error_msg);
+            Self::emit_status(instance, "instance-libraries-download-failed", &final_error_msg);
+            Err(final_error_msg)
+        } else {
+            log::info!("Todas las librerías requeridas han sido descargadas.");
+            Self::emit_status(instance, "instance-libraries-download-success", "Todas las librerías descargadas correctamente.");
+            Ok(())
+        }
     }
 
-    pub fn bootstrap_forge_instance(
+    pub async fn bootstrap_forge_instance( // Made async
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
@@ -1249,6 +1494,7 @@ impl InstanceBootstrap {
 
         // Bootstrap Vanilla primero
         self.bootstrap_vanilla_instance(instance, None, None)
+            .await // Added await
             .map_err(|e| format!("Error en bootstrap Vanilla: {}", e))?;
 
         // Update task status - 60%
@@ -1296,7 +1542,7 @@ impl InstanceBootstrap {
 
         // Obtener URL de instalador Forge
         let forge_installer_url =
-            self.get_forge_installer_url(&instance.minecraftVersion, forge_version)?;
+            self.get_forge_installer_url(&instance.minecraftVersion, forge_version).await?; // Added await
 
         // Path para el instalador
         let forge_installer_path = minecraft_dir.join("forge-installer.jar");
@@ -1307,7 +1553,8 @@ impl InstanceBootstrap {
             "instance-downloading-forge-installer",
             "Descargando instalador de Forge",
         );
-        self.download_file(&forge_installer_url, &forge_installer_path)
+        Self::download_file(&self.client, &forge_installer_url, &forge_installer_path) // Pass client
+            .await // Added await
             .map_err(|e| format!("Error al descargar instalador Forge: {}", e))?;
 
         // Update task status - 70%
@@ -1401,7 +1648,7 @@ impl InstanceBootstrap {
                 .map_err(|e| format!("Error al parsear archivo de versión Forge: {}", e))?;
 
             // Descargar librerías específicas de Forge
-            self.download_forge_libraries(&version_details, &libraries_dir, instance)?;
+            self.download_forge_libraries(&version_details, &libraries_dir, instance).await?; // Added await
         } else {
             return Err(format!(
                 "No se encontró el archivo de versión Forge: {}",
@@ -1466,7 +1713,7 @@ impl InstanceBootstrap {
         Ok(())
     }
 
-    fn get_forge_installer_url(
+    async fn get_forge_installer_url( // Made async
         &self,
         minecraft_version: &str,
         forge_version: &str,
@@ -1528,6 +1775,7 @@ impl InstanceBootstrap {
                     .client
                     .head(&url)
                     .send()
+                    .await // Added await
                     .map_or(false, |r| r.status().is_success())
                 {
                     return Ok(url);
@@ -1722,7 +1970,7 @@ impl InstanceBootstrap {
         Ok(())
     }
 
-    pub fn verify_integrity_vanilla(
+    pub async fn verify_integrity_vanilla( // Made async
         &self,
         instance: Option<&MinecraftInstance>,
         task_id: Option<String>,
@@ -1773,8 +2021,10 @@ impl InstanceBootstrap {
             .client
             .get(version_manifest_url)
             .send()
+            .await // Added await
             .map_err(|e| format!("Error al obtener el manifiesto de versiones: {}", e))?
             .json()
+            .await // Added await
             .map_err(|e| format!("Error al parsear el manifiesto de versiones: {}", e))?;
         let versions = version_manifest["versions"]
             .as_array()
@@ -1791,8 +2041,10 @@ impl InstanceBootstrap {
             .client
             .get(version_url)
             .send()
+            .await // Added await
             .map_err(|e| format!("Error al obtener los detalles de la versión: {}", e))?
             .json()
+            .await // Added await
             .map_err(|e| format!("Error al parsear los detalles de la versión: {}", e))?;
 
         // Get the libraries from the version details
@@ -1858,7 +2110,8 @@ impl InstanceBootstrap {
 
                 // Download if file doesn't exist
                 if !target_path.exists() {
-                    self.download_file(url, &target_path)
+                    Self::download_file(&self.client, url, &target_path) // Pass client
+                        .await // Add await
                         .map_err(|e| format!("Error downloading library: {}", e))?;
                 }
             }
@@ -1896,7 +2149,7 @@ impl InstanceBootstrap {
 
         // Extraer bibliotecas nativas
         if let Err(e) =
-            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
+            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance).await // Added await
         {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
@@ -1929,7 +2182,7 @@ impl InstanceBootstrap {
 }
 
 #[tauri::command]
-pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
+pub async fn check_vanilla_integrity(instance_id: String) -> Result<(), String> { // Made async
     // Obtener la instancia de Minecraft
     let instance = get_instance_by_id(instance_id)
         .map_err(|e| format!("Error al obtener la instancia: {}", e))?;
@@ -1938,12 +2191,13 @@ pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
         return Err("No se encontró la instancia".to_string());
     }
 
-    let bootstrapper = InstanceBootstrap::new();
+    let mut bootstrapper = InstanceBootstrap::new(); // Made mutable as some async methods take &mut self
     // Verificar que la instancia sea válida
 
     // Verificar la integridad de la instancia
     bootstrapper
         .verify_integrity_vanilla(instance.as_ref(), None, None)
+        .await // Added await
         .map_err(|e| format!("Error al verificar la integridad de la instancia: {}", e))?;
 
     Ok(())

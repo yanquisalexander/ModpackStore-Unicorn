@@ -521,15 +521,19 @@ impl MinecraftLauncher {
             Some((name, ga, version, url, classifier))
         }
 
-        fn prefer_forge(ga: &str, vver: &Option<String>, fver: &Option<String>) -> bool {
-            if ga.contains("log4j") {
-                if let (Some(v), Some(f)) = (vver, fver) {
-                    let cmp_v: Vec<i32> = v.split('.').filter_map(|p| p.parse().ok()).collect();
-                    let cmp_f: Vec<i32> = f.split('.').filter_map(|p| p.parse().ok()).collect();
-                    return cmp_f > cmp_v;
-                }
-            }
-            true
+        // Defines preference for libraries when merging.
+        // Generally, Forge (child) versions are preferred over Vanilla (parent).
+        // Specific version comparison can be added if needed (e.g. for log4j or other critical libs).
+        fn prefer_child_version(lib_ga_key: &str, _parent_ver: &Option<String>, child_ver: &Option<String>) -> bool {
+            log::debug!("[ManifestMerge] Library '{}' found in both manifests. Preferring child version ('{}').", lib_ga_key, child_ver.as_deref().unwrap_or("N/A"));
+            // Currently, always prefer the child's definition if it exists.
+            // Version comparison logic (like the old log4j specific one) could be added here if necessary.
+            // For example, to ensure only newer versions from child are preferred:
+            // if let (Some(p_ver_str), Some(c_ver_str)) = (parent_ver, child_ver) {
+            //    // Implement version comparison, e.g. simple lexicographical or semver
+            //    return c_ver_str >= p_ver_str;
+            // }
+            true // Default to preferring child if one version is None or comparison is not implemented
         }
 
         let mut result = vanilla.clone();
@@ -570,36 +574,52 @@ impl MinecraftLauncher {
                     };
 
                     if let Some(existing) = libs.get(&key) {
-                        let (_, _, vver, vurl, _) = extract_info(existing).unwrap();
-                        let is_dup = match (&vver, &fver) {
-                            (Some(_), Some(_)) => true,
-                            _ => furl == vurl,
-                        };
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(format!("forge:{}", fver.clone().unwrap_or_default()));
-                        if is_dup {
-                            if prefer_forge(&ga, &vver, &fver) {
-                                libs.insert(key, lib.clone());
-                            }
-                        } else {
-                            libs.insert(key, lib.clone());
+                        let (_, _, parent_ver, _, _) = extract_info(existing).expect("Existing library info malformed");
+
+                        // Log that we are considering an override.
+                        log::info!(
+                            "[ManifestMerge] Library '{}' (version: {:?}) from child manifest is overriding version ({:?}) from parent manifest.",
+                            ga, fver, parent_ver
+                        );
+
+                        if prefer_child_version(&ga, &parent_ver, &fver) {
+                            libs.insert(key, lib.clone()); // Child's definition overrides parent's
                         }
+                        // If prefer_child_version returns false, the parent's version remains.
+                        // Add child version to duplicates for logging.
+                        duplicates.entry(ga.clone()).or_default().push(format!("child:{}", fver.as_deref().unwrap_or("N/A")));
+
                     } else {
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(format!("forge:{}", fver.clone().unwrap_or_default()));
+                        // Library only in child manifest, add it.
                         libs.insert(key, lib.clone());
+                        duplicates.entry(ga.clone()).or_default().push(format!("child:{}", fver.as_deref().unwrap_or("N/A")));
                     }
                 }
             }
         }
 
-        for (ga, sources) in duplicates.iter().filter(|(_, s)| s.len() > 1) {
-            log::info!("Duplicate {}: {}", ga, sources.join(", "));
+        // Log actual duplicates that were resolved or noted.
+        for (ga, versions) in duplicates.iter() {
+            if versions.len() > 1 { // Only log if there were actually multiple versions considered
+                 let chosen_lib_info = libs.values().find(|lib_val| {
+                    if let Some((_, lib_ga, _, _, lib_classifier)) = extract_info(lib_val) {
+                        let current_key_base = lib_ga;
+                        let current_key = if let Some(c) = lib_classifier { format!("{}:{}", current_key_base, c) } else { current_key_base };
+                        // This check needs to be more robust if classifiers are involved in the `ga` passed to this loop
+                        return current_key.starts_with(ga) || ga.starts_with(&current_key); // Approximate match
+                    }
+                    false
+                });
+                let chosen_version_str = if let Some(chosen_lib) = chosen_lib_info {
+                    if let Some((_, _, cv, _, _)) = extract_info(chosen_lib) {
+                        cv.unwrap_or_else(|| "N/A".to_string())
+                    } else { "N/A".to_string() }
+                } else { "N/A".to_string() };
+
+                log::info!("[ManifestMerge] Library '{}': Versions considered [{}]. Version chosen: '{}'.", ga, versions.join(", "), chosen_version_str);
+            }
         }
+
 
         result["libraries"] = Value::Array(libs.into_values().collect());
 
@@ -658,18 +678,30 @@ impl MinecraftLauncher {
         &self,
         game_dir: &Path,
         manifest_json: &Value,
-        minecraft_version: &str,
-        forge_version: Option<&str>,
+        minecraft_version: &str, // This should be the base vanilla version for the .jar file.
+        _forge_version: Option<&str>, // Parameter kept for signature compatibility, but not used if logic is simplified.
     ) -> PathBuf {
-        // For test, return vanilla client jar
+        // This function should return the path to the base Minecraft client JAR.
+        // The `minecraft_version` parameter is assumed to be the base version (e.g., "1.19.2").
+        // Forge specific JARs are treated as libraries and included in the classpath via `build_classpath`.
+        let version_dir = game_dir
+            .join("versions")
+            .join(minecraft_version); // Use the passed `minecraft_version`
+
+        let client_jar_name = format!("{}.jar", minecraft_version);
+        let client_jar_path = version_dir.join(client_jar_name);
+
+        log::debug!("[ClientJAR] Determined client JAR path: {}", client_jar_path.display());
+        client_jar_path
+        /*  // Old logic, potentially problematic if `self.instance.minecraftVersion` wasn't the base version.
+              // The `minecraft_version` parameter to this function should be the one to use for the JAR.
         let version_dir = game_dir
             .join("versions")
             .join(self.instance.minecraftVersion.clone());
         let client_jar = version_dir.join(format!("{}.jar", self.instance.minecraftVersion));
-
         return client_jar;
 
-        /*  // Check if this is a modded instance
+        // Check if this is a modded instance
         if manifest_json.get("inheritsFrom").is_some() {
             // client_jar is not on version folder
             // get it from the libraries folder
@@ -813,10 +845,13 @@ impl GameLauncher for MinecraftLauncher {
         };
 
         // Get the appropriate client jar path
+        // The `minecraft_version` here should be the base vanilla version (e.g. "1.12.2")
+        // because even for Forge, the vanilla JAR is typically the one named `version.jar`.
+        // Forge's own JARs are loaded as libraries.
         let client_jar = self.get_client_jar_path(
             &game_dir,
-            &manifest_json,
-            &minecraft_version,
+            &manifest_json, // manifest_json is the merged one if forge
+            &vanilla_mc_version, // Always use the base vanilla version for the client JAR name.
             self.instance.forgeVersion.as_deref(),
         );
 

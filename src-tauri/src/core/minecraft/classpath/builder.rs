@@ -87,9 +87,11 @@ impl<'a> ClasspathBuilder<'a> {
 
     fn add_if_new(&self, path: &Path, entries: &mut Vec<String>, seen: &mut HashSet<String>) {
         if path.exists() {
-            let s = path.to_string_lossy().to_string();
-            if seen.insert(s.clone()) {
-                entries.push(s);
+            let path_string = path.to_string_lossy().to_string();
+            if seen.insert(path_string.clone()) {
+                entries.push(path_string);
+            } else {
+                log::debug!("ClasspathBuilder: Skipped duplicate library path: {}", path_string);
             }
         }
     }

@@ -33,6 +33,22 @@ impl InstanceBootstrap {
         }
     }
 
+    fn format_bytes(bytes: u64) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = KB * 1024;
+        const GB: u64 = MB * 1024;
+
+        if bytes >= GB {
+            format!("{:.2} GB", bytes as f64 / GB as f64)
+        } else if bytes >= MB {
+            format!("{:.2} MB", bytes as f64 / MB as f64)
+        } else if bytes >= KB {
+            format!("{:.2} KB", bytes as f64 / KB as f64)
+        } else {
+            format!("{} bytes", bytes)
+        }
+    }
+
     // --- Helper Methods for Event Emission ---
 
     /// Emits a status update event to the frontend.
@@ -79,6 +95,10 @@ impl InstanceBootstrap {
         libraries_dir: &Path,
         natives_dir: &Path,
         instance: &MinecraftInstance,
+        task_id: Option<&str>,
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        base_overall_progress: f32,
+        max_progress_span_for_this_step: f32,
     ) -> Result<(), String> {
         // Obtener el sistema operativo actual
         let os = std::env::consts::OS;
@@ -103,8 +123,23 @@ impl InstanceBootstrap {
             .as_array()
             .ok_or_else(|| "No se encontraron bibliotecas en el manifiesto".to_string())?;
 
-        for library in libraries {
-            // Verificar si la biblioteca tiene nativos
+        // First, filter libraries that have natives for the current OS & arch to get a total count for progress.
+        let relevant_native_libs: Vec<&Value> = libraries
+            .iter()
+            .filter(|lib| {
+                if let Some(natives_map) = lib.get("natives") {
+                    natives_map.get(os_name).is_some()
+                } else {
+                    false
+                }
+            })
+            .collect();
+
+        let total_libs_with_natives = relevant_native_libs.len();
+        let mut processed_libs_with_natives = 0;
+
+        for library in relevant_native_libs {
+            // Verificar si la biblioteca tiene nativos (already filtered, but good for structure)
             if let Some(natives) = library.get("natives") {
                 let os_natives = natives.get(os_name);
 
@@ -126,34 +161,49 @@ impl InstanceBootstrap {
                         })?;
 
                     // Obtener la ruta y URL del archivo JAR
+                    let lib_name_for_message = library.get("name").and_then(|n| n.as_str()).unwrap_or("unknown library");
                     let path = library_info["path"]
                         .as_str()
-                        .ok_or_else(|| "No se encontró la ruta del archivo nativo".to_string())?;
+                        .ok_or_else(|| format!("No se encontró la ruta del archivo nativo para {}", lib_name_for_message))?;
+
+                    processed_libs_with_natives += 1;
+                    let current_step_progress = if total_libs_with_natives > 0 {
+                        (processed_libs_with_natives as f32 / total_libs_with_natives as f32) * max_progress_span_for_this_step
+                    } else {
+                        0.0
+                    };
+                    let overall_progress_for_task_update = base_overall_progress + current_step_progress;
+
+                    let extraction_message = format!(
+                        "Extrayendo nativos para {}: {}/{}",
+                        lib_name_for_message, processed_libs_with_natives, total_libs_with_natives
+                    );
+
+                    if let (Some(tid), Some(tm)) = (task_id, task_manager.as_ref()) {
+                        if let Ok(mut manager) = tm.lock() {
+                            manager.update_task(
+                                tid,
+                                TaskStatus::Running,
+                                overall_progress_for_task_update,
+                                &extraction_message,
+                                None,
+                            );
+                        }
+                    }
+                    Self::emit_status(instance, "instance-extracting-native-library", &extraction_message);
+
 
                     let library_path = libraries_dir.join(path);
 
-                    // Si el archivo no existe, descargarlo
+                    // Native libraries should typically be already downloaded by download_libraries.
+                    // If not, it's an error or needs a download here (currently not handled with progress).
                     if !library_path.exists() {
-                        let url = library_info["url"].as_str().ok_or_else(|| {
-                            "No se encontró la URL del archivo nativo".to_string()
-                        })?;
-
-                        // Crear el directorio padre si no existe
-                        if let Some(parent) = library_path.parent() {
-                            fs::create_dir_all(parent).map_err(|e| {
-                                format!("Error creando directorio para biblioteca nativa: {}", e)
-                            })?;
-                        }
-
-                        Self::emit_status(
-                            instance,
-                            "instance-downloading-native-library",
-                            &format!("Descargando biblioteca nativa: {}", path),
-                        );
-
-                        // Descargar el archivo JAR
-                        self.download_file(url, &library_path)
-                            .map_err(|e| format!("Error descargando biblioteca nativa: {}", e))?;
+                        log::warn!("Biblioteca nativa {} no encontrada en {}. Es posible que deba descargarse.", lib_name_for_message, library_path.display());
+                        // Optionally, could call download_file here, but it would complicate progress for this step
+                        // For now, assume it's present from previous steps.
+                        // self.download_file(url, &library_path, instance, &format!("Native {}", lib_name_for_message), task_id, task_manager, overall_progress_for_task_update)?;
+                        // For simplicity, if it's missing, we might just error out or skip.
+                        return Err(format!("Biblioteca nativa requerida {} no encontrada en {}", lib_name_for_message, library_path.display()));
                     }
 
                     // Verificar si hay reglas de extracción (exclude)
@@ -232,7 +282,14 @@ impl InstanceBootstrap {
         Ok(())
     }
 
-    pub fn revalidate_assets(&mut self, instance: &MinecraftInstance) -> IoResult<()> {
+    pub fn revalidate_assets(
+        &mut self,
+        instance: &MinecraftInstance,
+        task_id: Option<&str>,
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        base_overall_progress: f32,
+        max_progress_span_for_this_step: f32
+    ) -> IoResult<()> {
         log::info!("Revalidando assets para: {}", instance.instanceName);
 
         // Verificar si la versión de Minecraft está disponible
@@ -300,13 +357,23 @@ impl InstanceBootstrap {
                 "Descargando índice de assets para la versión {}",
                 instance.minecraftVersion
             );
-            self.download_file(assets_index_url, &assets_index_file)
-                .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("Error al descargar índice de assets: {}", e),
-                    )
-                })?;
+            // For the asset index download, we can use the base_overall_progress,
+            // as it's a small, initial part of this step.
+            self.download_file(
+                assets_index_url,
+                &assets_index_file,
+                instance,
+                &format!("Asset Index ({})", assets_index_id),
+                task_id,
+                task_manager.as_ref(),
+                base_overall_progress,
+            )
+            .map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Error al descargar índice de assets: {}", e),
+                )
+            })?;
         }
 
         // Leer y procesar el índice de assets
@@ -354,22 +421,35 @@ impl InstanceBootstrap {
 
             // Informar progreso
 
-            log::info!(
+            // Calculate progress for task manager updates
+            let current_step_progress = if total_assets > 0 {
+                (processed_assets as f32 / total_assets as f32) * max_progress_span_for_this_step
+            } else {
+                0.0
+            };
+            let overall_progress_for_task_update = base_overall_progress + current_step_progress;
+
+            let progress_message = format!(
                 "Validando assets: {}/{} ({:.1}%)",
                 processed_assets,
                 total_assets,
-                (processed_assets as f64 * 100.0 / total_assets as f64)
+                if total_assets > 0 { (processed_assets as f32 * 100.0 / total_assets as f32) } else { 0.0 }
             );
-            Self::emit_status(
-                instance,
-                "instance-downloading-assets",
-                &format!(
-                    "Validando assets: {}/{} ({:.1}%)",
-                    processed_assets,
-                    total_assets,
-                    (processed_assets as f64 * 100.0 / total_assets as f64)
-                ),
-            );
+
+            log::info!("{}", progress_message);
+            Self::emit_status(instance, "instance-downloading-assets", &progress_message);
+
+            if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+                if let Ok(mut manager) = tm.lock() {
+                    manager.update_task(
+                        tid,
+                        TaskStatus::Running,
+                        overall_progress_for_task_update,
+                        &progress_message,
+                        None,
+                    );
+                }
+            }
 
             if !asset_file.exists() {
                 missing_assets += 1;
@@ -383,7 +463,16 @@ impl InstanceBootstrap {
                     fs::create_dir_all(&target_dir)?;
                 }
 
-                self.download_file(&asset_url, &asset_file).map_err(|e| {
+                self.download_file(
+                    &asset_url,
+                    &asset_file,
+                    instance,
+                    asset_name, // Use the asset_name (filename from the index)
+                    task_id,
+                    task_manager.as_ref(),
+                    overall_progress_for_task_update, // Pass the calculated overall progress
+                )
+                .map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::Other,
                         format!("Error al descargar asset {}: {}", asset_name, e),
@@ -443,32 +532,109 @@ impl InstanceBootstrap {
     }
 
     // Método para descargar archivos
-    fn download_file(&self, url: &str, destination: &Path) -> Result<(), String> {
+    fn download_file(
+        &self,
+        url: &str,
+        destination: &Path,
+        _instance: &MinecraftInstance, // Kept for context, might be used later for specific instance events
+        asset_name_for_message: &str,
+        task_id: Option<&str>,
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        current_overall_progress: f32,
+    ) -> Result<(), String> {
+        use std::io::{Read, Write}; // Ensure Read and Write are in scope
+
         // Asegurarse de que el directorio padre existe
         if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Error creating directory: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("Error creating directory {}: {}", parent.display(), e))?;
         }
 
         let mut response = self
             .client
             .get(url)
             .send()
-            .map_err(|e| format!("Download error: {}", e))?;
+            .map_err(|e| format!("Download error for {}: {}", asset_name_for_message, e))?;
 
         if !response.status().is_success() {
             return Err(format!(
-                "Download failed with status: {}",
+                "Download failed for {} with status: {}",
+                asset_name_for_message,
                 response.status()
             ));
         }
 
-        let mut file =
-            fs::File::create(destination).map_err(|e| format!("Error creating file: {}", e))?;
+        let total_size = response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|ct_len| ct_len.to_str().ok())
+            .and_then(|ct_len| ct_len.parse::<u64>().ok())
+            .unwrap_or(0);
 
-        response
-            .copy_to(&mut file)
-            .map_err(|e| format!("Error writing file: {}", e))?;
+        let mut file = fs::File::create(destination)
+            .map_err(|e| format!("Error creating file {}: {}", destination.display(), e))?;
 
+        let mut downloaded_bytes: u64 = 0;
+        let mut buffer = [0; 8192]; // 8KB buffer
+
+        loop {
+            let bytes_read = response
+                .read(&mut buffer)
+                .map_err(|e| format!("Error reading response body for {}: {}", asset_name_for_message, e))?;
+
+            if bytes_read == 0 {
+                break; // EOF
+            }
+
+            file.write_all(&buffer[..bytes_read])
+                .map_err(|e| format!("Error writing to file {} for {}: {}", destination.display(), asset_name_for_message, e))?;
+
+            downloaded_bytes += bytes_read as u64;
+
+            if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+                let percentage = if total_size > 0 {
+                    (downloaded_bytes as f64 * 100.0 / total_size as f64) as f32
+                } else {
+                    0.0 // Indeterminate if total_size is 0
+                };
+                let message = if total_size > 0 {
+                    format!(
+                        "Descargando {}: {} / {} ({:.1}%)",
+                        asset_name_for_message,
+                        Self::format_bytes(downloaded_bytes),
+                        Self::format_bytes(total_size),
+                        percentage
+                    )
+                } else {
+                    format!(
+                        "Descargando {}: {} (tamaño desconocido)",
+                        asset_name_for_message,
+                        Self::format_bytes(downloaded_bytes)
+                    )
+                };
+                if let Ok(mut manager) = tm.lock() {
+                    manager.update_task(
+                        tid,
+                        TaskStatus::Running,
+                        current_overall_progress, // Keep overall progress, only message changes here
+                        &message,
+                        None,
+                    );
+                }
+            }
+        }
+
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            let message = format!("Descarga completada: {}", asset_name_for_message);
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
+                    TaskStatus::Running, // Still running as part of a larger task
+                    current_overall_progress,
+                    &message,
+                    None,
+                );
+            }
+        }
         Ok(())
     }
 
@@ -506,9 +672,32 @@ impl InstanceBootstrap {
     pub fn bootstrap_vanilla_instance(
         &mut self,
         instance: &MinecraftInstance,
-        task_id: Option<String>,
-        task_manager: Option<Arc<Mutex<TasksManager>>>,
+        task_id: Option<&str>, // Changed from Option<String>
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        overall_task_base_progress: f32, // Base progress for this whole operation
+        overall_task_max_span: f32,      // Max percentage this operation will span
     ) -> Result<(), String> {
+        // --- Define relative progress points for vanilla bootstrap ---
+        // These are percentages *within* the span allocated to vanilla bootstrap.
+        let p_start = 0.05; // Initial step
+        let p_manifest_download = 0.15;
+        let p_version_json_download = 0.25;
+        let p_client_jar_download_end = 0.35; // End of client jar download itself
+        // Gap between 0.35 and 0.45 (or 0.50 if Java install) is for Java check/install
+        let p_java_install_check_end = 0.50; // If Java install happens, it goes up to this
+        let p_libraries_download_start = 0.45; // Start of library downloads (base for that step)
+        let p_libraries_download_span = 0.15;  // Libraries take 15% of vanilla's span
+        let p_assets_validation_start = p_libraries_download_start + p_libraries_download_span; // 0.60
+        let p_assets_validation_span = 0.15;   // Assets take 15% of vanilla's span
+        let p_natives_extraction_start = p_assets_validation_start + p_assets_validation_span; // 0.75
+        let p_natives_extraction_span = 0.10;  // Natives take 10% of vanilla's span
+        let p_finalizing_setup = 0.90;         // Finalizing setup
+
+        // Helper to calculate actual progress value
+        let calc_progress = |step_percentage: f32| -> f32 {
+            overall_task_base_progress + step_percentage * overall_task_max_span
+        };
+
         // Emit start event
         Self::emit_status(
             instance,
@@ -517,12 +706,12 @@ impl InstanceBootstrap {
         );
 
         // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    5.0,
+                    calc_progress(p_start),
                     "Iniciando bootstrap de instancia Vanilla",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -563,13 +752,13 @@ impl InstanceBootstrap {
             }
         }
 
-        // Update task status - 15%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // Update task status - manifest download
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    15.0,
+                    calc_progress(p_manifest_download),
                     "Descargando manifiesto de versión",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -614,13 +803,13 @@ impl InstanceBootstrap {
                 .as_str()
                 .ok_or_else(|| "Invalid version info format".to_string())?;
 
-            // Update task status - 25%
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
+            let version_json_dl_progress = calc_progress(p_version_json_download);
+            if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+                if let Ok(mut manager) = tm.lock() {
+                    manager.update_task(
+                        tid,
                         TaskStatus::Running,
-                        25.0,
+                        version_json_dl_progress,
                         &format!("Descargando JSON de versión: {}", instance.minecraftVersion),
                         Some(serde_json::json!({
                             "instanceName": instance.instanceName.clone(),
@@ -636,24 +825,32 @@ impl InstanceBootstrap {
                 &format!("Descargando JSON de versión: {}", instance.minecraftVersion),
             );
 
-            self.download_file(version_url, &version_json_path)
-                .map_err(|e| format!("Error downloading version JSON: {}", e))?;
+            self.download_file(
+                version_url,
+                &version_json_path,
+                instance,
+                &format!("Version JSON ({})", instance.minecraftVersion),
+                task_id,
+                task_manager,
+                version_json_dl_progress, // This is the base for this specific download file, it won't change overall progress further
+            )
+            .map_err(|e| format!("Error downloading version JSON: {}", e))?;
         }
 
         // Download client jar
         let client_jar_path = version_dir.join(format!("{}.jar", instance.minecraftVersion));
+        let client_jar_dl_progress = calc_progress(p_client_jar_download_end);
         if !client_jar_path.exists() {
             let client_url = version_details["downloads"]["client"]["url"]
                 .as_str()
                 .ok_or_else(|| "Client download URL not found".to_string())?;
 
-            // Update task status - 35%
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
+            if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+                if let Ok(mut manager) = tm.lock() {
+                    manager.update_task(
+                        tid,
                         TaskStatus::Running,
-                        35.0,
+                        client_jar_dl_progress,
                         &format!("Descargando cliente: {}", instance.minecraftVersion),
                         Some(serde_json::json!({
                             "instanceName": instance.instanceName.clone(),
@@ -669,17 +866,32 @@ impl InstanceBootstrap {
                 &format!("Descargando cliente: {}", instance.minecraftVersion),
             );
 
-            self.download_file(client_url, &client_jar_path)
-                .map_err(|e| format!("Error downloading client jar: {}", e))?;
+            self.download_file(
+                client_url,
+                &client_jar_path,
+                instance,
+                &format!("Client JAR ({})", instance.minecraftVersion),
+                task_id,
+                task_manager,
+                client_jar_dl_progress,
+            )
+            .map_err(|e| format!("Error downloading client jar: {}", e))?;
         }
 
-        // Update task status - 45%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // --- Java Installation Check ---
+        // This step might take some time if Java needs to be downloaded.
+        // The progress for this is p_java_install_check_end
+
+        // (Original Java check logic here - progress updated inside if !is_version_installed)
+
+        // Update task status before library download
+        let libraries_actual_base_progress = calc_progress(p_libraries_download_start);
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    45.0,
+                    libraries_actual_base_progress,
                     "Descargando librerías",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -733,12 +945,12 @@ impl InstanceBootstrap {
                 })?;
 
             // Update task to indicate Java installation
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
+            if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+                if let Ok(mut manager) = tm.lock() {
+                    manager.update_task(
+                        tid,
                         TaskStatus::Running,
-                        50.0,
+                        calc_progress(p_java_install_check_end), // Progress if Java install happens
                         "Instalando Java",
                         Some(serde_json::json!({
                             "instanceName": instance.instanceName.clone(),
@@ -753,21 +965,35 @@ impl InstanceBootstrap {
         }
 
         // Download and validate libraries
+        let actual_libraries_base_progress = calc_progress(p_libraries_download_start);
+        let actual_libraries_span = p_libraries_download_span * overall_task_max_span;
+
         Self::emit_status(
             instance,
             "instance-downloading-libraries",
             "Descargando librerías",
         );
-        self.download_libraries(&version_details, &libraries_dir, instance)
-            .map_err(|e| format!("Error downloading libraries: {}", e))?;
+        self.download_libraries(
+            &version_details,
+            &libraries_dir,
+            instance,
+            task_id,
+            task_manager,
+            actual_libraries_base_progress,
+            actual_libraries_span,
+        )
+        .map_err(|e| format!("Error downloading libraries: {}", e))?;
 
-        // Update task status - 60%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // Update task status: After libraries, before assets.
+        let actual_assets_base_progress = calc_progress(p_assets_validation_start);
+        let actual_assets_span = p_assets_validation_span * overall_task_max_span;
+
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    60.0,
+                    actual_assets_base_progress,
                     "Validando assets",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -779,8 +1005,14 @@ impl InstanceBootstrap {
 
         // Validate assets
         Self::emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets(instance)
-            .map_err(|e| format!("Error validating assets: {}", e))?;
+        self.revalidate_assets(
+            instance,
+            task_id,
+            task_manager,
+            actual_assets_base_progress,
+            actual_assets_span,
+        )
+        .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
         let launcher_profiles_path = minecraft_dir.join("launcher_profiles.json");
@@ -803,12 +1035,15 @@ impl InstanceBootstrap {
                 .map_err(|e| format!("Error creating natives directory: {}", e))?;
         }
 
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        let actual_natives_base_progress = calc_progress(p_natives_extraction_start);
+        let actual_natives_span = p_natives_extraction_span * overall_task_max_span;
+
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    75.0,
+                    actual_natives_base_progress,
                     "Extrayendo bibliotecas nativas",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -825,20 +1060,27 @@ impl InstanceBootstrap {
         );
 
         // Extraer bibliotecas nativas
-        if let Err(e) =
-            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
-        {
+        if let Err(e) = self.extract_natives(
+            &version_details,
+            &libraries_dir,
+            &natives_dir,
+            instance,
+            task_id,
+            task_manager,
+            actual_natives_base_progress,
+            actual_natives_span,
+        ) {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
         }
 
-        // Update task status - 90%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // Update task status for finalizing setup
+        if let (Some(tid), Some(tm)) = (task_id, task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    90.0,
+                    calc_progress(p_finalizing_setup),
                     "Finalizando configuración",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -867,9 +1109,13 @@ impl InstanceBootstrap {
 
     fn download_forge_libraries(
         &self,
-        version_details: &Value,
+        version_details: &Value, // This should be the Forge version JSON
         libraries_dir: &Path,
         instance: &MinecraftInstance,
+        task_id: Option<&str>,
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        base_overall_progress: f32,
+        max_progress_span_for_this_step: f32,
     ) -> Result<(), String> {
         // Verificar que tengamos la sección de librerías
         let libraries = version_details["libraries"].as_array().ok_or_else(|| {
@@ -879,16 +1125,26 @@ impl InstanceBootstrap {
         let total_libraries = libraries.len();
         let mut downloaded_libraries = 0;
 
-        Self::emit_status(
-            instance,
-            "instance-downloading-forge-libraries",
-            &format!(
-                "Descargando librerías de Forge: 0/{} (0.0%)",
-                total_libraries
-            ),
-        );
+        // Initial message before loop
+        let initial_message = format!("Iniciando descarga de librerías de Forge (0/{})", total_libraries);
+        if let (Some(tid), Some(tm)) = (task_id, task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(tid, TaskStatus::Running, base_overall_progress, &initial_message, None);
+            }
+        }
+        Self::emit_status(instance, "instance-downloading-forge-libraries", &initial_message);
+
 
         for library in libraries {
+            downloaded_libraries += 1;
+
+            let current_step_progress = if total_libraries > 0 {
+                (downloaded_libraries as f32 / total_libraries as f32) * max_progress_span_for_this_step
+            } else {
+                0.0
+            };
+            let overall_progress_for_task_update = base_overall_progress + current_step_progress;
+
             // Verificar reglas de exclusión/inclusión para esta librería
             if let Some(rules) = library.get("rules") {
                 let mut allowed = false;
@@ -922,7 +1178,9 @@ impl InstanceBootstrap {
             }
 
             // Manejo de librerías con formato Maven (común en Forge)
-            let name = library["name"].as_str().unwrap_or("");
+            let name = library.get("name").and_then(Value::as_str).unwrap_or("unknown-library");
+            let lib_message_name =  library.get("name").and_then(Value::as_str).unwrap_or_else(|| "unknown library");
+
 
             // Si la librería tiene información de descarga directa
             if let Some(downloads) = library.get("downloads") {
@@ -930,23 +1188,29 @@ impl InstanceBootstrap {
                 if let Some(artifact) = downloads.get("artifact") {
                     let path = artifact["path"]
                         .as_str()
-                        .ok_or_else(|| "Ruta de artefacto no encontrada".to_string())?;
+                        .ok_or_else(|| format!("Ruta de artefacto no encontrada para {}", name))?;
                     let url = artifact["url"]
                         .as_str()
-                        .ok_or_else(|| "URL de artefacto no encontrada".to_string())?;
+                        .ok_or_else(|| format!("URL de artefacto no encontrada para {}", name))?;
 
                     let target_path = libraries_dir.join(path);
 
-                    // Crear directorios padre si es necesario
                     if let Some(parent) = target_path.parent() {
                         fs::create_dir_all(parent)
-                            .map_err(|e| format!("Error al crear directorio: {}", e))?;
+                            .map_err(|e| format!("Error al crear directorio para {}: {}", path, e))?;
                     }
 
-                    // Descargar si el archivo no existe
                     if !target_path.exists() {
-                        self.download_file(url, &target_path)
-                            .map_err(|e| format!("Error al descargar librería: {}", e))?;
+                        self.download_file(
+                            url,
+                            &target_path,
+                            instance,
+                            lib_message_name,
+                            task_id,
+                            task_manager.as_ref(),
+                            overall_progress_for_task_update,
+                        )
+                        .map_err(|e| format!("Error al descargar librería {}: {}", name, e))?;
                     }
                 }
 
@@ -955,7 +1219,7 @@ impl InstanceBootstrap {
                     let current_os = if cfg!(target_os = "windows") {
                         "natives-windows"
                     } else if cfg!(target_os = "macos") {
-                        "natives-osx"
+                        "natives-osx" // Ensure this matches the JSON (e.g. natives-osx vs natives-macos)
                     } else {
                         "natives-linux"
                     };
@@ -963,30 +1227,36 @@ impl InstanceBootstrap {
                     if let Some(native) = classifiers.get(current_os) {
                         let url = native["url"]
                             .as_str()
-                            .ok_or_else(|| "URL de librería nativa no encontrada".to_string())?;
-                        let path = native["path"]
+                            .ok_or_else(|| format!("URL de librería nativa no encontrada para {}", name))?;
+                        let path_str = native["path"]
                             .as_str()
-                            .ok_or_else(|| "Ruta de librería nativa no encontrada".to_string())?;
+                            .ok_or_else(|| format!("Ruta de librería nativa no encontrada para {}", name))?;
 
-                        let target_path = libraries_dir.join(path);
+                        let target_path = libraries_dir.join(path_str);
 
-                        // Crear directorios padre si es necesario
                         if let Some(parent) = target_path.parent() {
                             fs::create_dir_all(parent)
-                                .map_err(|e| format!("Error al crear directorio: {}", e))?;
+                                .map_err(|e| format!("Error al crear directorio para nativa {}: {}", path_str, e))?;
                         }
 
-                        // Descargar si el archivo no existe
                         if !target_path.exists() {
-                            self.download_file(url, &target_path).map_err(|e| {
-                                format!("Error al descargar librería nativa: {}", e)
-                            })?;
+                            let native_lib_name_detail = format!("{} (native: {})", lib_message_name, path_str);
+                            self.download_file(
+                                url,
+                                &target_path,
+                                instance,
+                                &native_lib_name_detail,
+                                task_id,
+                                task_manager.as_ref(),
+                                overall_progress_for_task_update,
+                            )
+                            .map_err(|e| format!("Error al descargar librería nativa {}: {}", name, e))?;
                         }
                     }
                 }
             }
             // Para librerías sin información de descarga directa, usar formato Maven
-            else if !name.is_empty() {
+            else if !name.is_empty() && name != "unknown-library" {
                 // Parsear el nombre en formato Maven: groupId:artifactId:version[:classifier]
                 let parts: Vec<&str> = name.split(':').collect();
                 if parts.len() >= 3 {
@@ -1028,37 +1298,48 @@ impl InstanceBootstrap {
 
                     // Descargar si el archivo no existe
                     if !target_path.exists() {
-                        if let Err(e) = self.download_file(&download_url, &target_path) {
-                            // Si falla con el repositorio de Forge, intentar con el de Maven Central
-                            let maven_url =
-                                format!("https://repo1.maven.org/maven2/{}", relative_path);
-                            self.download_file(&maven_url, &target_path).map_err(|e| {
+                        if let Err(e_forge) = self.download_file(
+                            &download_url, &target_path, instance, &jar_name, task_id, task_manager.as_ref(), overall_progress_for_task_update
+                        ) {
+                            let maven_url = format!("https://repo1.maven.org/maven2/{}", relative_path);
+                            self.download_file(
+                                &maven_url, &target_path, instance, &jar_name, task_id, task_manager.as_ref(), overall_progress_for_task_update
+                            ).map_err(|e_maven| {
                                 format!(
-                                    "Error al descargar librería desde múltiples repositorios: {}",
-                                    e
+                                    "Error al descargar librería {} desde múltiples repositorios: Forge ('{}': {}), Maven ('{}': {})",
+                                    jar_name, download_url, e_forge, maven_url, e_maven
                                 )
                             })?;
                         }
                     }
+                } else {
+                     log::warn!("Nombre de librería Maven inválido: {}", name);
+                }
+            } else {
+                log::warn!("Librería sin información de descarga o nombre Maven: {:?}", library);
+            }
+
+            // Update progress message for the overall Forge library download step
+            if downloaded_libraries % 1 == 0 || downloaded_libraries == total_libraries {
+                 let message = format!(
+                    "Descargando librerías de Forge: {}/{} ({:.1}%)",
+                    downloaded_libraries, total_libraries,
+                    (downloaded_libraries as f32 * 100.0 / total_libraries as f32)
+                );
+                Self::emit_status(instance, "instance-downloading-forge-libraries", &message);
+                if let (Some(tid), Some(tm)) = (task_id, task_manager.as_ref()) {
+                     if let Ok(mut manager) = tm.lock() {
+                        manager.update_task(
+                            tid,
+                            TaskStatus::Running,
+                            overall_progress_for_task_update,
+                            &message,
+                            None,
+                        );
+                    }
                 }
             }
-
-            downloaded_libraries += 1;
-
-            // Actualizar progreso cada 5 librerías o en la última
-            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-                Self::emit_status(
-                    instance,
-                    "instance-downloading-forge-libraries",
-                    &format!(
-                        "Descargando librerías de Forge: {}/{} ({:.1}%)",
-                        downloaded_libraries, total_libraries, progress
-                    ),
-                );
-            }
         }
-
         Ok(())
     }
 
@@ -1067,6 +1348,10 @@ impl InstanceBootstrap {
         version_details: &Value,
         libraries_dir: &Path,
         instance: &MinecraftInstance,
+        task_id: Option<&str>,
+        task_manager: Option<&Arc<Mutex<TasksManager>>>,
+        base_overall_progress: f32,
+        max_progress_span_for_this_step: f32,
     ) -> Result<(), String> {
         let libraries = version_details["libraries"]
             .as_array()
@@ -1076,6 +1361,16 @@ impl InstanceBootstrap {
         let mut downloaded_libraries = 0;
 
         for library in libraries {
+            downloaded_libraries += 1; // Increment at the start of processing each library
+
+            // Calculate progress for this specific library download step
+            let current_step_progress = if total_libraries > 0 {
+                (downloaded_libraries as f32 / total_libraries as f32) * max_progress_span_for_this_step
+            } else {
+                0.0
+            };
+            let overall_progress_for_task_update = base_overall_progress + current_step_progress;
+
             // Check if we should skip this library based on rules
             if let Some(rules) = library.get("rules") {
                 let mut allowed = false;
@@ -1109,53 +1404,62 @@ impl InstanceBootstrap {
             }
 
             // Get library info
-            let downloads = library
-                .get("downloads")
-                .ok_or_else(|| "Library downloads info not found".to_string())?;
+            let downloads_node = library.get("downloads"); // Use a different name to avoid conflict
 
-            // Handle artifact
-            if let Some(artifact) = downloads.get("artifact") {
-                let path = artifact["path"]
-                    .as_str()
-                    .ok_or_else(|| "Library artifact path not found".to_string())?;
-                let url = artifact["url"]
-                    .as_str()
-                    .ok_or_else(|| "Library artifact URL not found".to_string())?;
+            let artifact_path_op = downloads_node.and_then(|d| d.get("artifact")).and_then(|a| a.get("path")).and_then(|p| p.as_str());
+            let library_name_for_message = artifact_path_op.unwrap_or_else(|| library.get("name").and_then(|n| n.as_str()).unwrap_or("unknown library"));
 
-                let target_path = libraries_dir.join(path);
 
-                // Create parent directories if needed
-                if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Error creating directory: {}", e))?;
+            if let Some(downloads) = downloads_node {
+                // Handle artifact
+                if let Some(artifact) = downloads.get("artifact") {
+                    let path = artifact["path"]
+                        .as_str()
+                        .ok_or_else(|| "Library artifact path not found".to_string())?;
+                    let url = artifact["url"]
+                        .as_str()
+                        .ok_or_else(|| "Library artifact URL not found".to_string())?;
+
+                    let target_path = libraries_dir.join(path);
+
+                    if let Some(parent) = target_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Error creating directory: {}", e))?;
+                    }
+
+                    if !target_path.exists() {
+                        self.download_file(
+                            url,
+                            &target_path,
+                            instance,
+                            library_name_for_message,
+                            task_id,
+                            task_manager.as_ref(),
+                            overall_progress_for_task_update,
+                        )
+                        .map_err(|e| format!("Error downloading library {}: {}", path, e))?;
+                    }
                 }
 
-                // Download if file doesn't exist
-                if !target_path.exists() {
-                    self.download_file(url, &target_path)
-                        .map_err(|e| format!("Error downloading library: {}", e))?;
-                }
-            }
-
-            // Handle native libraries (classifiers)
-            if let Some(classifiers) = downloads.get("classifiers") {
-                let current_os = if cfg!(target_os = "windows") {
+                // Handle native libraries (classifiers)
+                if let Some(classifiers) = downloads.get("classifiers") {
+                let current_os_key = if cfg!(target_os = "windows") { // Renamed for clarity
                     "natives-windows"
                 } else if cfg!(target_os = "macos") {
-                    "natives-osx"
+                    "natives-osx" // Ensure this matches the JSON (e.g. natives-osx vs natives-macos)
                 } else {
                     "natives-linux"
                 };
 
-                if let Some(native) = classifiers.get(current_os) {
+                if let Some(native) = classifiers.get(current_os_key) {
                     let url = native["url"]
                         .as_str()
                         .ok_or_else(|| "Native library URL not found".to_string())?;
-                    let path = native["path"]
+                    let path_str = native["path"] // Renamed to avoid conflict with outer `path`
                         .as_str()
                         .ok_or_else(|| "Native library path not found".to_string())?;
 
-                    let target_path = libraries_dir.join(path);
+                    let target_path = libraries_dir.join(path_str);
 
                     // Create parent directories if needed
                     if let Some(parent) = target_path.parent() {
@@ -1165,28 +1469,51 @@ impl InstanceBootstrap {
 
                     // Download if file doesn't exist
                     if !target_path.exists() {
-                        self.download_file(url, &target_path)
-                            .map_err(|e| format!("Error downloading native library: {}", e))?;
+                        let native_lib_name = format!("{} (native: {})", library_name_for_message, path_str);
+                        self.download_file(
+                            url,
+                            &target_path,
+                            instance,
+                            &native_lib_name,
+                            task_id,
+                            task_manager.as_ref(),
+                            overall_progress_for_task_update,
+                        )
+                        .map_err(|e| format!("Error downloading native library {}: {}", path_str, e))?;
                     }
                 }
             }
+            } else if let Some(lib_name) = library.get("name").and_then(Value::as_str) {
+                // This case might be for libraries specified by name only, without explicit download sections
+                // This was more common in very old Forge versions or if the manifest assumes libraries are present
+                log::warn!("Library {} does not have explicit download information. Skipping download.", lib_name);
+            }
 
-            downloaded_libraries += 1;
 
-            // Update progress every 5 libraries or on last library
-            if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-                let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-                Self::emit_status(
-                    instance,
-                    "instance-downloading-libraries",
-                    &format!(
-                        "Descargando librerías: {}/{} ({:.1}%)",
-                        downloaded_libraries, total_libraries, progress
-                    ),
+            // Update overall task progress message for the library downloading step
+            // (not for each individual file download, download_file handles that for its part)
+            if downloaded_libraries % 1 == 0 || downloaded_libraries == total_libraries { // Update more frequently or as needed
+                let message = format!(
+                    "Descargando librerías: {}/{} ({:.1}%)",
+                    downloaded_libraries, total_libraries,
+                    (downloaded_libraries as f32 * 100.0 / total_libraries as f32) // This is percentage of libraries, not overall
                 );
+                Self::emit_status(instance, "instance-downloading-libraries", &message);
+
+                if let (Some(tid), Some(tm)) = (task_id, task_manager.as_ref()) {
+                    if let Ok(mut manager) = tm.lock() {
+                        // Use overall_progress_for_task_update for the actual progress value
+                        manager.update_task(
+                            tid,
+                            TaskStatus::Running,
+                            overall_progress_for_task_update,
+                            &message, // This message shows lib X/Y, not the download_file specific one
+                            None,
+                        );
+                    }
+                }
             }
         }
-
         Ok(())
     }
 
@@ -1208,13 +1535,20 @@ impl InstanceBootstrap {
             "Iniciando bootstrap de instancia Forge",
         );
 
+        let forge_overall_start_progress = 0.0; // Forge bootstrap starts at 0% of its own task
+        let forge_vanilla_setup_span = 0.50; // Vanilla setup takes 50% of Forge bootstrap
+        let forge_dl_installer_span = 0.05;  // Downloading Forge installer 5%
+        let forge_run_installer_span = 0.15; // Running Forge installer 15%
+        let forge_dl_libs_span = 0.25;       // Downloading Forge libs 25%
+                                             // Remaining 5% for final setup.
+
         // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        if let (Some(tid), Some(tm)) = (&task_id, &task_manager) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    5.0,
+                    forge_overall_start_progress + 0.01 * 100.0, // Small initial progress
                     "Iniciando bootstrap de instancia Forge",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -1224,6 +1558,7 @@ impl InstanceBootstrap {
             }
         }
 
+
         // Primero, realizar bootstrap de la instancia Vanilla
         Self::emit_status(
             instance,
@@ -1231,13 +1566,14 @@ impl InstanceBootstrap {
             "Configurando base Vanilla",
         );
 
-        // Update task status - 10%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // --- Vanilla Setup Step ---
+        let vanilla_setup_base_progress = forge_overall_start_progress; // Starts at 0 for Forge
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+             if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    10.0,
+                    vanilla_setup_base_progress + 0.01 * forge_vanilla_setup_span * 100.0, // Small progress into this step
                     "Configurando base Vanilla",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -1248,17 +1584,24 @@ impl InstanceBootstrap {
         }
 
         // Bootstrap Vanilla primero
-        self.bootstrap_vanilla_instance(instance, None, None)
-            .map_err(|e| format!("Error en bootstrap Vanilla: {}", e))?;
+        self.bootstrap_vanilla_instance(
+            instance,
+            task_id.as_deref(), // Pass along task_id if present
+            task_manager.as_ref(),  // Pass along task_manager if present
+            vanilla_setup_base_progress,
+            forge_vanilla_setup_span * 100.0, // bootstrap_vanilla_instance expects span in 0-100 range
+        )
+        .map_err(|e| format!("Error en bootstrap Vanilla: {}", e))?;
 
-        // Update task status - 60%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // --- Forge Installer Download Step ---
+        let dl_installer_base_progress = vanilla_setup_base_progress + forge_vanilla_setup_span * 100.0;
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    60.0,
-                    "Configurando Forge",
+                    dl_installer_base_progress,
+                    "Descargando instalador de Forge",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
                         "instanceId": instance.instanceId.clone()
@@ -1307,16 +1650,25 @@ impl InstanceBootstrap {
             "instance-downloading-forge-installer",
             "Descargando instalador de Forge",
         );
-        self.download_file(&forge_installer_url, &forge_installer_path)
-            .map_err(|e| format!("Error al descargar instalador Forge: {}", e))?;
+        self.download_file(
+            &forge_installer_url,
+            &forge_installer_path,
+            instance,
+            "Forge Installer",
+            task_id.as_deref(),
+            task_manager.as_ref(),
+            dl_installer_base_progress, // This is the current overall progress for this specific file download
+        )
+        .map_err(|e| format!("Error al descargar instalador Forge: {}", e))?;
 
-        // Update task status - 70%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // --- Run Forge Installer Step ---
+        let run_installer_base_progress = dl_installer_base_progress + forge_dl_installer_span * 100.0;
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    70.0,
+                    run_installer_base_progress,
                     "Ejecutando instalador de Forge",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -1327,11 +1679,23 @@ impl InstanceBootstrap {
         }
 
         // Ejecutar instalador en modo silencioso
+        let installer_run_message = "Ejecutando instalador de Forge, esto puede tardar...";
         Self::emit_status(
             instance,
             "instance-installing-forge",
-            "Ejecutando instalador de Forge",
+            installer_run_message,
         );
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
+                    TaskStatus::Running,
+                    run_installer_base_progress, // Progress is already at the base for this step
+                    installer_run_message,
+                    None, // Payload can be existing or None
+                );
+            }
+        }
 
         // Preparar argumentos para instalar Forge
         let forge_install_result = self.run_forge_installer(
@@ -1342,14 +1706,15 @@ impl InstanceBootstrap {
             instance,
         )?;
 
-        // Update task status - 85%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // Update task status after installer run and before downloading Forge libs
+        let dl_forge_libs_base_progress = run_installer_base_progress + forge_run_installer_span * 100.0;
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    85.0,
-                    "Configurando perfil de Forge",
+                    dl_forge_libs_base_progress,
+                    "Descargando librerías de Forge",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
                         "instanceId": instance.instanceId.clone()
@@ -1373,13 +1738,61 @@ impl InstanceBootstrap {
             "Descargando librerías de Forge",
         );
 
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
+        // This emit_status is fine, download_forge_libraries will handle more detailed ones
+        Self::emit_status(
+            instance,
+            "instance-downloading-forge-libraries",
+            "Descargando librerías de Forge",
+        );
+
+        // Note: The old `emit_status` inside `download_forge_libraries` for 0/total might be redundant now,
+        // as we set a message just before calling it.
+
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            // The message update for this step is already done above.
+            // download_forge_libraries will provide more granular updates.
+            // No immediate task_manager.update_task here unless the message above was insufficient.
+            // The base progress for download_forge_libraries is dl_forge_libs_base_progress.
+        }
+
+        // Descargar librerías de Forge
+        // Leer el archivo de versión para obtener los detalles de las librerías
+        let forge_version_json_path =
+            forge_version_dir.join(format!("{}.json", forge_version_name));
+
+        if forge_version_json_path.exists() {
+            let version_json = fs::read_to_string(&forge_version_json_path)
+                .map_err(|e| format!("Error al leer archivo de versión Forge: {}", e))?;
+
+            let version_details: Value = serde_json::from_str(&version_json)
+                .map_err(|e| format!("Error al parsear archivo de versión Forge: {}", e))?;
+
+            // Descargar librerías específicas de Forge
+            self.download_forge_libraries(
+                &version_details,
+                &libraries_dir,
+                instance,
+                task_id.as_deref(),
+                task_manager.as_ref(),
+                dl_forge_libs_base_progress,
+                forge_dl_libs_span * 100.0, // Span is also 0-100 range
+            )?;
+        } else {
+            return Err(format!(
+                "No se encontró el archivo de versión Forge: {}",
+                forge_version_json_path.display()
+            ));
+        }
+
+        // Update task status - Finalizing
+        let final_setup_progress = dl_forge_libs_base_progress + forge_dl_libs_span * 100.0;
+        if let (Some(tid), Some(tm)) = (task_id.as_deref(), task_manager.as_ref()) {
+            if let Ok(mut manager) = tm.lock() {
+                manager.update_task(
+                    tid,
                     TaskStatus::Running,
-                    90.0,
-                    "Descargando librerías de Forge",
+                    final_setup_progress,
+                    "Configurando Forge",
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
                         "instanceId": instance.instanceId.clone()
@@ -1858,7 +2271,11 @@ impl InstanceBootstrap {
 
                 // Download if file doesn't exist
                 if !target_path.exists() {
-                    self.download_file(url, &target_path)
+                    // In verify_integrity_vanilla, we might not have a top-level task_id,
+                    // or the progress calculation might be different.
+                    // For now, pass None/0.0, assuming detailed progress here is less critical
+                    // or will be handled when this function is refactored for progress.
+                    self.download_file(url, &target_path, instance, path, None, None, 0.0)
                         .map_err(|e| format!("Error downloading library: {}", e))?;
                 }
             }

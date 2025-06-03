@@ -97,6 +97,26 @@ impl ManifestMerger {
                     };
 
                     if should_add_forge {
+                        // Before adding the Forge library, remove any vanilla versions
+                        let keys_to_remove: Vec<String> = libs
+                            .keys()
+                            .filter(|k| k.starts_with(&std_key))
+                            .cloned()
+                            .collect();
+
+                        for key_to_remove in keys_to_remove {
+                            if let Some(removed_lib) = libs.remove(&key_to_remove) {
+                                if let Some((_, removed_ga, removed_ver, _, removed_classifier)) = Self::extract_lib_info(&removed_lib) {
+                                    log::debug!(
+                                        "Replacing vanilla library {} (version: {:?}, classifier: {:?}) with Forge version.",
+                                        removed_ga,
+                                        removed_ver,
+                                        removed_classifier
+                                    );
+                                }
+                            }
+                        }
+
                         // Registramos esta versión para depuración
                         let forge_version_str =
                             format!("forge:{}", fver.clone().unwrap_or_default());

@@ -36,4 +36,6 @@ export type TauriCommandReturns = {
     "add_offline_account": MCAccount;
     "search_instances": MinecraftInstance[];
     "create_instance": MinecraftInstance;
+    "update_modpack_instance": void;
+    "validate_modpack_assets": void;
 }

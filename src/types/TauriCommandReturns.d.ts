@@ -5,6 +5,13 @@ interface MCAccount {
     user_type: string;
 }
 
+interface ModpackInfo {
+    name?: string;
+    version?: string;
+    author?: string;
+    modpackVersionId?: string; // Can be specific version ID or "latest"
+}
+
 interface MinecraftInstance {
     instanceId: string;
     usesDefaultIcon: boolean;
@@ -29,4 +36,6 @@ export type TauriCommandReturns = {
     "add_offline_account": MCAccount;
     "search_instances": MinecraftInstance[];
     "create_instance": MinecraftInstance;
+    "update_modpack_instance": void;
+    "validate_modpack_assets": void;
 }

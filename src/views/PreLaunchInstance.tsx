@@ -308,7 +308,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         // Create new interval for random messages
         messageIntervalRef.current = window.setInterval(() => {
             // Check if we should stop the interval
-            if (currentInstanceRunning?.status !== "running" && currentInstanceRunning?.status !== "preparing") {
+            if (currentInstanceRunning?.status !== "running" && currentInstanceRunning?.status !== "preparing" && currentInstanceRunning?.status !== "downloading-assets" && currentInstanceRunning?.status !== "downloading-modpack-assets") {
                 if (messageIntervalRef.current) {
                     window.clearInterval(messageIntervalRef.current);
                     messageIntervalRef.current = null;
@@ -424,7 +424,7 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
     const updateLoadingStatus = useCallback(() => {
         if (!currentInstanceRunning) return;
 
-        const isLoading = currentInstanceRunning.status === "preparing" || currentInstanceRunning.status === "downloading-assets";
+        const isLoading = currentInstanceRunning.status === "preparing" || currentInstanceRunning.status === "downloading-assets" || currentInstanceRunning.status === "downloading-modpack-assets";
 
         setLoadingStatus(prev => ({
             ...prev,

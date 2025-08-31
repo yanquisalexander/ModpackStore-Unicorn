@@ -295,6 +295,26 @@ impl InstanceLauncher {
         let mut instance_bootstrap = InstanceBootstrap::new();
         let result = instance_bootstrap.revalidate_assets(&mut self.instance)?;
 
+        // Validate modpack assets if this is a modpack instance
+        if self.instance.modpackId.is_some() {
+            println!(
+                "[Instance: {}] Validating modpack assets...",
+                self.instance.instanceName
+            );
+            
+            if let Err(e) = instance_bootstrap.validate_modpack_assets(&self.instance, None, None) {
+                let err_msg = format!("Error validating modpack assets: {}", e);
+                eprintln!("[Instance: {}] {}", self.instance.instanceId, err_msg);
+                self.emit_error(&err_msg, None);
+                return Err(IoError::new(IoErrorKind::Other, err_msg));
+            }
+            
+            println!(
+                "[Instance: {}] Modpack asset validation completed.",
+                self.instance.instanceName
+            );
+        }
+
         println!(
             "[Instance: {}] Asset revalidation completed.",
             self.instance.instanceName

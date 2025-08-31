@@ -8,7 +8,7 @@ import { playSound } from "@/utils/sounds";
 type InstanceState = {
     id: string;
     name: string;
-    status: "idle" | "preparing" | "running" | "exited" | "error" | "downloading-assets";
+    status: "idle" | "preparing" | "running" | "exited" | "error" | "downloading-assets" | "downloading-modpack-assets";
     message: string;
 };
 
@@ -82,6 +82,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 });
             });
             unlistenList.push(downloadingUnlisten);
+
+            // Evento para cuando se están descargando assets del modpack
+            const downloadingModpackAssetsUnlisten = await listen("instance-downloading-modpack-assets", (e: any) => {
+                const { id, message } = e.payload;
+                console.log("Downloading modpack assets event:", { id, message });
+
+                updateInstance(id, {
+                    status: "downloading-modpack-assets",
+                    message: message || "Descargando archivos del modpack..."
+                });
+            });
+            unlistenList.push(downloadingModpackAssetsUnlisten);
 
             const finishAssetsDownloadUnlisten = await listen("instance-finish-assets-download", (e: any) => {
                 const { id, message } = e.payload;

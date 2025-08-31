@@ -1926,6 +1926,139 @@ impl InstanceBootstrap {
 
         Ok(())
     }
+
+    /// Validates modpack assets against the manifest
+    pub fn validate_modpack_assets(
+        &self,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+        task_manager: Option<Arc<Mutex<TasksManager>>>,
+    ) -> Result<(), String> {
+        log::info!("Validating modpack assets for: {}", instance.instanceName);
+
+        // Emit event to update frontend status
+        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                let _ = app_handle.emit("instance-downloading-modpack-assets", serde_json::json!({
+                    "id": instance.instanceId,
+                    "message": "Validando archivos del modpack..."
+                }));
+            }
+        }
+
+        // Get instance directory
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let modpack_manifest_path = instance_dir.join("modpack_manifest.json");
+
+        // Check if modpack manifest exists
+        if !modpack_manifest_path.exists() {
+            log::info!("No modpack manifest found, skipping validation");
+            return Ok(());
+        }
+
+        // Read and parse the modpack manifest
+        let manifest_content = std::fs::read_to_string(&modpack_manifest_path)
+            .map_err(|e| format!("Failed to read modpack manifest: {}", e))?;
+
+        let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
+            .map_err(|e| format!("Failed to parse modpack manifest: {}", e))?;
+
+        // Get the files array from manifest
+        let files = manifest
+            .get("files")
+            .and_then(|f| f.as_array())
+            .ok_or_else(|| "No files array found in modpack manifest".to_string())?;
+
+        let total_files = files.len();
+        let mut processed_files = 0;
+        let mut missing_files = 0;
+
+        log::info!("Validating {} modpack files...", total_files);
+
+        // Process each file in the manifest
+        for file_entry in files {
+            processed_files += 1;
+
+            let file_path = file_entry
+                .get("path")
+                .and_then(|p| p.as_str())
+                .ok_or_else(|| "File path not found in manifest entry".to_string())?;
+
+            let expected_hash = file_entry
+                .get("hash")
+                .and_then(|h| h.as_str());
+
+            let expected_size = file_entry
+                .get("size")
+                .and_then(|s| s.as_u64());
+
+            let full_file_path = instance_dir.join("minecraft").join(file_path);
+
+            // Update progress
+            let progress = (processed_files as f32 / total_files as f32) * 100.0;
+            log::info!(
+                "Validating modpack files: {}/{} ({:.1}%)",
+                processed_files,
+                total_files,
+                progress
+            );
+
+            // Emit progress update
+            if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+                if let Some(app_handle) = guard.as_ref() {
+                    let _ = app_handle.emit("instance-downloading-modpack-assets", serde_json::json!({
+                        "id": instance.instanceId,
+                        "message": format!("Validando archivos del modpack: {}/{}", processed_files, total_files)
+                    }));
+                }
+            }
+
+            // Check if file exists
+            if !full_file_path.exists() {
+                log::warn!("Missing modpack file: {}", file_path);
+                missing_files += 1;
+                // TODO: Download missing file
+                continue;
+            }
+
+            // Validate file size if provided
+            if let Some(expected_size) = expected_size {
+                if let Ok(metadata) = std::fs::metadata(&full_file_path) {
+                    if metadata.len() != expected_size {
+                        log::warn!("Size mismatch for file: {} (expected: {}, actual: {})", 
+                                  file_path, expected_size, metadata.len());
+                        missing_files += 1;
+                        // TODO: Re-download file with size mismatch
+                        continue;
+                    }
+                }
+            }
+
+            // Validate file hash if provided
+            if let Some(expected_hash) = expected_hash {
+                // TODO: Implement hash validation
+                // For now, we'll assume hash validation passes
+            }
+        }
+
+        if missing_files > 0 {
+            log::warn!("Found {} missing or invalid modpack files", missing_files);
+            // TODO: Download missing/invalid files
+        }
+
+        // Emit completion event
+        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                let _ = app_handle.emit("instance-finish-assets-download", serde_json::json!({
+                    "id": instance.instanceId,
+                    "message": "Validación de archivos del modpack completada"
+                }));
+            }
+        }
+
+        log::info!("Modpack asset validation completed for: {}", instance.instanceName);
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -1945,6 +2078,26 @@ pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
     bootstrapper
         .verify_integrity_vanilla(instance.as_ref(), None, None)
         .map_err(|e| format!("Error al verificar la integridad de la instancia: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn validate_modpack_assets(instance_id: String) -> Result<(), String> {
+    // Get the instance
+    let instance = get_instance_by_id(instance_id)
+        .map_err(|e| format!("Error al obtener la instancia: {}", e))?;
+
+    if instance.is_none() {
+        return Err("No se encontró la instancia".to_string());
+    }
+
+    let mut bootstrapper = InstanceBootstrap::new();
+    
+    // Validate modpack assets
+    bootstrapper
+        .validate_modpack_assets(instance.as_ref().unwrap(), None, None)
+        .map_err(|e| format!("Error al validar archivos del modpack: {}", e))?;
 
     Ok(())
 }

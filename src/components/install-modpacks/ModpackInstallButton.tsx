@@ -87,7 +87,7 @@ export const InstallButton = ({
     const executeUpdate = async (instanceId: string, password?: string) => {
         setIsInstalling(true);
         try {
-            await invoke("update_instance", {
+            await invoke("update_modpack_instance", {
                 instanceId,
                 modpackId,
                 password

@@ -14,6 +14,7 @@ pub struct ModpackInfo {
     pub name: Option<String>,
     pub version: Option<String>,
     pub author: Option<String>,
+    pub modpackVersionId: Option<String>, // Can be specific version ID or "latest"
     // Otros campos según necesites
 }
 

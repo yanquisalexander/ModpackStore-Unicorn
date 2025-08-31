@@ -5,6 +5,13 @@ interface MCAccount {
     user_type: string;
 }
 
+interface ModpackInfo {
+    name?: string;
+    version?: string;
+    author?: string;
+    modpackVersionId?: string; // Can be specific version ID or "latest"
+}
+
 interface MinecraftInstance {
     instanceId: string;
     usesDefaultIcon: boolean;

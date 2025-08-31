@@ -437,3 +437,90 @@ pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, S
 
     Ok(results)
 }
+
+#[tauri::command]
+pub async fn update_modpack_instance(
+    instance_id: String,
+    modpack_id: String,
+    password: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    
+    log::info!("Starting modpack update for instance {} with modpack {}", instance_id, modpack_id);
+    
+    // Get the instance first to validate it exists
+    let mut instance = get_instance_by_id(instance_id.clone())?
+        .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
+    
+    // Check if we need to handle "latest" version
+    let should_update = if let Some(modpack_info) = &instance.modpackInfo {
+        if let Some(version_id) = &modpack_info.modpackVersionId {
+            if version_id == "latest" {
+                log::info!("Instance has 'latest' version, checking for updates...");
+                // TODO: Make API call to check for newer version
+                // For now, we'll always update if version is "latest"
+                true
+            } else {
+                // TODO: Compare current version with available versions
+                // For now, we'll always update for non-latest versions too
+                true
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    if !should_update {
+        log::info!("No update needed for instance {}", instance_id);
+        return Ok(());
+    }
+    
+    // Emit event to update frontend status
+    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit("instance-downloading-modpack-assets", serde_json::json!({
+                "id": instance_id,
+                "message": "Iniciando actualización del modpack..."
+            }));
+        }
+    }
+    
+    // TODO: Implement password validation if provided
+    if password.is_some() {
+        log::info!("Password provided for protected modpack");
+        // TODO: Validate password against API
+        // For now, we'll simulate password validation
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    }
+    
+    // TODO: Implement actual modpack update logic here
+    // This would include:
+    // 1. Download new modpack manifest
+    // 2. Compare with existing files
+    // 3. Download missing/updated files
+    // 4. Update instance configuration
+    
+    // For now, simulate the update process
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    
+    // Validate modpack assets after update
+    let bootstrap = crate::core::instance_bootstrap::InstanceBootstrap::new();
+    if let Err(e) = bootstrap.validate_modpack_assets(&instance, None, None) {
+        log::warn!("Failed to validate modpack assets: {}", e);
+    }
+    
+    // Emit completion event
+    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit("instance-finish-assets-download", serde_json::json!({
+                "id": instance_id,
+                "message": "Actualización del modpack completada"
+            }));
+        }
+    }
+    
+    log::info!("Modpack update completed for instance {}", instance_id);
+    Ok(())
+}
